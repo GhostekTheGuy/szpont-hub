@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { generateSalt, generateDEK, deriveKEK, encryptDEK } from "@/lib/crypto";
 
 export async function POST(request: Request) {
   try {
@@ -28,6 +29,12 @@ export async function POST(request: Request) {
       return new NextResponse(authError.message, { status: 400 });
     }
 
+    // Generuj klucze szyfrowania E2E
+    const salt = generateSalt();
+    const dek = generateDEK();
+    const kek = await deriveKEK(password, salt);
+    const encryptedDek = encryptDEK(dek, kek);
+
     // Dodaj użytkownika do tabeli users
     const { error: dbError } = await supabaseAdmin
       .from("users")
@@ -35,6 +42,8 @@ export async function POST(request: Request) {
         id: authData.user.id,
         email,
         name,
+        encryption_salt: salt.toString('base64'),
+        encrypted_dek: encryptedDek,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       });

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { TrendingUp, AlertCircle } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { initEncryptionSession } from '@/app/actions';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -31,6 +32,8 @@ export default function LoginPage() {
           ? 'Nieprawidłowy email lub hasło. Jeśli konto było tworzone przed migracją, zarejestruj się ponownie.'
           : error.message);
       } else {
+        // Inicjalizuj sesję szyfrowania E2E
+        await initEncryptionSession(data.password);
         router.push('/');
         router.refresh();
       }

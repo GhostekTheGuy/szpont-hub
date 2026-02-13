@@ -48,11 +48,26 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Sprawdź cookie szyfrowania na chronionych ścieżkach
+  if (user && isProtectedPath && !isApiRoute) {
+    const hasEncryptionCookie = request.cookies.has('encryption_dek');
+    if (!hasEncryptionCookie) {
+      // Sesja Supabase aktywna, ale cookie szyfrowania wygasło
+      const url = request.nextUrl.clone();
+      url.pathname = '/login';
+      return NextResponse.redirect(url);
+    }
+  }
+
   // Jeśli zalogowany i próbuje wejść na login/register - przekieruj na główną
   if (user && (request.nextUrl.pathname === '/login' || request.nextUrl.pathname === '/register')) {
-    const url = request.nextUrl.clone();
-    url.pathname = '/';
-    return NextResponse.redirect(url);
+    // Ale tylko jeśli ma cookie szyfrowania (inaczej niech się zaloguje ponownie)
+    const hasEncryptionCookie = request.cookies.has('encryption_dek');
+    if (hasEncryptionCookie) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/';
+      return NextResponse.redirect(url);
+    }
   }
 
   return supabaseResponse;
