@@ -9,6 +9,9 @@ import { nanoid } from 'nanoid';
 import {
   deriveKEK,
   decryptDEK,
+  generateSalt,
+  generateDEK,
+  encryptDEK,
   encryptForCookie,
   decryptFromCookie,
   encryptNumber,
@@ -40,14 +43,34 @@ export async function initEncryptionSession(password: string) {
     .eq('id', userId)
     .single();
 
-  if (error || !userData?.encryption_salt || !userData?.encrypted_dek) {
-    throw new Error('Encryption data not found');
+  if (error) {
+    console.error('Error fetching user encryption data:', error);
+    throw new Error('User not found');
   }
 
-  // Derivuj KEK z hasła i odszyfruj DEK
-  const salt = Buffer.from(userData.encryption_salt, 'base64');
-  const kek = await deriveKEK(password, salt);
-  const dek = decryptDEK(userData.encrypted_dek, kek);
+  let dek: Buffer;
+
+  if (!userData?.encryption_salt || !userData?.encrypted_dek) {
+    // Użytkownik zarejestrowany przed wdrożeniem szyfrowania
+    // Generuj klucze szyfrowania na pierwszym loginie
+    const salt = generateSalt();
+    dek = generateDEK();
+    const kek = await deriveKEK(password, salt);
+    const encryptedDek = encryptDEK(dek, kek);
+
+    await supabaseAdmin
+      .from('users')
+      .update({
+        encryption_salt: salt.toString('base64'),
+        encrypted_dek: encryptedDek,
+      })
+      .eq('id', userId);
+  } else {
+    // Normalny flow - odszyfruj istniejący DEK
+    const salt = Buffer.from(userData.encryption_salt, 'base64');
+    const kek = await deriveKEK(password, salt);
+    dek = decryptDEK(userData.encrypted_dek, kek);
+  }
 
   // Zaszyfruj DEK do cookie
   const encryptedForCookie = encryptForCookie(dek);
