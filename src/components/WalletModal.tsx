@@ -124,144 +124,144 @@ export function WalletModal({ isOpen, onClose, editingWallet }: WalletModalProps
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
             transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
           >
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-bold text-card-foreground flex items-center gap-2">
-            <WalletIcon className="w-5 h-5 text-primary" />
-            {editingWallet ? 'Edytuj Portfel' : 'Dodaj Portfel'}
-          </h2>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors" disabled={loading}>
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm text-muted-foreground mb-2">Nazwa</label>
-            <input
-              type="text"
-              required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
-              placeholder="np. Oszczędności"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm text-muted-foreground mb-2">Typ</label>
-            <select
-              value={type}
-              onChange={(e) => setType(e.target.value as any)}
-              className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
-            >
-              <option value="fiat">Waluta (PLN/USD)</option>
-              <option value="crypto">Kryptowaluty</option>
-              <option value="stock">Giełda / Akcje</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm text-muted-foreground mb-2">Ikona</label>
-            <div className="flex gap-2">
-              {iconOptions.map((opt) => {
-                const IconComp = opt.icon;
-                return (
-                  <button
-                    key={opt.name}
-                    type="button"
-                    onClick={() => setIcon(opt.name)}
-                    className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${
-                      icon === opt.name
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-secondary text-secondary-foreground hover:bg-accent'
-                    }`}
-                  >
-                    <IconComp className="w-5 h-5" />
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm text-muted-foreground mb-2">Efekt karty</label>
-            <div className="flex gap-2 mb-3">
-              {effectOptions.map((opt) => {
-                const Icon = opt.icon;
-                return (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => setEffect(opt.value)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                      effect === opt.value
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-secondary text-secondary-foreground hover:bg-accent'
-                    }`}
-                  >
-                    <Icon className="w-4 h-4" />
-                    {opt.label}
-                  </button>
-                );
-              })}
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-card-foreground flex items-center gap-2">
+                <WalletIcon className="w-5 h-5 text-primary" />
+                {editingWallet ? 'Edytuj Portfel' : 'Dodaj Portfel'}
+              </h2>
+              <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors" disabled={loading}>
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            {effect === 'gradient' && (
-              <div className="flex gap-2 flex-wrap">
-                {gradientOptions.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => setGradient(c)}
-                    className={`w-8 h-8 rounded-full bg-gradient-to-br ${c} transition-transform ${gradient === c ? 'ring-2 ring-ring ring-offset-2 ring-offset-card scale-110' : 'hover:scale-105'}`}
-                  />
-                ))}
-              </div>
-            )}
-
-            {effect === 'plasma' && (
-              <div className="flex items-center gap-3">
-                <label className="text-sm text-muted-foreground">Kolor</label>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm text-muted-foreground mb-2">Nazwa</label>
                 <input
-                  type="color"
-                  value={plasmaColor}
-                  onChange={(e) => setPlasmaColor(e.target.value)}
-                  className="w-10 h-10 rounded-lg border border-border cursor-pointer bg-transparent"
+                  type="text"
+                  required
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
+                  placeholder="np. Oszczędności"
                 />
-                <span className="text-xs text-muted-foreground font-mono">{plasmaColor}</span>
               </div>
-            )}
 
-            {effect === 'grainient' && (
-              <div className="flex flex-col gap-2">
-                {[
-                  { label: 'Kolor 1', value: grainColor1, set: setGrainColor1 },
-                  { label: 'Kolor 2', value: grainColor2, set: setGrainColor2 },
-                  { label: 'Kolor 3', value: grainColor3, set: setGrainColor3 },
-                ].map((c) => (
-                  <div key={c.label} className="flex items-center gap-3">
-                    <label className="text-sm text-muted-foreground w-16">{c.label}</label>
+              <div>
+                <label className="block text-sm text-muted-foreground mb-2">Typ</label>
+                <select
+                  value={type}
+                  onChange={(e) => setType(e.target.value as any)}
+                  className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
+                >
+                  <option value="fiat">Waluta (PLN/USD)</option>
+                  <option value="crypto">Kryptowaluty</option>
+                  <option value="stock">Giełda / Akcje</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm text-muted-foreground mb-2">Ikona</label>
+                <div className="flex gap-2">
+                  {iconOptions.map((opt) => {
+                    const IconComp = opt.icon;
+                    return (
+                      <button
+                        key={opt.name}
+                        type="button"
+                        onClick={() => setIcon(opt.name)}
+                        className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${
+                          icon === opt.name
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-secondary text-secondary-foreground hover:bg-accent'
+                        }`}
+                      >
+                        <IconComp className="w-5 h-5" />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm text-muted-foreground mb-2">Efekt karty</label>
+                <div className="flex gap-2 mb-3">
+                  {effectOptions.map((opt) => {
+                    const Icon = opt.icon;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setEffect(opt.value)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                          effect === opt.value
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-secondary text-secondary-foreground hover:bg-accent'
+                        }`}
+                      >
+                        <Icon className="w-4 h-4" />
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {effect === 'gradient' && (
+                  <div className="flex gap-2 flex-wrap">
+                    {gradientOptions.map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => setGradient(c)}
+                        className={`w-8 h-8 rounded-full bg-gradient-to-br ${c} transition-transform ${gradient === c ? 'ring-2 ring-ring ring-offset-2 ring-offset-card scale-110' : 'hover:scale-105'}`}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {effect === 'plasma' && (
+                  <div className="flex items-center gap-3">
+                    <label className="text-sm text-muted-foreground">Kolor</label>
                     <input
                       type="color"
-                      value={c.value}
-                      onChange={(e) => c.set(e.target.value)}
-                      className="w-8 h-8 rounded-lg border border-border cursor-pointer bg-transparent"
+                      value={plasmaColor}
+                      onChange={(e) => setPlasmaColor(e.target.value)}
+                      className="w-10 h-10 rounded-lg border border-border cursor-pointer bg-transparent"
                     />
-                    <span className="text-xs text-muted-foreground font-mono">{c.value}</span>
+                    <span className="text-xs text-muted-foreground font-mono">{plasmaColor}</span>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
+                )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-medium py-2.5 rounded-lg transition-colors mt-6 disabled:opacity-50"
-          >
-            {loading ? 'Zapisywanie...' : (editingWallet ? 'Zapisz zmiany' : 'Utwórz portfel')}
-          </button>
-        </form>
+                {effect === 'grainient' && (
+                  <div className="flex flex-col gap-2">
+                    {[
+                      { label: 'Kolor 1', value: grainColor1, set: setGrainColor1 },
+                      { label: 'Kolor 2', value: grainColor2, set: setGrainColor2 },
+                      { label: 'Kolor 3', value: grainColor3, set: setGrainColor3 },
+                    ].map((c) => (
+                      <div key={c.label} className="flex items-center gap-3">
+                        <label className="text-sm text-muted-foreground w-16">{c.label}</label>
+                        <input
+                          type="color"
+                          value={c.value}
+                          onChange={(e) => c.set(e.target.value)}
+                          className="w-8 h-8 rounded-lg border border-border cursor-pointer bg-transparent"
+                        />
+                        <span className="text-xs text-muted-foreground font-mono">{c.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-medium py-2.5 rounded-lg transition-colors mt-6 disabled:opacity-50"
+              >
+                {loading ? 'Zapisywanie...' : (editingWallet ? 'Zapisz zmiany' : 'Utwórz portfel')}
+              </button>
+            </form>
           </motion.div>
         </motion.div>
       )}

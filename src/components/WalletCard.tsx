@@ -1,5 +1,6 @@
 'use client';
 
+import { useRef, useCallback } from 'react';
 import { Wallet } from '@/hooks/useFinanceStore';
 import { Edit2, Trash2, Banknote, Bitcoin, TrendingUp, Wallet as WalletIcon, CreditCard, PiggyBank } from 'lucide-react';
 import dynamic from 'next/dynamic';
@@ -49,6 +50,37 @@ interface WalletCardProps {
 export function WalletCard({ wallet, onEdit, onDelete }: WalletCardProps) {
   const IconComponent = iconMap[wallet.icon] || WalletIcon;
   const parsed = parseWalletColor(wallet.color);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const glareRef = useRef<HTMLDivElement>(null);
+  const rafRef = useRef<number>(0);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const el = cardRef.current;
+    if (!el) return;
+    cancelAnimationFrame(rafRef.current);
+    rafRef.current = requestAnimationFrame(() => {
+      const rect = el.getBoundingClientRect();
+      const x = (e.clientX - rect.left) / rect.width;
+      const y = (e.clientY - rect.top) / rect.height;
+      const rotateY = (x - 0.5) * 20;
+      const rotateX = (0.5 - y) * 20;
+      el.style.transform = `perspective(600px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale3d(1.02, 1.02, 1.02)`;
+      if (glareRef.current) {
+        glareRef.current.style.background = `radial-gradient(circle at ${x * 100}% ${y * 100}%, rgba(255,255,255,0.15) 0%, transparent 60%)`;
+        glareRef.current.style.opacity = '1';
+      }
+    });
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    const el = cardRef.current;
+    if (!el) return;
+    cancelAnimationFrame(rafRef.current);
+    el.style.transform = 'perspective(600px) rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)';
+    if (glareRef.current) {
+      glareRef.current.style.opacity = '0';
+    }
+  }, []);
 
   const renderBackground = () => {
     switch (parsed.effect) {
@@ -98,15 +130,28 @@ export function WalletCard({ wallet, onEdit, onDelete }: WalletCardProps) {
   };
 
   const outerClass = parsed.effect === 'gradient'
-    ? `relative overflow-hidden rounded-2xl bg-gradient-to-br ${parsed.gradient} p-[1px] group transition-all duration-300 hover:scale-[1.03] hover:shadow-xl`
-    : 'relative overflow-hidden rounded-2xl p-[1px] group transition-all duration-300 hover:scale-[1.03] hover:shadow-xl';
+    ? `relative overflow-hidden rounded-2xl bg-gradient-to-br ${parsed.gradient} p-[1px] group`
+    : 'relative overflow-hidden rounded-2xl p-[1px] group';
 
   const innerClass = parsed.effect === 'gradient'
     ? `relative rounded-[calc(1rem-1px)] bg-gradient-to-br ${parsed.gradient} p-5 h-full`
     : 'relative rounded-[calc(1rem-1px)] overflow-hidden p-5 h-full bg-black';
 
   return (
-    <div className={outerClass}>
+    <div
+      ref={cardRef}
+      className={outerClass}
+      style={{ transition: 'transform 0.15s ease-out, box-shadow 0.15s ease-out', willChange: 'transform' }}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+    >
+      {/* Glare overlay */}
+      <div
+        ref={glareRef}
+        className="absolute inset-0 z-30 pointer-events-none rounded-2xl"
+        style={{ opacity: 0, transition: 'opacity 0.3s ease-out' }}
+      />
+
       {parsed.effect === 'gradient' && (
         <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
           <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-12" />

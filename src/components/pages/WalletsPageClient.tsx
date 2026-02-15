@@ -70,7 +70,7 @@ export function WalletsPageClient({ initialWallets, initialTransactions }: Props
           <div
             key={wallet.id}
             onClick={() => setActiveWallet(activeWalletId === wallet.id ? null : wallet.id)}
-            className={`cursor-pointer transition-all ${activeWalletId === wallet.id ? 'ring-2 ring-primary scale-105' : 'hover:scale-105'}`}
+            className={`cursor-pointer ${activeWalletId === wallet.id ? 'ring-2 ring-primary rounded-2xl' : ''}`}
           >
             <WalletCard
               wallet={wallet}
