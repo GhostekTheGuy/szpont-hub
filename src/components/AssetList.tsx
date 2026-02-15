@@ -1,5 +1,6 @@
 import { Asset } from '@/hooks/useFinanceStore';
 import { TrendingUp, TrendingDown, Coins } from 'lucide-react';
+import { formatCurrency } from '@/lib/exchange-rates';
 import {
   TokenBTC,
   TokenETH,
@@ -58,7 +59,7 @@ export function AssetList({ assets }: AssetListProps) {
         <div className="text-right">
           <p className="text-sm text-muted-foreground">Całkowita wartość</p>
           <p className="text-2xl font-bold text-card-foreground">
-            {totalValue.toLocaleString('pl-PL', { style: 'currency', currency: 'PLN' })}
+            {formatCurrency(totalValue)}
           </p>
         </div>
       </div>
@@ -94,14 +95,14 @@ export function AssetList({ assets }: AssetListProps) {
                         </span>
                       </div>
                       <p className="text-sm text-muted-foreground mt-0.5">
-                        {asset.quantity} × {asset.current_price.toLocaleString('pl-PL')} PLN
+                        {asset.quantity} × {formatCurrency(asset.current_price)}
                       </p>
                     </div>
                   </div>
 
                   <div className="text-right">
                     <p className="text-lg font-bold text-card-foreground">
-                      {asset.total_value.toLocaleString('pl-PL', { style: 'currency', currency: 'PLN' })}
+                      {formatCurrency(asset.total_value)}
                     </p>
                     <div className={`flex items-center justify-end gap-1 mt-1 ${
                       isPositive ? 'text-green-500' : 'text-red-500'

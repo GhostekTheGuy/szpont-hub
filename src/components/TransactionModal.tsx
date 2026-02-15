@@ -4,6 +4,7 @@ import { useEffect, useState, ChangeEvent, ChangeEventHandler } from 'react';
 import { X, Camera, CalendarIcon } from 'lucide-react';
 import { useFinanceStore, Transaction } from '@/hooks/useFinanceStore';
 import { addTransactionAction, editTransactionAction } from '@/app/actions';
+import type { Currency } from '@/lib/exchange-rates';
 import { ScanReceiptModal } from '@/components/ScanReceiptModal';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Calendar } from '@/components/ui/calendar';
@@ -29,6 +30,7 @@ export function TransactionModal({ isOpen, onClose, editingTransaction }: Transa
   const [date, setDate] = useState<Date>(new Date());
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [type, setType] = useState<'income' | 'outcome'>('outcome');
+  const [currency, setCurrency] = useState<Currency>('PLN');
   const [loading, setLoading] = useState(false);
   const [isScanOpen, setIsScanOpen] = useState(false);
 
@@ -40,6 +42,7 @@ export function TransactionModal({ isOpen, onClose, editingTransaction }: Transa
       setWalletId(editingTransaction.wallet);
       setDate(parseISO(editingTransaction.date));
       setType(editingTransaction.type);
+      setCurrency(editingTransaction.currency || 'PLN');
     } else {
       setAmount('');
       setCategory('');
@@ -47,6 +50,7 @@ export function TransactionModal({ isOpen, onClose, editingTransaction }: Transa
       if (wallets.length > 0) setWalletId(wallets[0].id);
       setDate(new Date());
       setType('outcome');
+      setCurrency('PLN');
     }
   }, [editingTransaction, isOpen, wallets]);
 
@@ -65,6 +69,7 @@ export function TransactionModal({ isOpen, onClose, editingTransaction }: Transa
       wallet: walletId,
       date: format(date, 'yyyy-MM-dd'),
       type,
+      currency,
     };
 
     try {
@@ -152,15 +157,26 @@ export function TransactionModal({ isOpen, onClose, editingTransaction }: Transa
 
           <div>
             <label className="block text-sm text-muted-foreground mb-2">Kwota</label>
-            <input
-              type="number"
-              step="0.01"
-              required
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
-              placeholder="0.00"
-            />
+            <div className="flex gap-2">
+              <input
+                type="number"
+                step="0.01"
+                required
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="flex-1 bg-input border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
+                placeholder="0.00"
+              />
+              <select
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value as Currency)}
+                className="w-20 bg-input border border-border rounded-lg px-2 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring transition-all text-center font-medium"
+              >
+                <option value="PLN">PLN</option>
+                <option value="USD">USD</option>
+                <option value="EUR">EUR</option>
+              </select>
+            </div>
           </div>
 
           <div>

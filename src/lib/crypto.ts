@@ -93,3 +93,24 @@ export function decryptNumber(encryptedValue: string, dek: Buffer): number {
   const decrypted = decrypt(encryptedValue, dek);
   return parseFloat(decrypted);
 }
+
+// --- String Field Helpers ---
+
+export function encryptString(value: string, dek: Buffer): string {
+  if (!value) return value;
+  return encrypt(value, dek);
+}
+
+export function decryptString(encryptedValue: string | null, dek: Buffer): string | null {
+  if (!encryptedValue) return encryptedValue;
+  // Guard for unencrypted data (migration compatibility)
+  // Encrypted strings have format iv:authTag:ciphertext (3 parts separated by ':')
+  const parts = encryptedValue.split(':');
+  if (parts.length !== 3) return encryptedValue;
+  try {
+    return decrypt(encryptedValue, dek);
+  } catch {
+    // If decryption fails, it's likely plaintext
+    return encryptedValue;
+  }
+}

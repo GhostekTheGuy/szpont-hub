@@ -1,6 +1,7 @@
 'use client';
 
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { formatCurrency } from '@/lib/exchange-rates';
 
 const monthlyData = [
   { month: 'Wrz', income: 12500, outcome: 8200 },
@@ -21,18 +22,18 @@ export function MonthlyIncomeChart() {
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 bg-green-500 rounded-full"></div>
               <p className="text-green-500 text-sm">
-                Przychody: {payload[0].value.toLocaleString('pl-PL')} PLN
+                Przychody: {formatCurrency(payload[0].value)}
               </p>
             </div>
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 bg-red-500 rounded-full"></div>
               <p className="text-red-500 text-sm">
-                Wydatki: {payload[1].value.toLocaleString('pl-PL')} PLN
+                Wydatki: {formatCurrency(payload[1].value)}
               </p>
             </div>
             <div className="border-t border-border mt-2 pt-2">
               <p className="text-card-foreground font-medium text-sm">
-                Zysk: {(payload[0].value - payload[1].value).toLocaleString('pl-PL')} PLN
+                Zysk: {formatCurrency(payload[0].value - payload[1].value)}
               </p>
             </div>
           </div>

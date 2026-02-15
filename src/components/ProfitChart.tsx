@@ -1,6 +1,7 @@
 'use client';
 
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { formatCurrency } from '@/lib/exchange-rates';
 
 const profitData = [
   { month: 'Wrz', profit: 4300 },
@@ -22,7 +23,7 @@ export function ProfitChart() {
         <div className="bg-card border border-primary/30 rounded-lg p-3 backdrop-blur-sm">
           <p className="text-muted-foreground text-sm mb-1">{payload[0].payload.month}</p>
           <p className="text-card-foreground font-bold text-lg mb-1">
-            {value.toLocaleString('pl-PL', { style: 'currency', currency: 'PLN' })}
+            {formatCurrency(value)}
           </p>
           {change !== 0 && (
             <p className={`text-sm ${change > 0 ? 'text-green-500' : 'text-red-500'}`}>
@@ -81,7 +82,7 @@ export function ProfitChart() {
         <div className="flex items-center justify-between">
           <span className="text-muted-foreground text-sm">Całkowity Zysk</span>
           <span className="text-2xl font-bold text-primary">
-            {profitData[profitData.length - 1].profit.toLocaleString('pl-PL', { style: 'currency', currency: 'PLN' })}
+            {formatCurrency(profitData[profitData.length - 1].profit)}
           </span>
         </div>
       </div>

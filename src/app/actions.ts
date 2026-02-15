@@ -16,7 +16,10 @@ import {
   decryptFromCookie,
   encryptNumber,
   decryptNumber,
+  encryptString,
+  decryptString,
 } from '@/lib/crypto';
+import { getExchangeRates, convertAmount, type Currency } from '@/lib/exchange-rates';
 
 async function getUserId() {
   const user = await getUser();
@@ -87,21 +90,21 @@ export async function initEncryptionSession(password: string) {
 
 // --- POBIERANIE DANYCH ---
 
-async function fetchWalletsAndTransactions(userId: string) {
-  const dek = await getDEK();
-
-  const { data: wallets, error: walletsError } = await supabaseAdmin
-    .from('wallets')
-    .select('*')
-    .eq('user_id', userId);
+async function fetchWalletsAndTransactions(userId: string, existingDek?: Buffer) {
+  // Równoległy fetch DEK (jeśli nie podany) + portfeli
+  const [dek, { data: wallets, error: walletsError }] = await Promise.all([
+    existingDek ? Promise.resolve(existingDek) : getDEK(),
+    supabaseAdmin.from('wallets').select('*').eq('user_id', userId),
+  ]);
 
   if (walletsError) {
     console.error('Error fetching wallets:', walletsError);
   }
 
-  // Deszyfruj salda portfeli
+  // Deszyfruj pola portfeli
   const decryptedWallets = (wallets || []).map(w => ({
     ...w,
+    name: decryptString(w.name, dek) || w.name,
     balance: decryptNumber(w.balance, dek),
   }));
 
@@ -121,10 +124,13 @@ async function fetchWalletsAndTransactions(userId: string) {
   const transactions = (transactionsRaw || []).map(t => ({
     ...t,
     amount: decryptNumber(t.amount, dek),
+    category: decryptString(t.category, dek) || t.category,
+    description: decryptString(t.description, dek),
     date: t.date?.split('T')[0] || '',
-    walletName: t.wallet?.name || '',
+    walletName: decryptString(t.wallet?.name, dek) || t.wallet?.name || '',
     wallet: t.wallet_id,
-    type: t.type as 'income' | 'outcome'
+    type: t.type as 'income' | 'outcome',
+    currency: (t.currency || 'PLN') as Currency,
   }));
 
   return { wallets: decryptedWallets, transactions };
@@ -135,12 +141,13 @@ export async function getDashboardData() {
   if (!userId) return null;
 
   const dek = await getDEK();
-  const { wallets, transactions } = await fetchWalletsAndTransactions(userId);
 
-  const { data: assets, error: assetsError } = await supabaseAdmin
-    .from('assets')
-    .select('*')
-    .eq('user_id', userId);
+  // Równoległe pobieranie wszystkich danych
+  const [{ wallets, transactions }, rates, { data: assets, error: assetsError }] = await Promise.all([
+    fetchWalletsAndTransactions(userId, dek),
+    getExchangeRates(),
+    supabaseAdmin.from('assets').select('*').eq('user_id', userId),
+  ]);
 
   if (assetsError) {
     console.error('Error fetching assets:', assetsError);
@@ -154,7 +161,7 @@ export async function getDashboardData() {
     total_value: decryptNumber(a.total_value, dek),
   }));
 
-  return { wallets, transactions, assets: decryptedAssets };
+  return { wallets, transactions, assets: decryptedAssets, exchangeRates: rates };
 }
 
 export async function getWalletsWithTransactions() {
@@ -203,6 +210,7 @@ export async function addTransactionAction(data: any) {
   if (!userId) throw new Error("Unauthorized");
 
   const dek = await getDEK();
+  const currency: Currency = data.currency || 'PLN';
 
   // 1. Pobierz portfel
   const { data: wallet, error: walletError } = await supabaseAdmin
@@ -220,17 +228,22 @@ export async function addTransactionAction(data: any) {
   // Odszyfruj aktualne saldo
   const currentBalance = decryptNumber(wallet.balance, dek);
 
-  // 2. Dodaj transakcję (zaszyfrowane amount)
+  // Przelicz kwotę na PLN dla salda portfela
+  const rates = await getExchangeRates();
+  const amountInPLN = convertAmount(data.amount, currency, 'PLN', rates);
+
+  // 2. Dodaj transakcję (zaszyfrowane pola)
   const { error: insertError } = await supabaseAdmin
     .from('transactions')
     .insert({
       id: nanoid(),
       amount: encryptNumber(data.amount, dek),
-      category: data.category,
-      description: data.description,
+      category: encryptString(data.category, dek),
+      description: data.description ? encryptString(data.description, dek) : null,
       type: data.type,
       date: data.date,
       wallet_id: data.wallet,
+      currency,
       created_at: new Date().toISOString()
     });
 
@@ -239,8 +252,8 @@ export async function addTransactionAction(data: any) {
     throw new Error(insertError.message);
   }
 
-  // 3. Zaktualizuj saldo (zaszyfrowane)
-  const newBalance = currentBalance + data.amount;
+  // 3. Zaktualizuj saldo w PLN (zaszyfrowane)
+  const newBalance = currentBalance + amountInPLN;
   await supabaseAdmin
     .from('wallets')
     .update({ balance: encryptNumber(newBalance, dek) })
@@ -267,8 +280,13 @@ export async function deleteTransactionAction(id: string) {
   const walletBalance = decryptNumber(transaction.wallet.balance, dek);
   const transactionAmount = decryptNumber(transaction.amount, dek);
 
-  // Cofnij saldo (zaszyfrowane)
-  const newBalance = walletBalance - transactionAmount;
+  // Przelicz na PLN jeśli inna waluta
+  const currency: Currency = transaction.currency || 'PLN';
+  const rates = await getExchangeRates();
+  const amountInPLN = convertAmount(transactionAmount, currency, 'PLN', rates);
+
+  // Cofnij saldo w PLN (zaszyfrowane)
+  const newBalance = walletBalance - amountInPLN;
   await supabaseAdmin
     .from('wallets')
     .update({ balance: encryptNumber(newBalance, dek) })
@@ -287,6 +305,7 @@ export async function editTransactionAction(id: string, data: any) {
   if (!userId) throw new Error("Unauthorized");
 
   const dek = await getDEK();
+  const rates = await getExchangeRates();
 
   const { data: oldTransaction } = await supabaseAdmin
     .from('transactions')
@@ -299,28 +318,34 @@ export async function editTransactionAction(id: string, data: any) {
   // Odszyfruj wartości do obliczeń
   const oldWalletBalance = decryptNumber(oldTransaction.wallet.balance, dek);
   const oldAmount = decryptNumber(oldTransaction.amount, dek);
+  const oldCurrency: Currency = oldTransaction.currency || 'PLN';
+  const oldAmountInPLN = convertAmount(oldAmount, oldCurrency, 'PLN', rates);
 
-  // 1. Cofnij starą transakcję (zaszyfrowane)
-  const revertedBalance = oldWalletBalance - oldAmount;
+  // 1. Cofnij starą transakcję w PLN (zaszyfrowane)
+  const revertedBalance = oldWalletBalance - oldAmountInPLN;
   await supabaseAdmin
     .from('wallets')
     .update({ balance: encryptNumber(revertedBalance, dek) })
     .eq('id', oldTransaction.wallet_id);
 
-  // 2. Zaktualizuj transakcję (zaszyfrowane amount)
+  const newCurrency: Currency = data.currency || 'PLN';
+
+  // 2. Zaktualizuj transakcję (zaszyfrowane pola)
   await supabaseAdmin
     .from('transactions')
     .update({
       amount: encryptNumber(data.amount, dek),
-      category: data.category,
-      description: data.description,
+      category: encryptString(data.category, dek),
+      description: data.description ? encryptString(data.description, dek) : null,
       type: data.type,
       date: data.date,
-      wallet_id: data.wallet
+      wallet_id: data.wallet,
+      currency: newCurrency,
     })
     .eq('id', id);
 
-  // 3. Dodaj do nowego portfela
+  // 3. Dodaj do nowego portfela (przeliczone na PLN)
+  const newAmountInPLN = convertAmount(data.amount, newCurrency, 'PLN', rates);
   const { data: newWallet } = await supabaseAdmin
     .from('wallets')
     .select('*')
@@ -329,7 +354,7 @@ export async function editTransactionAction(id: string, data: any) {
 
   if (newWallet) {
     const newWalletBalance = decryptNumber(newWallet.balance, dek);
-    const updatedBalance = newWalletBalance + data.amount;
+    const updatedBalance = newWalletBalance + newAmountInPLN;
     await supabaseAdmin
       .from('wallets')
       .update({ balance: encryptNumber(updatedBalance, dek) })
@@ -352,7 +377,7 @@ export async function addWalletAction(data: any) {
     .insert({
       id: nanoid(),
       user_id: userId,
-      name: data.name,
+      name: encryptString(data.name, dek),
       type: data.type,
       color: data.color,
       icon: data.icon,
@@ -382,10 +407,12 @@ export async function editWalletAction(id: string, data: any) {
 
   if (!wallet || wallet.user_id !== userId) return;
 
+  const dek = await getDEK();
+
   await supabaseAdmin
     .from('wallets')
     .update({
-      name: data.name,
+      name: encryptString(data.name, dek),
       type: data.type,
       color: data.color,
       icon: data.icon
@@ -445,32 +472,57 @@ export async function migrateUserDataToEncryption() {
   // Migruj portfele
   const { data: wallets } = await supabaseAdmin
     .from('wallets')
-    .select('id, balance')
+    .select('id, balance, name')
     .eq('user_id', userId);
 
   for (const w of wallets || []) {
-    // Pomiń już zaszyfrowane (zawierają ':')
-    if (typeof w.balance === 'string' && w.balance.includes(':')) continue;
-    const numBalance = typeof w.balance === 'number' ? w.balance : parseFloat(w.balance);
-    await supabaseAdmin
-      .from('wallets')
-      .update({ balance: encryptNumber(numBalance, dek) })
-      .eq('id', w.id);
+    const updates: Record<string, string> = {};
+    // Saldo
+    if (typeof w.balance === 'string' && !w.balance.includes(':')) {
+      updates.balance = encryptNumber(parseFloat(w.balance), dek);
+    } else if (typeof w.balance === 'number') {
+      updates.balance = encryptNumber(w.balance, dek);
+    }
+    // Nazwa
+    if (w.name && typeof w.name === 'string' && w.name.split(':').length !== 3) {
+      updates.name = encryptString(w.name, dek);
+    }
+    if (Object.keys(updates).length > 0) {
+      await supabaseAdmin
+        .from('wallets')
+        .update(updates)
+        .eq('id', w.id);
+    }
   }
 
   // Migruj transakcje
   const { data: transactions } = await supabaseAdmin
     .from('transactions')
-    .select('id, amount, wallet_id')
+    .select('id, amount, category, description, wallet_id')
     .in('wallet_id', (wallets || []).map(w => w.id));
 
   for (const t of transactions || []) {
-    if (typeof t.amount === 'string' && t.amount.includes(':')) continue;
-    const numAmount = typeof t.amount === 'number' ? t.amount : parseFloat(t.amount);
-    await supabaseAdmin
-      .from('transactions')
-      .update({ amount: encryptNumber(numAmount, dek) })
-      .eq('id', t.id);
+    const updates: Record<string, string | null> = {};
+    // Amount
+    if (typeof t.amount === 'string' && !t.amount.includes(':')) {
+      updates.amount = encryptNumber(parseFloat(t.amount), dek);
+    } else if (typeof t.amount === 'number') {
+      updates.amount = encryptNumber(t.amount, dek);
+    }
+    // Category
+    if (t.category && typeof t.category === 'string' && t.category.split(':').length !== 3) {
+      updates.category = encryptString(t.category, dek);
+    }
+    // Description
+    if (t.description && typeof t.description === 'string' && t.description.split(':').length !== 3) {
+      updates.description = encryptString(t.description, dek);
+    }
+    if (Object.keys(updates).length > 0) {
+      await supabaseAdmin
+        .from('transactions')
+        .update(updates)
+        .eq('id', t.id);
+    }
   }
 
   // Migruj aktywa

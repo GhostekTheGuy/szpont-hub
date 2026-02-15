@@ -5,14 +5,17 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { Transaction } from '@/hooks/useFinanceStore';
 import { format, subDays } from 'date-fns';
 import { pl } from 'date-fns/locale';
+import { convertAmount, formatCurrency, type Currency, type ExchangeRates } from '@/lib/exchange-rates';
 
 interface FinancialChartProps {
   transactions: Transaction[];
   range: '1W' | '1M' | '3M' | '1Y';
   setRange: (range: '1W' | '1M' | '3M' | '1Y') => void;
+  displayCurrency: Currency;
+  exchangeRates: ExchangeRates;
 }
 
-export function FinancialChart({ transactions, range, setRange }: FinancialChartProps) {
+export function FinancialChart({ transactions, range, setRange, displayCurrency, exchangeRates }: FinancialChartProps) {
 
   const chartData = useMemo(() => {
     const days = range === '1W' ? 7 : range === '1M' ? 30 : range === '3M' ? 90 : 365;
@@ -26,7 +29,7 @@ export function FinancialChart({ transactions, range, setRange }: FinancialChart
       const transactionsUntilNow = transactions.filter(t => new Date(t.date) <= date);
 
       const balance = transactionsUntilNow.reduce((acc, t) => {
-        return acc + t.amount;
+        return acc + convertAmount(t.amount, t.currency || 'PLN', displayCurrency, exchangeRates);
       }, 0);
 
       data.push({
@@ -37,7 +40,7 @@ export function FinancialChart({ transactions, range, setRange }: FinancialChart
     }
 
     return data;
-  }, [transactions, range]);
+  }, [transactions, range, displayCurrency, exchangeRates]);
 
   return (
     <div className="p-6">
@@ -92,7 +95,7 @@ export function FinancialChart({ transactions, range, setRange }: FinancialChart
               color: 'var(--card-foreground)'
             }}
             itemStyle={{ color: 'var(--card-foreground)' }}
-            formatter={(value: number) => [`${value.toLocaleString('pl-PL', { minimumFractionDigits: 2 })} PLN`, 'Wartość']}
+            formatter={(value: number) => [formatCurrency(value, displayCurrency), 'Wartość']}
             labelStyle={{ color: 'var(--muted-foreground)' }}
           />
           <Area

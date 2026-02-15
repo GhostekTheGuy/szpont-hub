@@ -2,6 +2,7 @@ import { Transaction } from '@/hooks/useFinanceStore';
 import { ArrowUpRight, ArrowDownRight, Trash2, Edit2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { pl } from 'date-fns/locale';
+import { formatCurrency } from '@/lib/exchange-rates';
 
 interface TransactionListProps {
   transactions: Transaction[];
@@ -34,7 +35,7 @@ export function TransactionList({ transactions, onDelete, onEdit }: TransactionL
               <div className="flex items-center gap-4">
                 <div className="text-right">
                   <p className={`font-bold ${transaction.type === 'income' ? 'text-green-500' : 'text-card-foreground'}`}>
-                    {transaction.type === 'income' ? '+' : '-'}{Math.abs(transaction.amount).toLocaleString('pl-PL', { style: 'currency', currency: 'PLN' })}
+                    {transaction.type === 'income' ? '+' : '-'}{formatCurrency(Math.abs(transaction.amount), transaction.currency || 'PLN')}
                   </p>
                   <p className="text-xs text-muted-foreground">{transaction.walletName}</p>
                 </div>

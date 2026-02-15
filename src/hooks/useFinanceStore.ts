@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { Currency } from '@/lib/exchange-rates';
 
 // Typy zgodne z bazą danych
 export interface Transaction {
@@ -10,6 +11,7 @@ export interface Transaction {
   walletName: string;
   type: 'income' | 'outcome';
   description: string | null;
+  currency: Currency;
 }
 
 export interface Wallet {

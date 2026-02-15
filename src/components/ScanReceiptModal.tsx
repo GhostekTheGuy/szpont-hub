@@ -5,6 +5,7 @@ import { X, Upload, Camera, Loader2, Check, Trash2 } from 'lucide-react';
 import { useFinanceStore } from '@/hooks/useFinanceStore';
 import { addTransactionAction } from '@/app/actions';
 import { motion, AnimatePresence } from 'framer-motion';
+import type { Currency } from '@/lib/exchange-rates';
 
 interface ScanReceiptModalProps {
   isOpen: boolean;
@@ -19,6 +20,7 @@ interface ScannedTransaction {
   category: string;
   date: string;
   description: string;
+  currency: Currency;
   selected: boolean;
 }
 
@@ -103,6 +105,7 @@ export function ScanReceiptModal({ isOpen, onClose }: ScanReceiptModalProps) {
         (t: Omit<ScannedTransaction, 'selected' | 'amount'> & { amount: number }) => ({
           ...t,
           amount: t.amount.toString(),
+          currency: t.currency || 'PLN',
           selected: true,
         })
       );
@@ -154,6 +157,7 @@ export function ScanReceiptModal({ isOpen, onClose }: ScanReceiptModalProps) {
           wallet: walletId,
           date: t.date,
           type: t.type,
+          currency: t.currency,
         });
         setSavedCount(i + 1);
       }
@@ -357,7 +361,7 @@ export function ScanReceiptModal({ isOpen, onClose }: ScanReceiptModalProps) {
                           <span className={`text-sm font-semibold ${
                             t.type === 'income' ? 'text-green-400' : 'text-red-400'
                           }`}>
-                            {t.type === 'income' ? '+' : '-'}{parseFloat(t.amount).toFixed(2)} PLN
+                            {t.type === 'income' ? '+' : '-'}{parseFloat(t.amount).toFixed(2)} {t.currency}
                           </span>
                         </div>
                       </div>
@@ -403,7 +407,7 @@ export function ScanReceiptModal({ isOpen, onClose }: ScanReceiptModalProps) {
                           Wydatek
                         </button>
                       </div>
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-3 gap-2">
                         <div>
                           <label className="block text-xs text-muted-foreground mb-1">Kwota</label>
                           <input
@@ -413,6 +417,18 @@ export function ScanReceiptModal({ isOpen, onClose }: ScanReceiptModalProps) {
                             onChange={(e) => updateTransaction(i, 'amount', e.target.value)}
                             className={inputClass}
                           />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-muted-foreground mb-1">Waluta</label>
+                          <select
+                            value={t.currency}
+                            onChange={(e) => updateTransaction(i, 'currency', e.target.value)}
+                            className={inputClass}
+                          >
+                            <option value="PLN">PLN</option>
+                            <option value="USD">USD</option>
+                            <option value="EUR">EUR</option>
+                          </select>
                         </div>
                         <div>
                           <label className="block text-xs text-muted-foreground mb-1">Data</label>

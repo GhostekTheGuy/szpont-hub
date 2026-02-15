@@ -23,6 +23,7 @@ export default async function Home() {
       initialWallets={data.wallets}
       initialTransactions={data.transactions}
       initialAssets={data.assets}
+      exchangeRates={data.exchangeRates}
       userName={userName}
     />
   );
