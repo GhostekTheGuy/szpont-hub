@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, Wallet as WalletIcon, Banknote, Bitcoin, TrendingUp, CreditCard, PiggyBank } from 'lucide-react';
+import { X, Wallet as WalletIcon, Banknote, Bitcoin, TrendingUp, CreditCard, PiggyBank, Sparkles, Waves, Palette } from 'lucide-react';
 import { addWalletAction, editWalletAction } from '@/app/actions';
 import { Wallet } from '@/hooks/useFinanceStore';
 import { motion, AnimatePresence } from 'framer-motion';
+import { parseWalletColor, type CardEffect } from '@/components/WalletCard';
 
 const iconOptions = [
   { name: 'wallet', icon: WalletIcon },
@@ -13,6 +14,23 @@ const iconOptions = [
   { name: 'trending', icon: TrendingUp },
   { name: 'card', icon: CreditCard },
   { name: 'piggy', icon: PiggyBank },
+];
+
+const gradientOptions = [
+  'from-violet-600 to-purple-500',
+  'from-indigo-500 to-blue-600',
+  'from-blue-500 to-cyan-500',
+  'from-emerald-500 to-teal-600',
+  'from-amber-500 to-orange-600',
+  'from-rose-500 to-pink-600',
+  'from-fuchsia-500 to-violet-600',
+  'from-slate-700 to-zinc-800',
+];
+
+const effectOptions: { value: CardEffect; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { value: 'gradient', label: 'Gradient', icon: Palette },
+  { value: 'plasma', label: 'Plasma', icon: Waves },
+  { value: 'grainient', label: 'Grainient', icon: Sparkles },
 ];
 
 interface WalletModalProps {
@@ -24,27 +42,56 @@ interface WalletModalProps {
 export function WalletModal({ isOpen, onClose, editingWallet }: WalletModalProps) {
   const [name, setName] = useState('');
   const [type, setType] = useState<'fiat' | 'crypto' | 'stock'>('fiat');
-  const [color, setColor] = useState('from-violet-600 to-purple-500');
   const [icon, setIcon] = useState('wallet');
   const [loading, setLoading] = useState(false);
+
+  const [effect, setEffect] = useState<CardEffect>('gradient');
+  const [gradient, setGradient] = useState('from-violet-600 to-purple-500');
+  const [plasmaColor, setPlasmaColor] = useState('#8b5cf6');
+  const [grainColor1, setGrainColor1] = useState('#FF9FFC');
+  const [grainColor2, setGrainColor2] = useState('#5227FF');
+  const [grainColor3, setGrainColor3] = useState('#B19EEF');
 
   useEffect(() => {
     if (editingWallet) {
       setName(editingWallet.name);
       setType(editingWallet.type);
-      setColor(editingWallet.color);
       setIcon(editingWallet.icon || 'wallet');
+
+      const parsed = parseWalletColor(editingWallet.color);
+      setEffect(parsed.effect);
+      if (parsed.effect === 'gradient') setGradient(parsed.gradient || 'from-violet-600 to-purple-500');
+      if (parsed.effect === 'plasma') setPlasmaColor(parsed.plasmaColor || '#8b5cf6');
+      if (parsed.effect === 'grainient' && parsed.grainientColors) {
+        setGrainColor1(parsed.grainientColors[0]);
+        setGrainColor2(parsed.grainientColors[1]);
+        setGrainColor3(parsed.grainientColors[2]);
+      }
     } else {
       setName('');
       setType('fiat');
-      setColor('from-violet-600 to-purple-500');
       setIcon('wallet');
+      setEffect('gradient');
+      setGradient('from-violet-600 to-purple-500');
+      setPlasmaColor('#8b5cf6');
+      setGrainColor1('#FF9FFC');
+      setGrainColor2('#5227FF');
+      setGrainColor3('#B19EEF');
     }
   }, [editingWallet, isOpen]);
+
+  const buildColor = (): string => {
+    switch (effect) {
+      case 'plasma': return `plasma:${plasmaColor}`;
+      case 'grainient': return `grainient:${grainColor1}:${grainColor2}:${grainColor3}`;
+      default: return gradient;
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    const color = buildColor();
 
     try {
       if (editingWallet) {
@@ -137,26 +184,74 @@ export function WalletModal({ isOpen, onClose, editingWallet }: WalletModalProps
           </div>
 
           <div>
-            <label className="block text-sm text-muted-foreground mb-2">Kolor</label>
-            <div className="flex gap-2 flex-wrap">
-              {[
-                'from-violet-600 to-purple-500',
-                'from-indigo-500 to-blue-600',
-                'from-blue-500 to-cyan-500',
-                'from-emerald-500 to-teal-600',
-                'from-amber-500 to-orange-600',
-                'from-rose-500 to-pink-600',
-                'from-fuchsia-500 to-violet-600',
-                'from-slate-700 to-zinc-800',
-              ].map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => setColor(c)}
-                  className={`w-8 h-8 rounded-full bg-gradient-to-br ${c} transition-transform ${color === c ? 'ring-2 ring-ring ring-offset-2 ring-offset-card scale-110' : 'hover:scale-105'}`}
-                />
-              ))}
+            <label className="block text-sm text-muted-foreground mb-2">Efekt karty</label>
+            <div className="flex gap-2 mb-3">
+              {effectOptions.map((opt) => {
+                const Icon = opt.icon;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setEffect(opt.value)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                      effect === opt.value
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-secondary text-secondary-foreground hover:bg-accent'
+                    }`}
+                  >
+                    <Icon className="w-4 h-4" />
+                    {opt.label}
+                  </button>
+                );
+              })}
             </div>
+
+            {effect === 'gradient' && (
+              <div className="flex gap-2 flex-wrap">
+                {gradientOptions.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setGradient(c)}
+                    className={`w-8 h-8 rounded-full bg-gradient-to-br ${c} transition-transform ${gradient === c ? 'ring-2 ring-ring ring-offset-2 ring-offset-card scale-110' : 'hover:scale-105'}`}
+                  />
+                ))}
+              </div>
+            )}
+
+            {effect === 'plasma' && (
+              <div className="flex items-center gap-3">
+                <label className="text-sm text-muted-foreground">Kolor</label>
+                <input
+                  type="color"
+                  value={plasmaColor}
+                  onChange={(e) => setPlasmaColor(e.target.value)}
+                  className="w-10 h-10 rounded-lg border border-border cursor-pointer bg-transparent"
+                />
+                <span className="text-xs text-muted-foreground font-mono">{plasmaColor}</span>
+              </div>
+            )}
+
+            {effect === 'grainient' && (
+              <div className="flex flex-col gap-2">
+                {[
+                  { label: 'Kolor 1', value: grainColor1, set: setGrainColor1 },
+                  { label: 'Kolor 2', value: grainColor2, set: setGrainColor2 },
+                  { label: 'Kolor 3', value: grainColor3, set: setGrainColor3 },
+                ].map((c) => (
+                  <div key={c.label} className="flex items-center gap-3">
+                    <label className="text-sm text-muted-foreground w-16">{c.label}</label>
+                    <input
+                      type="color"
+                      value={c.value}
+                      onChange={(e) => c.set(e.target.value)}
+                      className="w-8 h-8 rounded-lg border border-border cursor-pointer bg-transparent"
+                    />
+                    <span className="text-xs text-muted-foreground font-mono">{c.value}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <button
