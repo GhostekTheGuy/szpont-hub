@@ -4,8 +4,9 @@ import { useState, useMemo, useEffect } from 'react';
 import { TransactionList } from '@/components/TransactionList';
 import { TransactionModal } from '@/components/TransactionModal';
 import { useFinanceStore, Transaction, Wallet } from '@/hooks/useFinanceStore';
-import { Plus } from 'lucide-react';
+import { Plus, Camera } from 'lucide-react';
 import { deleteTransactionAction } from '@/app/actions';
+import { ScanReceiptModal } from '@/components/ScanReceiptModal';
 
 interface Props {
   initialWallets: Wallet[];
@@ -14,6 +15,7 @@ interface Props {
 
 export function TransactionsPageClient({ initialWallets, initialTransactions }: Props) {
   const [isTransModalOpen, setIsTransModalOpen] = useState(false);
+  const [isScanModalOpen, setIsScanModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [filterWalletId, setFilterWalletId] = useState<string | null>(null);
 
@@ -37,12 +39,20 @@ export function TransactionsPageClient({ initialWallets, initialTransactions }: 
     <>
       <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-3">
         <h1 className="text-3xl font-bold text-foreground">Transakcje</h1>
-        <button
-          onClick={() => { setEditingTransaction(null); setIsTransModalOpen(true); }}
-          className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg transition-all"
-        >
-          <Plus className="w-4 h-4" /> Nowa transakcja
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setIsScanModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-secondary hover:bg-accent text-secondary-foreground rounded-lg transition-all"
+          >
+            <Camera className="w-4 h-4" /> Skanuj rachunek
+          </button>
+          <button
+            onClick={() => { setEditingTransaction(null); setIsTransModalOpen(true); }}
+            className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg transition-all"
+          >
+            <Plus className="w-4 h-4" /> Nowa transakcja
+          </button>
+        </div>
       </div>
 
       {/* Wallet filter */}
@@ -86,6 +96,11 @@ export function TransactionsPageClient({ initialWallets, initialTransactions }: 
         isOpen={isTransModalOpen}
         onClose={() => setIsTransModalOpen(false)}
         editingTransaction={editingTransaction}
+      />
+
+      <ScanReceiptModal
+        isOpen={isScanModalOpen}
+        onClose={() => setIsScanModalOpen(false)}
       />
     </>
   );

@@ -1,9 +1,17 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { X } from 'lucide-react';
+import { useEffect, useState, ChangeEvent, ChangeEventHandler } from 'react';
+import { X, Camera, CalendarIcon } from 'lucide-react';
 import { useFinanceStore, Transaction } from '@/hooks/useFinanceStore';
 import { addTransactionAction, editTransactionAction } from '@/app/actions';
+import { ScanReceiptModal } from '@/components/ScanReceiptModal';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { format, parseISO } from 'date-fns';
+import { pl } from 'date-fns/locale';
+import type { DropdownNavProps, DropdownProps } from 'react-day-picker';
 
 interface TransactionModalProps {
   isOpen: boolean;
@@ -18,9 +26,11 @@ export function TransactionModal({ isOpen, onClose, editingTransaction }: Transa
   const [category, setCategory] = useState('');
   const [description, setDescription] = useState('');
   const [walletId, setWalletId] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState<Date>(new Date());
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const [type, setType] = useState<'income' | 'outcome'>('outcome');
   const [loading, setLoading] = useState(false);
+  const [isScanOpen, setIsScanOpen] = useState(false);
 
   useEffect(() => {
     if (editingTransaction) {
@@ -28,19 +38,17 @@ export function TransactionModal({ isOpen, onClose, editingTransaction }: Transa
       setCategory(editingTransaction.category);
       setDescription(editingTransaction.description || '');
       setWalletId(editingTransaction.wallet);
-      setDate(editingTransaction.date);
+      setDate(parseISO(editingTransaction.date));
       setType(editingTransaction.type);
     } else {
       setAmount('');
       setCategory('');
       setDescription('');
       if (wallets.length > 0) setWalletId(wallets[0].id);
-      setDate(new Date().toISOString().split('T')[0]);
+      setDate(new Date());
       setType('outcome');
     }
   }, [editingTransaction, isOpen, wallets]);
-
-  if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,7 +63,7 @@ export function TransactionModal({ isOpen, onClose, editingTransaction }: Transa
       category,
       description,
       wallet: walletId,
-      date,
+      date: format(date, 'yyyy-MM-dd'),
       type,
     };
 
@@ -75,8 +83,22 @@ export function TransactionModal({ isOpen, onClose, editingTransaction }: Transa
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-card border border-border rounded-xl p-6 w-full max-w-md shadow-xl">
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+        >
+          <motion.div
+            className="bg-card border border-border rounded-xl p-6 w-full max-w-md shadow-xl"
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+          >
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-bold text-card-foreground">
             {editingTransaction ? 'Edytuj Transakcję' : 'Nowa Transakcja'}
@@ -85,6 +107,22 @@ export function TransactionModal({ isOpen, onClose, editingTransaction }: Transa
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {!editingTransaction && (
+          <button
+            type="button"
+            onClick={() => { setIsScanOpen(true); onClose(); }}
+            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
+          >
+            <Camera className="w-4 h-4" />
+            Skanuj rachunek
+          </button>
+        )}
+
+        <ScanReceiptModal
+          isOpen={isScanOpen}
+          onClose={() => setIsScanOpen(false)}
+        />
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
@@ -164,13 +202,62 @@ export function TransactionModal({ isOpen, onClose, editingTransaction }: Transa
 
           <div>
             <label className="block text-sm text-muted-foreground mb-2">Data</label>
-            <input
-              type="date"
-              required
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
-            />
+            <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring transition-all flex items-center justify-between"
+                >
+                  <span>{format(date, 'd MMMM yyyy', { locale: pl })}</span>
+                  <CalendarIcon className="w-4 h-4 text-muted-foreground" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start" sideOffset={4}>
+                <Calendar
+                  captionLayout="dropdown"
+                  classNames={{ month_caption: 'mx-0' }}
+                  components={{
+                    Dropdown: (props: DropdownProps) => {
+                      const handleChange = (_value: string | number, _e: ChangeEventHandler<HTMLSelectElement>) => {
+                        const event = { target: { value: String(_value) } } as ChangeEvent<HTMLSelectElement>;
+                        _e(event);
+                      };
+                      return (
+                        <Select
+                          onValueChange={(value) => {
+                            if (props.onChange && value !== null) handleChange(value, props.onChange);
+                          }}
+                          value={String(props.value)}
+                        >
+                          <SelectTrigger className="first:grow">
+                            <SelectValue>
+                              {props.options?.find((o) => o.value === props.value)?.label}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent align="start">
+                            {props.options?.map((option) => (
+                              <SelectItem disabled={option.disabled} key={option.value} value={String(option.value)}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      );
+                    },
+                    DropdownNav: (props: DropdownNavProps) => (
+                      <div className="flex w-full items-center gap-2">{props.children}</div>
+                    ),
+                  }}
+                  defaultMonth={date}
+                  hideNavigation
+                  mode="single"
+                  selected={date}
+                  onSelect={(d) => { if (d) { setDate(d); setCalendarOpen(false); } }}
+                  locale={pl}
+                  startMonth={new Date(2020, 0)}
+                />
+              </PopoverContent>
+            </Popover>
           </div>
 
           <button
@@ -181,7 +268,9 @@ export function TransactionModal({ isOpen, onClose, editingTransaction }: Transa
             {loading ? 'Zapisywanie...' : (editingTransaction ? 'Zapisz zmiany' : 'Dodaj transakcję')}
           </button>
         </form>
-      </div>
-    </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }

@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { signOutAction } from '@/app/actions';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { PageTransition } from '@/components/PageTransition';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -119,7 +120,9 @@ export function DashboardLayout({ children, userName }: DashboardLayoutProps) {
       {/* Main content */}
       <main className="lg:ml-64 min-h-screen pb-20 lg:pb-0">
         <div className="p-6 pt-20 lg:pt-6">
-          {children}
+          <PageTransition>
+            {children}
+          </PageTransition>
         </div>
       </main>
 

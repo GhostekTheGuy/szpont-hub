@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { X, Wallet as WalletIcon, Banknote, Bitcoin, TrendingUp, CreditCard, PiggyBank } from 'lucide-react';
 import { addWalletAction, editWalletAction } from '@/app/actions';
 import { Wallet } from '@/hooks/useFinanceStore';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const iconOptions = [
   { name: 'wallet', icon: WalletIcon },
@@ -41,8 +42,6 @@ export function WalletModal({ isOpen, onClose, editingWallet }: WalletModalProps
     }
   }, [editingWallet, isOpen]);
 
-  if (!isOpen) return null;
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -62,8 +61,22 @@ export function WalletModal({ isOpen, onClose, editingWallet }: WalletModalProps
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-card border border-border rounded-xl p-6 w-full max-w-md shadow-xl">
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+        >
+          <motion.div
+            className="bg-card border border-border rounded-xl p-6 w-full max-w-md shadow-xl"
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+          >
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-bold text-card-foreground flex items-center gap-2">
             <WalletIcon className="w-5 h-5 text-primary" />
@@ -154,7 +167,9 @@ export function WalletModal({ isOpen, onClose, editingWallet }: WalletModalProps
             {loading ? 'Zapisywanie...' : (editingWallet ? 'Zapisz zmiany' : 'Utwórz portfel')}
           </button>
         </form>
-      </div>
-    </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
