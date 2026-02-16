@@ -34,7 +34,7 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   // Chronione ścieżki - przekieruj na login jeśli nie zalogowany
-  const protectedPaths = ['/', '/wallets', '/transactions', '/assets', '/settings'];
+  const protectedPaths = ['/', '/wallets', '/transactions', '/assets', '/settings', '/calendar'];
   const isProtectedPath = protectedPaths.some(
     (path) => request.nextUrl.pathname === path || request.nextUrl.pathname.startsWith(path + '/')
   );

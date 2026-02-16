@@ -461,6 +461,319 @@ export async function signOutAction() {
   revalidatePath('/', 'layout');
 }
 
+// --- KALENDARZ ---
+
+export async function getCalendarEvents(weekStart: string, weekEnd: string) {
+  const userId = await getUserId();
+  if (!userId) return null;
+
+  const dek = await getDEK();
+
+  const [{ data: events, error: eventsError }, { data: wallets }] = await Promise.all([
+    supabaseAdmin
+      .from('calendar_events')
+      .select('*')
+      .eq('user_id', userId)
+      .gte('start_time', weekStart)
+      .lte('end_time', weekEnd)
+      .order('start_time', { ascending: true }),
+    supabaseAdmin
+      .from('wallets')
+      .select('id, name, color')
+      .eq('user_id', userId),
+  ]);
+
+  if (eventsError) {
+    console.error('Error fetching calendar events:', eventsError);
+  }
+
+  const walletMap = new Map(
+    (wallets || []).map(w => [w.id, { name: decryptString(w.name, dek) || w.name, color: w.color }])
+  );
+
+  const decryptedEvents = (events || []).map(e => ({
+    id: e.id,
+    title: decryptString(e.title, dek) || e.title,
+    wallet_id: e.wallet_id,
+    walletName: e.wallet_id ? walletMap.get(e.wallet_id)?.name || '' : '',
+    walletColor: e.wallet_id ? walletMap.get(e.wallet_id)?.color || '' : '',
+    hourly_rate: decryptNumber(e.hourly_rate, dek),
+    start_time: e.start_time,
+    end_time: e.end_time,
+    is_recurring: e.is_recurring,
+    recurrence_rule: e.recurrence_rule,
+    is_settled: e.is_settled,
+  }));
+
+  // Pobierz portfele do formularza
+  const decryptedWallets = (wallets || []).map(w => ({
+    ...w,
+    name: decryptString(w.name, dek) || w.name,
+    balance: 0,
+    icon: '',
+    type: 'fiat' as const,
+  }));
+
+  return { events: decryptedEvents, wallets: decryptedWallets };
+}
+
+export async function addCalendarEvent(data: {
+  title: string;
+  wallet_id: string;
+  hourly_rate: number;
+  start_time: string;
+  end_time: string;
+  is_recurring: boolean;
+  recurrence_rule: string | null;
+}) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  const dek = await getDEK();
+
+  const { error } = await supabaseAdmin
+    .from('calendar_events')
+    .insert({
+      id: nanoid(),
+      user_id: userId,
+      title: encryptString(data.title, dek),
+      wallet_id: data.wallet_id,
+      hourly_rate: encryptNumber(data.hourly_rate, dek),
+      start_time: data.start_time,
+      end_time: data.end_time,
+      is_recurring: data.is_recurring,
+      recurrence_rule: data.recurrence_rule,
+      created_at: new Date().toISOString(),
+    });
+
+  if (error) {
+    console.error('Error adding calendar event:', error);
+    throw new Error(error.message);
+  }
+
+  revalidatePath('/', 'layout');
+}
+
+export async function editCalendarEvent(id: string, data: {
+  title: string;
+  wallet_id: string;
+  hourly_rate: number;
+  start_time: string;
+  end_time: string;
+  is_recurring: boolean;
+  recurrence_rule: string | null;
+}) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  const { data: event } = await supabaseAdmin
+    .from('calendar_events')
+    .select('user_id')
+    .eq('id', id)
+    .single();
+
+  if (!event || event.user_id !== userId) return;
+
+  const dek = await getDEK();
+
+  await supabaseAdmin
+    .from('calendar_events')
+    .update({
+      title: encryptString(data.title, dek),
+      wallet_id: data.wallet_id,
+      hourly_rate: encryptNumber(data.hourly_rate, dek),
+      start_time: data.start_time,
+      end_time: data.end_time,
+      is_recurring: data.is_recurring,
+      recurrence_rule: data.recurrence_rule,
+    })
+    .eq('id', id);
+
+  revalidatePath('/', 'layout');
+}
+
+export async function deleteCalendarEvent(id: string) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  const { data: event } = await supabaseAdmin
+    .from('calendar_events')
+    .select('user_id')
+    .eq('id', id)
+    .single();
+
+  if (!event || event.user_id !== userId) return;
+
+  await supabaseAdmin
+    .from('calendar_events')
+    .delete()
+    .eq('id', id);
+
+  revalidatePath('/', 'layout');
+}
+
+export async function settleWeekAction(weekStart: string, weekEnd: string) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  const dek = await getDEK();
+  const rates = await getExchangeRates();
+
+  // Pobierz niezatwierdzone eventy z tego tygodnia
+  const { data: events, error } = await supabaseAdmin
+    .from('calendar_events')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('is_settled', false)
+    .gte('start_time', weekStart)
+    .lte('end_time', weekEnd);
+
+  if (error || !events || events.length === 0) return { settled: 0 };
+
+  // Grupuj zarobki per portfel
+  const walletEarnings = new Map<string, number>();
+
+  for (const event of events) {
+    if (!event.wallet_id) continue;
+    const hourlyRate = decryptNumber(event.hourly_rate, dek);
+    const start = new Date(event.start_time);
+    const end = new Date(event.end_time);
+    const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+    const earnings = hours * hourlyRate;
+
+    walletEarnings.set(
+      event.wallet_id,
+      (walletEarnings.get(event.wallet_id) || 0) + earnings
+    );
+  }
+
+  // Stwórz transakcje income i zaktualizuj salda
+  for (const [walletId, totalEarnings] of Array.from(walletEarnings.entries())) {
+    const { data: wallet } = await supabaseAdmin
+      .from('wallets')
+      .select('*')
+      .eq('id', walletId)
+      .single();
+
+    if (!wallet) continue;
+
+    const currentBalance = decryptNumber(wallet.balance, dek);
+    const amountInPLN = totalEarnings; // Stawki są w PLN
+
+    // Dodaj transakcję income
+    await supabaseAdmin
+      .from('transactions')
+      .insert({
+        id: nanoid(),
+        amount: encryptNumber(totalEarnings, dek),
+        category: encryptString('Praca', dek),
+        description: encryptString(`Zarobki za tydzień ${weekStart.split('T')[0]}`, dek),
+        type: 'income',
+        date: new Date().toISOString().split('T')[0],
+        wallet_id: walletId,
+        currency: 'PLN',
+        created_at: new Date().toISOString(),
+      });
+
+    // Zaktualizuj saldo portfela
+    const newBalance = currentBalance + amountInPLN;
+    await supabaseAdmin
+      .from('wallets')
+      .update({ balance: encryptNumber(newBalance, dek) })
+      .eq('id', walletId);
+  }
+
+  // Oznacz eventy jako settled
+  const eventIds = events.map(e => e.id);
+  await supabaseAdmin
+    .from('calendar_events')
+    .update({ is_settled: true })
+    .in('id', eventIds);
+
+  revalidatePath('/', 'layout');
+  return { settled: events.length };
+}
+
+export async function getWeeklySummary(weekStart: string, weekEnd: string) {
+  const userId = await getUserId();
+  if (!userId) return null;
+
+  const dek = await getDEK();
+
+  // Pobierz eventy z bieżącego tygodnia
+  const { data: events } = await supabaseAdmin
+    .from('calendar_events')
+    .select('*')
+    .eq('user_id', userId)
+    .gte('start_time', weekStart)
+    .lte('end_time', weekEnd);
+
+  // Pobierz eventy z poprzedniego tygodnia
+  const prevWeekStart = new Date(weekStart);
+  prevWeekStart.setDate(prevWeekStart.getDate() - 7);
+  const prevWeekEnd = new Date(weekEnd);
+  prevWeekEnd.setDate(prevWeekEnd.getDate() - 7);
+
+  const { data: prevEvents } = await supabaseAdmin
+    .from('calendar_events')
+    .select('*')
+    .eq('user_id', userId)
+    .gte('start_time', prevWeekStart.toISOString())
+    .lte('end_time', prevWeekEnd.toISOString());
+
+  const { data: wallets } = await supabaseAdmin
+    .from('wallets')
+    .select('id, name, color')
+    .eq('user_id', userId);
+
+  const walletMap = new Map(
+    (wallets || []).map(w => [w.id, { name: decryptString(w.name, dek) || w.name, color: w.color }])
+  );
+
+  const calcEarnings = (evts: typeof events) => {
+    let total = 0;
+    let totalHours = 0;
+    const byWallet = new Map<string, { name: string; color: string; earnings: number; hours: number }>();
+
+    for (const e of evts || []) {
+      const rate = decryptNumber(e.hourly_rate, dek);
+      const hours = (new Date(e.end_time).getTime() - new Date(e.start_time).getTime()) / (1000 * 60 * 60);
+      const earnings = hours * rate;
+      total += earnings;
+      totalHours += hours;
+
+      if (e.wallet_id) {
+        const wallet = walletMap.get(e.wallet_id);
+        const existing = byWallet.get(e.wallet_id) || {
+          name: wallet?.name || '',
+          color: wallet?.color || '',
+          earnings: 0,
+          hours: 0,
+        };
+        existing.earnings += earnings;
+        existing.hours += hours;
+        byWallet.set(e.wallet_id, existing);
+      }
+    }
+
+    return { total, totalHours, byWallet: Array.from(byWallet.entries()).map(([id, data]) => ({ id, ...data })) };
+  };
+
+  const current = calcEarnings(events);
+  const previous = calcEarnings(prevEvents);
+  const unsettledCount = (events || []).filter(e => !e.is_settled).length;
+
+  return {
+    totalEarnings: current.total,
+    totalHours: current.totalHours,
+    byWallet: current.byWallet,
+    previousWeekEarnings: previous.total,
+    previousWeekHours: previous.totalHours,
+    unsettledCount,
+    eventCount: (events || []).length,
+  };
+}
+
 // --- MIGRACJA DANYCH ---
 
 export async function migrateUserDataToEncryption() {

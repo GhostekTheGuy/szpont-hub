@@ -8,6 +8,7 @@ import {
   Wallet,
   ArrowLeftRight,
   PiggyBank,
+  CalendarDays,
   LogOut,
   TrendingUp
 } from 'lucide-react';
@@ -25,6 +26,7 @@ const navItems = [
   { href: '/wallets', label: 'Portfele', icon: Wallet },
   { href: '/transactions', label: 'Transakcje', icon: ArrowLeftRight },
   { href: '/assets', label: 'Aktywa', icon: PiggyBank },
+  { href: '/calendar', label: 'Kalendarz', icon: CalendarDays },
 ];
 
 export function DashboardLayout({ children, userName }: DashboardLayoutProps) {
