@@ -774,6 +774,183 @@ export async function getWeeklySummary(weekStart: string, weekEnd: string) {
   };
 }
 
+export async function getMonthlySummary(monthStart: string, monthEnd: string) {
+  const userId = await getUserId();
+  if (!userId) return null;
+
+  const dek = await getDEK();
+
+  // Pobierz eventy z bieżącego miesiąca
+  const { data: events } = await supabaseAdmin
+    .from('calendar_events')
+    .select('*')
+    .eq('user_id', userId)
+    .gte('start_time', monthStart)
+    .lte('end_time', monthEnd);
+
+  // Pobierz eventy z poprzedniego miesiąca
+  const prevMonthStart = new Date(monthStart);
+  prevMonthStart.setMonth(prevMonthStart.getMonth() - 1);
+  const prevMonthEnd = new Date(monthEnd);
+  prevMonthEnd.setMonth(prevMonthEnd.getMonth() - 1);
+
+  const { data: prevEvents } = await supabaseAdmin
+    .from('calendar_events')
+    .select('*')
+    .eq('user_id', userId)
+    .gte('start_time', prevMonthStart.toISOString())
+    .lte('end_time', prevMonthEnd.toISOString());
+
+  const { data: wallets } = await supabaseAdmin
+    .from('wallets')
+    .select('id, name, color')
+    .eq('user_id', userId);
+
+  const walletMap = new Map(
+    (wallets || []).map(w => [w.id, { name: decryptString(w.name, dek) || w.name, color: w.color }])
+  );
+
+  const calcEarnings = (evts: typeof events) => {
+    let total = 0;
+    let totalHours = 0;
+    const byWallet = new Map<string, { name: string; color: string; earnings: number; hours: number }>();
+    const weeklyBreakdown = new Map<string, number>();
+
+    for (const e of evts || []) {
+      const rate = decryptNumber(e.hourly_rate, dek);
+      const hours = (new Date(e.end_time).getTime() - new Date(e.start_time).getTime()) / (1000 * 60 * 60);
+      const earnings = hours * rate;
+      total += earnings;
+      totalHours += hours;
+
+      // Weekly breakdown
+      const eventDate = new Date(e.start_time);
+      const weekNum = getISOWeekLabel(eventDate);
+      weeklyBreakdown.set(weekNum, (weeklyBreakdown.get(weekNum) || 0) + earnings);
+
+      if (e.wallet_id) {
+        const wallet = walletMap.get(e.wallet_id);
+        const existing = byWallet.get(e.wallet_id) || {
+          name: wallet?.name || '',
+          color: wallet?.color || '',
+          earnings: 0,
+          hours: 0,
+        };
+        existing.earnings += earnings;
+        existing.hours += hours;
+        byWallet.set(e.wallet_id, existing);
+      }
+    }
+
+    return {
+      total,
+      totalHours,
+      byWallet: Array.from(byWallet.entries()).map(([id, data]) => ({ id, ...data })),
+      weeklyBreakdown: Array.from(weeklyBreakdown.entries())
+        .map(([week, earnings]) => ({ week, earnings }))
+        .sort((a, b) => a.week.localeCompare(b.week)),
+    };
+  };
+
+  const current = calcEarnings(events);
+  const previous = calcEarnings(prevEvents);
+  const unsettledCount = (events || []).filter(e => !e.is_settled).length;
+
+  return {
+    totalEarnings: current.total,
+    totalHours: current.totalHours,
+    byWallet: current.byWallet,
+    weeklyBreakdown: current.weeklyBreakdown,
+    previousPeriodEarnings: previous.total,
+    previousPeriodHours: previous.totalHours,
+    unsettledCount,
+    eventCount: (events || []).length,
+  };
+}
+
+function getISOWeekLabel(date: Date): string {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
+  const week1 = new Date(d.getFullYear(), 0, 4);
+  const weekNum = 1 + Math.round(((d.getTime() - week1.getTime()) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7);
+  return `Tydzień ${weekNum}`;
+}
+
+export async function settleMonthAction(monthStart: string, monthEnd: string) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  const dek = await getDEK();
+
+  const { data: events, error } = await supabaseAdmin
+    .from('calendar_events')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('is_settled', false)
+    .gte('start_time', monthStart)
+    .lte('end_time', monthEnd);
+
+  if (error || !events || events.length === 0) return { settled: 0 };
+
+  const walletEarnings = new Map<string, number>();
+
+  for (const event of events) {
+    if (!event.wallet_id) continue;
+    const hourlyRate = decryptNumber(event.hourly_rate, dek);
+    const start = new Date(event.start_time);
+    const end = new Date(event.end_time);
+    const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+    const earnings = hours * hourlyRate;
+
+    walletEarnings.set(
+      event.wallet_id,
+      (walletEarnings.get(event.wallet_id) || 0) + earnings
+    );
+  }
+
+  for (const [walletId, totalEarnings] of Array.from(walletEarnings.entries())) {
+    const { data: wallet } = await supabaseAdmin
+      .from('wallets')
+      .select('*')
+      .eq('id', walletId)
+      .single();
+
+    if (!wallet) continue;
+
+    const currentBalance = decryptNumber(wallet.balance, dek);
+
+    await supabaseAdmin
+      .from('transactions')
+      .insert({
+        id: nanoid(),
+        amount: encryptNumber(totalEarnings, dek),
+        category: encryptString('Praca', dek),
+        description: encryptString(`Zarobki za miesiąc ${monthStart.split('T')[0].slice(0, 7)}`, dek),
+        type: 'income',
+        date: new Date().toISOString().split('T')[0],
+        wallet_id: walletId,
+        currency: 'PLN',
+        created_at: new Date().toISOString(),
+      });
+
+    const newBalance = currentBalance + totalEarnings;
+    await supabaseAdmin
+      .from('wallets')
+      .update({ balance: encryptNumber(newBalance, dek) })
+      .eq('id', walletId);
+  }
+
+  const eventIds = events.map(e => e.id);
+  await supabaseAdmin
+    .from('calendar_events')
+    .update({ is_settled: true })
+    .in('id', eventIds);
+
+  revalidatePath('/', 'layout');
+  return { settled: events.length };
+}
+
 // --- MIGRACJA DANYCH ---
 
 export async function migrateUserDataToEncryption() {

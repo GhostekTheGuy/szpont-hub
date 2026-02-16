@@ -6,8 +6,9 @@ import { getCalendarEvents } from '@/app/actions';
 import { WeeklyCalendar } from '@/components/WeeklyCalendar';
 import { CalendarEventModal } from '@/components/CalendarEventModal';
 import { WeeklySummaryModal } from '@/components/WeeklySummaryModal';
-import { ChevronLeft, ChevronRight, BarChart3 } from 'lucide-react';
-import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, isThisWeek, isSunday } from 'date-fns';
+import { ScanTogglModal } from '@/components/ScanTogglModal';
+import { ChevronLeft, ChevronRight, BarChart3, Timer } from 'lucide-react';
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addWeeks, subWeeks, isThisWeek, isSunday } from 'date-fns';
 import { pl } from 'date-fns/locale';
 
 interface Props {
@@ -21,6 +22,7 @@ export function CalendarPageClient({ initialEvents, initialWallets }: Props) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
+  const [isScanTogglOpen, setIsScanTogglOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
   const [prefillDate, setPrefillDate] = useState<Date | null>(null);
   const [prefillHour, setPrefillHour] = useState<number | null>(null);
@@ -28,6 +30,8 @@ export function CalendarPageClient({ initialEvents, initialWallets }: Props) {
 
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 });
+  const monthStart = startOfMonth(currentDate);
+  const monthEnd = endOfMonth(currentDate);
 
   useEffect(() => {
     setWallets(initialWallets);
@@ -111,6 +115,14 @@ export function CalendarPageClient({ initialEvents, initialWallets }: Props) {
 
         <div className="flex items-center gap-2">
           <button
+            onClick={() => setIsScanTogglOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-secondary hover:bg-accent text-secondary-foreground rounded-lg transition-all"
+          >
+            <Timer className="w-4 h-4" />
+            <span className="hidden sm:inline">Import Toggl</span>
+          </button>
+
+          <button
             onClick={() => setIsSummaryModalOpen(true)}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
               isSundayToday
@@ -174,6 +186,14 @@ export function CalendarPageClient({ initialEvents, initialWallets }: Props) {
         onClose={handleSummaryClose}
         weekStart={weekStart.toISOString()}
         weekEnd={weekEnd.toISOString()}
+        monthStart={monthStart.toISOString()}
+        monthEnd={monthEnd.toISOString()}
+        monthLabel={format(currentDate, 'LLLL yyyy', { locale: pl })}
+      />
+
+      <ScanTogglModal
+        isOpen={isScanTogglOpen}
+        onClose={() => { setIsScanTogglOpen(false); loadWeek(currentDate); }}
       />
     </>
   );

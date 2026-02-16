@@ -11,19 +11,23 @@ export async function POST(request: Request) {
     }
 
     const data = await request.json();
-    const { totalEarnings, totalHours, byWallet, previousWeekEarnings, previousWeekHours, eventCount } = data;
+    const { totalEarnings, totalHours, byWallet, previousWeekEarnings, previousWeekHours, eventCount, period } = data;
+
+    const periodName = period || 'tydzień';
+    const prevPeriodName = periodName === 'miesiąc' ? 'poprzedni miesiąc' : 'poprzedni tydzień';
 
     const walletBreakdown = (byWallet || [])
       .map((w: { name: string; earnings: number; hours: number }) => `- ${w.name}: ${w.earnings.toFixed(2)} PLN (${w.hours.toFixed(1)}h)`)
       .join('\n');
 
-    const prompt = `Jesteś asystentem finansowym. Przeanalizuj tygodniowe zarobki użytkownika i daj krótkie, motywujące podsumowanie po polsku (2-3 zdania). Bądź konkretny i odnos się do danych.
+    const prompt = `Jesteś asystentem finansowym. Przeanalizuj zarobki użytkownika za ${periodName} i daj krótkie, motywujące podsumowanie po polsku (2-3 zdania). Bądź konkretny i odnos się do danych.
 
 Dane:
-- Zarobki ten tydzień: ${totalEarnings.toFixed(2)} PLN
+- Okres: ${periodName}
+- Zarobki ten ${periodName}: ${totalEarnings.toFixed(2)} PLN
 - Godziny pracy: ${totalHours.toFixed(1)}h
 - Liczba wydarzeń: ${eventCount}
-- Zarobki poprzedni tydzień: ${previousWeekEarnings.toFixed(2)} PLN (${previousWeekHours.toFixed(1)}h)
+- Zarobki ${prevPeriodName}: ${previousWeekEarnings.toFixed(2)} PLN (${previousWeekHours.toFixed(1)}h)
 ${walletBreakdown ? `\nRozbicie per portfel:\n${walletBreakdown}` : ''}
 
 Odpowiedz TYLKO tekstem podsumowania, bez nagłówków ani formatowania.`;
