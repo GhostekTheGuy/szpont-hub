@@ -1,10 +1,15 @@
-import { getAssetsData } from "@/app/actions";
+import { getAssetsData, getAssetSalesData, getAssetTaxSummary, getWalletsWithTransactions } from "@/app/actions";
 import { AssetsPageClient } from "@/components/pages/AssetsPageClient";
 
 export default async function AssetsPage() {
-  const data = await getAssetsData();
+  const [assetsResult, sales, taxSummary, walletsResult] = await Promise.all([
+    getAssetsData(),
+    getAssetSalesData(),
+    getAssetTaxSummary(new Date().getFullYear()),
+    getWalletsWithTransactions(),
+  ]);
 
-  if (!data) {
+  if (!assetsResult) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
         <div className="text-foreground text-center">Ładowanie danych...</div>
@@ -13,6 +18,11 @@ export default async function AssetsPage() {
   }
 
   return (
-    <AssetsPageClient initialAssets={data.assets} />
+    <AssetsPageClient
+      initialAssets={assetsResult.assets}
+      initialWallets={walletsResult?.wallets ?? []}
+      initialSales={sales}
+      initialTaxSummary={taxSummary}
+    />
   );
 }

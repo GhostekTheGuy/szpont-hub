@@ -1,29 +1,83 @@
 'use client';
 
+import { useMemo, useCallback } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { formatCurrency } from '@/lib/exchange-rates';
+import { Transaction } from '@/hooks/useFinanceStore';
+import { subMonths, format } from 'date-fns';
+import { pl } from 'date-fns/locale';
+import { convertAmount, formatCurrency, type Currency, type ExchangeRates } from '@/lib/exchange-rates';
 
-const profitData = [
-  { month: 'Wrz', profit: 4300 },
-  { month: 'Paź', profit: 9400 },
-  { month: 'Lis', profit: 14300 },
-  { month: 'Gru', profit: 18600 },
-  { month: 'Sty', profit: 26500 },
-  { month: 'Lut', profit: 33180 },
-];
+interface ProfitChartProps {
+  transactions: Transaction[];
+  displayCurrency: Currency;
+  exchangeRates: ExchangeRates;
+}
 
-export function ProfitChart() {
+export function ProfitChart({ transactions, displayCurrency, exchangeRates }: ProfitChartProps) {
+  const { chartData, totalProfit } = useMemo(() => {
+    const today = new Date();
+    const months: { key: string; label: string }[] = [];
+
+    for (let i = 11; i >= 0; i--) {
+      const d = subMonths(today, i);
+      months.push({
+        key: format(d, 'yyyy-MM'),
+        label: format(d, 'LLL', { locale: pl }),
+      });
+    }
+
+    let cumulative = 0;
+    // Oblicz skumulowany zysk sprzed 12 miesięcy (transakcje wcześniejsze)
+    const startKey = months[0].key;
+    const priorTransactions = transactions.filter(t => t.date < startKey);
+    cumulative = priorTransactions.reduce((acc, t) => {
+      if (t.type === 'transfer') return acc;
+      return acc + convertAmount(t.amount, t.currency || 'PLN', displayCurrency, exchangeRates);
+    }, 0);
+
+    const data = months.map(({ key, label }, idx) => {
+      const monthTx = transactions.filter(t => t.date.startsWith(key));
+      const monthProfit = monthTx.reduce((acc, t) => {
+        if (t.type === 'transfer') return acc;
+        return acc + convertAmount(t.amount, t.currency || 'PLN', displayCurrency, exchangeRates);
+      }, 0);
+
+      const previousCumulative = cumulative;
+      cumulative += monthProfit;
+
+      return { month: label, profit: cumulative, previous: previousCumulative };
+    });
+
+    return { chartData: data, totalProfit: cumulative };
+  }, [transactions, displayCurrency, exchangeRates]);
+
+  const yDomain = useMemo(() => {
+    if (chartData.length === 0) return [0, 100];
+    const values = chartData.map(d => d.profit);
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const range = max - min;
+    const padding = range > 0 ? range * 0.1 : Math.abs(max) * 0.05 || 100;
+    return [Math.floor(min - padding), Math.ceil(max + padding)];
+  }, [chartData]);
+
+  const formatYTick = useCallback((value: number) => {
+    if (Math.abs(value) >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+    if (Math.abs(value) >= 1_000) return `${(value / 1_000).toFixed(0)}k`;
+    return `${value}`;
+  }, []);
+
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
       const value = payload[0].value;
-      const previousValue = payload[0].payload.previous || 0;
-      const change = previousValue ? ((value - previousValue) / previousValue) * 100 : 0;
+      const prev = payload[0].payload.previous || 0;
+      const change = prev ? ((value - prev) / Math.abs(prev)) * 100 : 0;
 
       return (
         <div className="bg-card border border-primary/30 rounded-lg p-3 backdrop-blur-sm">
           <p className="text-muted-foreground text-sm mb-1">{payload[0].payload.month}</p>
           <p className="text-card-foreground font-bold text-lg mb-1">
-            {formatCurrency(value)}
+            {formatCurrency(value, displayCurrency)}
           </p>
           {change !== 0 && (
             <p className={`text-sm ${change > 0 ? 'text-green-500' : 'text-red-500'}`}>
@@ -44,13 +98,7 @@ export function ProfitChart() {
       </div>
 
       <ResponsiveContainer width="100%" height={300}>
-        <LineChart data={profitData}>
-          <defs>
-            <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.3}/>
-              <stop offset="95%" stopColor="var(--primary)" stopOpacity={0}/>
-            </linearGradient>
-          </defs>
+        <LineChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
           <XAxis
             dataKey="month"
@@ -62,9 +110,10 @@ export function ProfitChart() {
           <YAxis
             stroke="var(--muted-foreground)"
             tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
-            tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`}
+            tickFormatter={formatYTick}
             axisLine={false}
             tickLine={false}
+            domain={yDomain}
           />
           <Tooltip content={<CustomTooltip />} />
           <Line
@@ -81,8 +130,8 @@ export function ProfitChart() {
       <div className="mt-4 pt-4 border-t border-border">
         <div className="flex items-center justify-between">
           <span className="text-muted-foreground text-sm">Całkowity Zysk</span>
-          <span className="text-2xl font-bold text-primary">
-            {formatCurrency(profitData[profitData.length - 1].profit)}
+          <span className={`text-2xl font-bold ${totalProfit >= 0 ? 'text-primary' : 'text-red-500'}`}>
+            {formatCurrency(totalProfit, displayCurrency)}
           </span>
         </div>
       </div>

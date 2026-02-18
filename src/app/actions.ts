@@ -19,7 +19,7 @@ import {
   encryptString,
   decryptString,
 } from '@/lib/crypto';
-import { getExchangeRates, convertAmount, type Currency } from '@/lib/exchange-rates';
+import { getExchangeRates, getHistoricalRates, convertAmount, type Currency, type ExchangeRates, type HistoricalRates } from '@/lib/exchange-rates';
 
 async function getUserId() {
   const user = await getUser();
@@ -129,7 +129,7 @@ async function fetchWalletsAndTransactions(userId: string, existingDek?: Buffer)
     date: t.date?.split('T')[0] || '',
     walletName: decryptString(t.wallet?.name, dek) || t.wallet?.name || '',
     wallet: t.wallet_id,
-    type: t.type as 'income' | 'outcome',
+    type: t.type as 'income' | 'outcome' | 'transfer',
     currency: (t.currency || 'PLN') as Currency,
   }));
 
@@ -156,9 +156,14 @@ export async function getDashboardData() {
   // Deszyfruj pola assets
   const decryptedAssets = (assets || []).map(a => ({
     ...a,
+    name: decryptString(a.name, dek) || a.name,
+    symbol: decryptString(a.symbol, dek) || a.symbol,
+    coingecko_id: decryptString(a.coingecko_id, dek) || a.coingecko_id || '',
     quantity: decryptNumber(a.quantity, dek),
     current_price: decryptNumber(a.current_price, dek),
     total_value: decryptNumber(a.total_value, dek),
+    change_24h: decryptNumber(a.change_24h, dek),
+    cost_basis: a.cost_basis ? decryptNumber(a.cost_basis, dek) : 0,
   }));
 
   return { wallets, transactions, assets: decryptedAssets, exchangeRates: rates };
@@ -195,12 +200,84 @@ export async function getAssetsData() {
 
   const decryptedAssets = (assets || []).map(a => ({
     ...a,
+    name: decryptString(a.name, dek) || a.name,
+    symbol: decryptString(a.symbol, dek) || a.symbol,
+    coingecko_id: decryptString(a.coingecko_id, dek) || a.coingecko_id || '',
     quantity: decryptNumber(a.quantity, dek),
     current_price: decryptNumber(a.current_price, dek),
     total_value: decryptNumber(a.total_value, dek),
+    change_24h: decryptNumber(a.change_24h, dek),
+    cost_basis: a.cost_basis ? decryptNumber(a.cost_basis, dek) : 0,
   }));
 
   return { assets: decryptedAssets };
+}
+
+// --- WYKRES PORTFELA ---
+
+export async function getWalletChartData(
+  walletId: string,
+  range: '1W' | '1M' | '3M' | '1Y',
+  displayCurrency: Currency = 'PLN'
+) {
+  const userId = await getUserId();
+  if (!userId) return null;
+
+  const days = range === '1W' ? 7 : range === '1M' ? 30 : range === '3M' ? 90 : 365;
+  const today = new Date();
+  const startDate = new Date(today);
+  startDate.setDate(startDate.getDate() - days);
+
+  const startStr = startDate.toISOString().split('T')[0];
+  const endStr = today.toISOString().split('T')[0];
+
+  const { transactions } = await fetchWalletsAndTransactions(userId);
+  const walletTransactions = transactions.filter(t => t.wallet === walletId);
+
+  const [historicalRates, currentRates] = await Promise.all([
+    getHistoricalRates(startStr, endStr),
+    getExchangeRates(),
+  ]);
+
+  // Dla każdego dnia w zakresie: oblicz saldo portfela z kursem Z TEGO DNIA
+  const data: { date: string; value: number }[] = [];
+  const current = new Date(startDate);
+
+  while (current <= today) {
+    const dateStr = current.toISOString().split('T')[0];
+    const ratesForDay = historicalRates[dateStr] || currentRates;
+
+    // Zsumuj transakcje do tego dnia, przeliczając kursem tego dnia
+    const balance = walletTransactions
+      .filter(t => t.date <= dateStr)
+      .reduce((acc, t) => {
+        return acc + convertAmount(t.amount, t.currency || 'PLN', displayCurrency, ratesForDay);
+      }, 0);
+
+    data.push({ date: dateStr, value: balance });
+    current.setDate(current.getDate() + 1);
+  }
+
+  // Live saldo = suma transakcji przeliczona DZISIEJSZYM kursem
+  const currentBalance = walletTransactions.reduce((acc, t) => {
+    return acc + convertAmount(t.amount, t.currency || 'PLN', displayCurrency, currentRates);
+  }, 0);
+
+  return { data, currentBalance };
+}
+
+// --- HISTORYCZNE KURSY DLA DASHBOARDU ---
+
+export async function getDashboardHistoricalRates(range: '1W' | '1M' | '3M' | '1Y'): Promise<HistoricalRates> {
+  const days = range === '1W' ? 7 : range === '1M' ? 30 : range === '3M' ? 90 : 365;
+  const today = new Date();
+  const startDate = new Date(today);
+  startDate.setDate(startDate.getDate() - days);
+
+  const startStr = startDate.toISOString().split('T')[0];
+  const endStr = today.toISOString().split('T')[0];
+
+  return getHistoricalRates(startStr, endStr);
 }
 
 // --- TRANSAKCJE ---
@@ -258,6 +335,72 @@ export async function addTransactionAction(data: any) {
     .from('wallets')
     .update({ balance: encryptNumber(newBalance, dek) })
     .eq('id', data.wallet);
+
+  revalidatePath('/', 'layout');
+}
+
+export async function addTransferAction(data: {
+  amount: number;
+  fromWalletId: string;
+  toWalletId: string;
+  description: string;
+  date: string;
+  currency: Currency;
+}) {
+  const userId = await getUserId();
+  if (!userId) throw new Error("Unauthorized");
+
+  const dek = await getDEK();
+  const rates = await getExchangeRates();
+  const amountInPLN = convertAmount(data.amount, data.currency, 'PLN', rates);
+
+  // Pobierz oba portfele
+  const [{ data: fromWallet }, { data: toWallet }] = await Promise.all([
+    supabaseAdmin.from('wallets').select('*').eq('id', data.fromWalletId).eq('user_id', userId).single(),
+    supabaseAdmin.from('wallets').select('*').eq('id', data.toWalletId).eq('user_id', userId).single(),
+  ]);
+
+  if (!fromWallet || !toWallet) throw new Error("Wallet not found");
+
+  const fromBalance = decryptNumber(fromWallet.balance, dek);
+  const toBalance = decryptNumber(toWallet.balance, dek);
+  const fromName = decryptString(fromWallet.name, dek) || fromWallet.name;
+  const toName = decryptString(toWallet.name, dek) || toWallet.name;
+
+  const outcomeDesc = data.description ? `${data.description} → ${toName}` : `→ ${toName}`;
+  const incomeDesc = data.description ? `${data.description} ← ${fromName}` : `← ${fromName}`;
+
+  // Utwórz 2 transakcje: outcome z fromWallet, income do toWallet
+  await supabaseAdmin.from('transactions').insert([
+    {
+      id: nanoid(),
+      amount: encryptNumber(-Math.abs(data.amount), dek),
+      category: encryptString('Transfer', dek),
+      description: encryptString(outcomeDesc, dek),
+      type: 'transfer',
+      date: data.date,
+      wallet_id: data.fromWalletId,
+      currency: data.currency,
+      created_at: new Date().toISOString(),
+    },
+    {
+      id: nanoid(),
+      amount: encryptNumber(Math.abs(data.amount), dek),
+      category: encryptString('Transfer', dek),
+      description: encryptString(incomeDesc, dek),
+      type: 'transfer',
+      date: data.date,
+      wallet_id: data.toWalletId,
+      currency: data.currency,
+      created_at: new Date().toISOString(),
+    },
+  ]);
+
+  // Zaktualizuj salda obu portfeli
+  await Promise.all([
+    supabaseAdmin.from('wallets').update({ balance: encryptNumber(fromBalance - amountInPLN, dek) }).eq('id', data.fromWalletId),
+    supabaseAdmin.from('wallets').update({ balance: encryptNumber(toBalance + amountInPLN, dek) }).eq('id', data.toWalletId),
+  ]);
 
   revalidatePath('/', 'layout');
 }
@@ -469,7 +612,7 @@ export async function getCalendarEvents(weekStart: string, weekEnd: string) {
 
   const dek = await getDEK();
 
-  const [{ data: events, error: eventsError }, { data: wallets }] = await Promise.all([
+  const [{ data: events, error: eventsError }, { data: recurringEvents, error: recurringError }, { data: wallets }] = await Promise.all([
     supabaseAdmin
       .from('calendar_events')
       .select('*')
@@ -477,6 +620,12 @@ export async function getCalendarEvents(weekStart: string, weekEnd: string) {
       .gte('start_time', weekStart)
       .lte('end_time', weekEnd)
       .order('start_time', { ascending: true }),
+    supabaseAdmin
+      .from('calendar_events')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('is_recurring', true)
+      .lt('start_time', weekStart),
     supabaseAdmin
       .from('wallets')
       .select('id, name, color')
@@ -486,12 +635,91 @@ export async function getCalendarEvents(weekStart: string, weekEnd: string) {
   if (eventsError) {
     console.error('Error fetching calendar events:', eventsError);
   }
+  if (recurringError) {
+    console.error('Error fetching recurring events:', recurringError);
+  }
+
+  // Generuj instancje eventów cyklicznych dla tego tygodnia
+  const wsDate = new Date(weekStart);
+  const weDate = new Date(weekEnd);
+  const expandedRecurring: typeof events = [];
+
+  for (const event of (recurringEvents || [])) {
+    const origStart = new Date(event.start_time);
+    const origEnd = new Date(event.end_time);
+    const durationMs = origEnd.getTime() - origStart.getTime();
+    const rule = event.recurrence_rule;
+
+    if (rule === 'daily') {
+      // Generuj instancję na każdy dzień tygodnia
+      for (let d = new Date(wsDate); d <= weDate; d.setDate(d.getDate() + 1)) {
+        const instanceStart = new Date(d);
+        instanceStart.setHours(origStart.getHours(), origStart.getMinutes(), origStart.getSeconds(), 0);
+        const instanceEnd = new Date(instanceStart.getTime() + durationMs);
+        if (instanceStart >= wsDate && instanceEnd <= weDate && instanceStart > origStart) {
+          expandedRecurring.push({
+            ...event,
+            id: `${event.id}_${instanceStart.toISOString().split('T')[0]}`,
+            start_time: instanceStart.toISOString(),
+            end_time: instanceEnd.toISOString(),
+            is_settled: false,
+          });
+        }
+      }
+    } else if (rule === 'weekly') {
+      // Znajdź instancję na ten sam dzień tygodnia w tym tygodniu
+      const origDay = origStart.getDay(); // 0=Sun, 1=Mon, ...
+      const wsDay = wsDate.getDay();
+      let diff = origDay - wsDay;
+      if (diff < 0) diff += 7;
+      const instanceStart = new Date(wsDate);
+      instanceStart.setDate(instanceStart.getDate() + diff);
+      instanceStart.setHours(origStart.getHours(), origStart.getMinutes(), origStart.getSeconds(), 0);
+      const instanceEnd = new Date(instanceStart.getTime() + durationMs);
+      if (instanceStart >= wsDate && instanceEnd <= weDate) {
+        expandedRecurring.push({
+          ...event,
+          id: `${event.id}_${instanceStart.toISOString().split('T')[0]}`,
+          start_time: instanceStart.toISOString(),
+          end_time: instanceEnd.toISOString(),
+          is_settled: false,
+        });
+      }
+    } else if (rule === 'monthly') {
+      // Znajdź instancję w tym samym dniu miesiąca
+      const origDayOfMonth = origStart.getDate();
+      for (let d = new Date(wsDate); d <= weDate; d.setDate(d.getDate() + 1)) {
+        if (d.getDate() === origDayOfMonth && d > origStart) {
+          const instanceStart = new Date(d);
+          instanceStart.setHours(origStart.getHours(), origStart.getMinutes(), origStart.getSeconds(), 0);
+          const instanceEnd = new Date(instanceStart.getTime() + durationMs);
+          if (instanceStart >= wsDate && instanceEnd <= weDate) {
+            expandedRecurring.push({
+              ...event,
+              id: `${event.id}_${instanceStart.toISOString().split('T')[0]}`,
+              start_time: instanceStart.toISOString(),
+              end_time: instanceEnd.toISOString(),
+              is_settled: false,
+            });
+          }
+          break;
+        }
+      }
+    }
+  }
+
+  // Połącz zwykłe eventy z wygenerowanymi instancjami (bez duplikatów)
+  const existingIds = new Set((events || []).map(e => e.id));
+  const allEvents = [
+    ...(events || []),
+    ...expandedRecurring.filter(e => !existingIds.has(e.id)),
+  ];
 
   const walletMap = new Map(
     (wallets || []).map(w => [w.id, { name: decryptString(w.name, dek) || w.name, color: w.color }])
   );
 
-  const decryptedEvents = (events || []).map(e => ({
+  const decryptedEvents = allEvents.map(e => ({
     id: e.id,
     title: decryptString(e.title, dek) || e.title,
     wallet_id: e.wallet_id,
@@ -949,6 +1177,448 @@ export async function settleMonthAction(monthStart: string, monthEnd: string) {
 
   revalidatePath('/', 'layout');
   return { settled: events.length };
+}
+
+// --- AKTYWA CRUD ---
+
+export async function addAssetAction(data: {
+  name: string;
+  symbol: string;
+  coingecko_id: string;
+  quantity: number;
+  cost_basis?: number;
+}) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  const dek = await getDEK();
+
+  // Pobierz cenę z CoinGecko
+  let currentPrice = 0;
+  let change24h = 0;
+  try {
+    const res = await fetch(
+      `https://api.coingecko.com/api/v3/coins/markets?vs_currency=pln&ids=${data.coingecko_id}&sparkline=false&price_change_percentage=24h`
+    );
+    if (res.ok) {
+      const coins = await res.json();
+      if (coins.length > 0) {
+        currentPrice = coins[0].current_price || 0;
+        change24h = coins[0].price_change_percentage_24h || 0;
+      }
+    }
+  } catch {
+    // Ignoruj błędy API — cena zostanie 0
+  }
+
+  const totalValue = data.quantity * currentPrice;
+  const costBasis = data.cost_basis ?? currentPrice;
+
+  const { error } = await supabaseAdmin
+    .from('assets')
+    .insert({
+      id: nanoid(),
+      user_id: userId,
+      name: encryptString(data.name, dek),
+      symbol: encryptString(data.symbol, dek),
+      coingecko_id: encryptString(data.coingecko_id, dek),
+      quantity: encryptNumber(data.quantity, dek),
+      current_price: encryptNumber(currentPrice, dek),
+      total_value: encryptNumber(totalValue, dek),
+      change_24h: encryptNumber(change24h, dek),
+      cost_basis: encryptNumber(costBasis, dek),
+      created_at: new Date().toISOString(),
+    });
+
+  if (error) {
+    console.error('Error adding asset:', error);
+    throw new Error(error.message);
+  }
+
+  revalidatePath('/', 'layout');
+}
+
+export async function editAssetAction(id: string, data: { quantity: number; cost_basis?: number }) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  const { data: asset } = await supabaseAdmin
+    .from('assets')
+    .select('user_id, current_price')
+    .eq('id', id)
+    .single();
+
+  if (!asset || asset.user_id !== userId) return;
+
+  const dek = await getDEK();
+  const currentPrice = decryptNumber(asset.current_price, dek);
+  const totalValue = data.quantity * currentPrice;
+
+  const updateData: Record<string, string> = {
+    quantity: encryptNumber(data.quantity, dek),
+    total_value: encryptNumber(totalValue, dek),
+  };
+
+  if (data.cost_basis !== undefined) {
+    updateData.cost_basis = encryptNumber(data.cost_basis, dek);
+  }
+
+  await supabaseAdmin
+    .from('assets')
+    .update(updateData)
+    .eq('id', id);
+
+  revalidatePath('/', 'layout');
+}
+
+export async function deleteAssetAction(id: string) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  const { data: asset } = await supabaseAdmin
+    .from('assets')
+    .select('user_id')
+    .eq('id', id)
+    .single();
+
+  if (!asset || asset.user_id !== userId) return;
+
+  await supabaseAdmin.from('assets').delete().eq('id', id);
+
+  revalidatePath('/', 'layout');
+}
+
+export async function refreshAssetPricesAction() {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  const dek = await getDEK();
+
+  const { data: assets } = await supabaseAdmin
+    .from('assets')
+    .select('*')
+    .eq('user_id', userId);
+
+  if (!assets || assets.length === 0) return;
+
+  // Odszyfruj coingecko_id dla każdego aktywa
+  const assetMap = assets.map(a => ({
+    id: a.id,
+    coingecko_id: decryptString(a.coingecko_id, dek) || a.coingecko_id || '',
+    quantity: decryptNumber(a.quantity, dek),
+  }));
+
+  const ids = assetMap.map(a => a.coingecko_id).filter(Boolean).join(',');
+  if (!ids) return;
+
+  try {
+    const res = await fetch(
+      `https://api.coingecko.com/api/v3/coins/markets?vs_currency=pln&ids=${ids}&sparkline=false&price_change_percentage=24h`
+    );
+    if (!res.ok) return;
+
+    const coins = await res.json();
+    const priceMap = new Map<string, { price: number; change: number }>(
+      coins.map((c: { id: string; current_price: number; price_change_percentage_24h: number }) => [
+        c.id,
+        { price: c.current_price || 0, change: c.price_change_percentage_24h || 0 },
+      ])
+    );
+
+    for (const asset of assetMap) {
+      const coinData = priceMap.get(asset.coingecko_id);
+      if (!coinData) continue;
+
+      const totalValue = asset.quantity * coinData.price;
+      await supabaseAdmin
+        .from('assets')
+        .update({
+          current_price: encryptNumber(coinData.price, dek),
+          total_value: encryptNumber(totalValue, dek),
+          change_24h: encryptNumber(coinData.change, dek),
+        })
+        .eq('id', asset.id);
+    }
+  } catch {
+    // Ignoruj błędy API
+  }
+
+  revalidatePath('/', 'layout');
+}
+
+// --- SPRZEDAŻ AKTYWÓW ---
+
+export async function sellAssetAction(data: {
+  assetId: string;
+  quantityToSell: number;
+  walletId: string;
+}) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  const dek = await getDEK();
+
+  // 1. Pobierz asset i zwaliduj ownership
+  const { data: asset } = await supabaseAdmin
+    .from('assets')
+    .select('*')
+    .eq('id', data.assetId)
+    .eq('user_id', userId)
+    .single();
+
+  if (!asset) throw new Error('Asset not found');
+
+  const quantity = decryptNumber(asset.quantity, dek);
+  const currentPrice = decryptNumber(asset.current_price, dek);
+  const costBasis = asset.cost_basis ? decryptNumber(asset.cost_basis, dek) : 0;
+  const assetName = decryptString(asset.name, dek) || asset.name;
+  const assetSymbol = decryptString(asset.symbol, dek) || asset.symbol;
+
+  if (data.quantityToSell > quantity) {
+    throw new Error('Insufficient quantity');
+  }
+
+  // 2. Oblicz: proceeds, cost, profit, tax
+  const totalProceeds = data.quantityToSell * currentPrice;
+  const totalCost = data.quantityToSell * costBasis;
+  const profit = totalProceeds - totalCost;
+  const taxAmount = Math.max(0, profit) * 0.19;
+
+  // 3. Insert do asset_sales (encrypted)
+  const { error: saleError } = await supabaseAdmin
+    .from('asset_sales')
+    .insert({
+      id: nanoid(),
+      user_id: userId,
+      asset_name: encryptString(assetName, dek),
+      asset_symbol: encryptString(assetSymbol, dek),
+      quantity_sold: encryptNumber(data.quantityToSell, dek),
+      sale_price_per_unit: encryptNumber(currentPrice, dek),
+      cost_basis_per_unit: encryptNumber(costBasis, dek),
+      total_proceeds: encryptNumber(totalProceeds, dek),
+      total_cost: encryptNumber(totalCost, dek),
+      profit: encryptNumber(profit, dek),
+      tax_amount: encryptNumber(taxAmount, dek),
+      wallet_id: data.walletId,
+      sale_date: new Date().toISOString().split('T')[0],
+      created_at: new Date().toISOString(),
+    });
+
+  if (saleError) {
+    console.error('Error inserting asset sale:', saleError);
+    throw new Error(saleError.message);
+  }
+
+  // 4. Update or delete asset
+  const remainingQuantity = quantity - data.quantityToSell;
+
+  if (remainingQuantity <= 0) {
+    await supabaseAdmin.from('assets').delete().eq('id', data.assetId);
+  } else {
+    const newTotalValue = remainingQuantity * currentPrice;
+    await supabaseAdmin
+      .from('assets')
+      .update({
+        quantity: encryptNumber(remainingQuantity, dek),
+        total_value: encryptNumber(newTotalValue, dek),
+      })
+      .eq('id', data.assetId);
+  }
+
+  // 5. Utwórz transakcję income w wybranym portfelu (kwota netto po podatku)
+  const netProceeds = totalProceeds - taxAmount;
+
+  const { data: wallet } = await supabaseAdmin
+    .from('wallets')
+    .select('*')
+    .eq('id', data.walletId)
+    .eq('user_id', userId)
+    .single();
+
+  if (!wallet) throw new Error('Wallet not found');
+
+  await supabaseAdmin
+    .from('transactions')
+    .insert({
+      id: nanoid(),
+      amount: encryptNumber(netProceeds, dek),
+      category: encryptString('Sprzedaż krypto', dek),
+      description: encryptString(
+        `Sprzedaż ${data.quantityToSell} ${assetSymbol} (podatek: ${taxAmount.toFixed(2)} PLN)`,
+        dek
+      ),
+      type: 'income',
+      date: new Date().toISOString().split('T')[0],
+      wallet_id: data.walletId,
+      currency: 'PLN',
+      created_at: new Date().toISOString(),
+    });
+
+  // 6. Zaktualizuj saldo portfela
+  const currentBalance = decryptNumber(wallet.balance, dek);
+  const newBalance = currentBalance + netProceeds;
+  await supabaseAdmin
+    .from('wallets')
+    .update({ balance: encryptNumber(newBalance, dek) })
+    .eq('id', data.walletId);
+
+  revalidatePath('/', 'layout');
+}
+
+export async function getAssetSalesData() {
+  const userId = await getUserId();
+  if (!userId) return [];
+
+  const dek = await getDEK();
+
+  const { data: sales, error } = await supabaseAdmin
+    .from('asset_sales')
+    .select('*')
+    .eq('user_id', userId)
+    .order('sale_date', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching asset sales:', error);
+    return [];
+  }
+
+  return (sales || []).map(s => ({
+    id: s.id,
+    asset_name: decryptString(s.asset_name, dek) || s.asset_name,
+    asset_symbol: decryptString(s.asset_symbol, dek) || s.asset_symbol,
+    quantity_sold: decryptNumber(s.quantity_sold, dek),
+    sale_price_per_unit: decryptNumber(s.sale_price_per_unit, dek),
+    cost_basis_per_unit: decryptNumber(s.cost_basis_per_unit, dek),
+    total_proceeds: decryptNumber(s.total_proceeds, dek),
+    total_cost: decryptNumber(s.total_cost, dek),
+    profit: decryptNumber(s.profit, dek),
+    tax_amount: decryptNumber(s.tax_amount, dek),
+    wallet_id: s.wallet_id,
+    sale_date: s.sale_date,
+  }));
+}
+
+export async function getAssetTaxSummary(year: number) {
+  const userId = await getUserId();
+  if (!userId) return null;
+
+  const dek = await getDEK();
+
+  const startDate = `${year}-01-01`;
+  const endDate = `${year}-12-31`;
+
+  const { data: sales, error } = await supabaseAdmin
+    .from('asset_sales')
+    .select('*')
+    .eq('user_id', userId)
+    .gte('sale_date', startDate)
+    .lte('sale_date', endDate);
+
+  if (error) {
+    console.error('Error fetching tax summary:', error);
+    return null;
+  }
+
+  let totalProceeds = 0;
+  let totalCost = 0;
+  let totalProfit = 0;
+  let totalTax = 0;
+
+  for (const s of sales || []) {
+    totalProceeds += decryptNumber(s.total_proceeds, dek);
+    totalCost += decryptNumber(s.total_cost, dek);
+    totalProfit += decryptNumber(s.profit, dek);
+    totalTax += decryptNumber(s.tax_amount, dek);
+  }
+
+  return {
+    totalProceeds,
+    totalCost,
+    totalProfit,
+    totalTax,
+    salesCount: (sales || []).length,
+  };
+}
+
+export async function addManualSaleAction(data: {
+  assetName: string;
+  assetSymbol: string;
+  quantitySold: number;
+  salePricePerUnit: number;
+  costBasisPerUnit: number;
+  walletId: string;
+  saleDate: string;
+}) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  const dek = await getDEK();
+
+  const totalProceeds = data.quantitySold * data.salePricePerUnit;
+  const totalCost = data.quantitySold * data.costBasisPerUnit;
+  const profit = totalProceeds - totalCost;
+  const taxAmount = Math.max(0, profit) * 0.19;
+
+  const { error: saleError } = await supabaseAdmin
+    .from('asset_sales')
+    .insert({
+      id: nanoid(),
+      user_id: userId,
+      asset_name: encryptString(data.assetName, dek),
+      asset_symbol: encryptString(data.assetSymbol, dek),
+      quantity_sold: encryptNumber(data.quantitySold, dek),
+      sale_price_per_unit: encryptNumber(data.salePricePerUnit, dek),
+      cost_basis_per_unit: encryptNumber(data.costBasisPerUnit, dek),
+      total_proceeds: encryptNumber(totalProceeds, dek),
+      total_cost: encryptNumber(totalCost, dek),
+      profit: encryptNumber(profit, dek),
+      tax_amount: encryptNumber(taxAmount, dek),
+      wallet_id: data.walletId,
+      sale_date: data.saleDate,
+      created_at: new Date().toISOString(),
+    });
+
+  if (saleError) {
+    console.error('Error inserting manual sale:', saleError);
+    throw new Error(saleError.message);
+  }
+
+  // Transakcja income netto do portfela
+  const netProceeds = totalProceeds - taxAmount;
+
+  const { data: wallet } = await supabaseAdmin
+    .from('wallets')
+    .select('*')
+    .eq('id', data.walletId)
+    .eq('user_id', userId)
+    .single();
+
+  if (!wallet) throw new Error('Wallet not found');
+
+  await supabaseAdmin
+    .from('transactions')
+    .insert({
+      id: nanoid(),
+      amount: encryptNumber(netProceeds, dek),
+      category: encryptString('Sprzedaż krypto', dek),
+      description: encryptString(
+        `Sprzedaż ${data.quantitySold} ${data.assetSymbol} (podatek: ${taxAmount.toFixed(2)} PLN)`,
+        dek
+      ),
+      type: 'income',
+      date: data.saleDate,
+      wallet_id: data.walletId,
+      currency: 'PLN',
+      created_at: new Date().toISOString(),
+    });
+
+  const currentBalance = decryptNumber(wallet.balance, dek);
+  await supabaseAdmin
+    .from('wallets')
+    .update({ balance: encryptNumber(currentBalance + netProceeds, dek) })
+    .eq('id', data.walletId);
+
+  revalidatePath('/', 'layout');
 }
 
 // --- MIGRACJA DANYCH ---

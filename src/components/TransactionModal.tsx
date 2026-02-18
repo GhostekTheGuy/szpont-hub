@@ -3,7 +3,7 @@
 import { useEffect, useState, ChangeEvent, ChangeEventHandler } from 'react';
 import { X, Camera, CalendarIcon } from 'lucide-react';
 import { useFinanceStore, Transaction } from '@/hooks/useFinanceStore';
-import { addTransactionAction, editTransactionAction } from '@/app/actions';
+import { addTransactionAction, editTransactionAction, addTransferAction } from '@/app/actions';
 import type { Currency } from '@/lib/exchange-rates';
 import { ScanReceiptModal } from '@/components/ScanReceiptModal';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -29,7 +29,8 @@ export function TransactionModal({ isOpen, onClose, editingTransaction }: Transa
   const [walletId, setWalletId] = useState('');
   const [date, setDate] = useState<Date>(new Date());
   const [calendarOpen, setCalendarOpen] = useState(false);
-  const [type, setType] = useState<'income' | 'outcome'>('outcome');
+  const [type, setType] = useState<'income' | 'outcome' | 'transfer'>('outcome');
+  const [toWalletId, setToWalletId] = useState('');
   const [currency, setCurrency] = useState<Currency>('PLN');
   const [loading, setLoading] = useState(false);
   const [isScanOpen, setIsScanOpen] = useState(false);
@@ -48,6 +49,7 @@ export function TransactionModal({ isOpen, onClose, editingTransaction }: Transa
       setCategory('');
       setDescription('');
       if (wallets.length > 0) setWalletId(wallets[0].id);
+      setToWalletId(wallets.length > 1 ? wallets[1].id : '');
       setDate(new Date());
       setType('outcome');
       setCurrency('PLN');
@@ -57,26 +59,38 @@ export function TransactionModal({ isOpen, onClose, editingTransaction }: Transa
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!walletId) return;
+    if (type === 'transfer' && (!toWalletId || walletId === toWalletId)) return;
     setLoading(true);
 
-    const numericAmount = parseFloat(amount);
-    const finalAmount = type === 'outcome' ? -Math.abs(numericAmount) : Math.abs(numericAmount);
-
-    const transactionData = {
-      amount: finalAmount,
-      category,
-      description,
-      wallet: walletId,
-      date: format(date, 'yyyy-MM-dd'),
-      type,
-      currency,
-    };
-
     try {
-      if (editingTransaction) {
-        await editTransactionAction(editingTransaction.id, transactionData);
+      if (type === 'transfer') {
+        await addTransferAction({
+          amount: parseFloat(amount),
+          fromWalletId: walletId,
+          toWalletId,
+          description,
+          date: format(date, 'yyyy-MM-dd'),
+          currency,
+        });
       } else {
-        await addTransactionAction(transactionData);
+        const numericAmount = parseFloat(amount);
+        const finalAmount = type === 'outcome' ? -Math.abs(numericAmount) : Math.abs(numericAmount);
+
+        const transactionData = {
+          amount: finalAmount,
+          category,
+          description,
+          wallet: walletId,
+          date: format(date, 'yyyy-MM-dd'),
+          type,
+          currency,
+        };
+
+        if (editingTransaction) {
+          await editTransactionAction(editingTransaction.id, transactionData);
+        } else {
+          await addTransactionAction(transactionData);
+        }
       }
       onClose();
     } catch (error) {
@@ -130,7 +144,7 @@ export function TransactionModal({ isOpen, onClose, editingTransaction }: Transa
         />
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <button
               type="button"
               onClick={() => setType('income')}
@@ -152,6 +166,17 @@ export function TransactionModal({ isOpen, onClose, editingTransaction }: Transa
               }`}
             >
               Wydatek
+            </button>
+            <button
+              type="button"
+              onClick={() => setType('transfer')}
+              className={`py-2.5 rounded-lg text-center font-medium transition-colors ${
+                type === 'transfer'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-secondary text-secondary-foreground hover:bg-accent'
+              }`}
+            >
+              Transfer
             </button>
           </div>
 
@@ -179,17 +204,19 @@ export function TransactionModal({ isOpen, onClose, editingTransaction }: Transa
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm text-muted-foreground mb-2">Kategoria</label>
-            <input
-              type="text"
-              required
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
-              placeholder="np. Jedzenie"
-            />
-          </div>
+          {type !== 'transfer' && (
+            <div>
+              <label className="block text-sm text-muted-foreground mb-2">Kategoria</label>
+              <input
+                type="text"
+                required
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
+                placeholder="np. Jedzenie"
+              />
+            </div>
+          )}
 
           <div>
             <label className="block text-sm text-muted-foreground mb-2">Opis (opcjonalnie)</label>
@@ -202,19 +229,52 @@ export function TransactionModal({ isOpen, onClose, editingTransaction }: Transa
             />
           </div>
 
-          <div>
-            <label className="block text-sm text-muted-foreground mb-2">Portfel</label>
-            <select
-              value={walletId}
-              onChange={(e) => setWalletId(e.target.value)}
-              className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
-            >
-              {wallets.length === 0 && <option value="">Brak portfeli</option>}
-              {wallets.map(w => (
-                <option key={w.id} value={w.id}>{w.name} ({w.balance.toLocaleString()} PLN)</option>
-              ))}
-            </select>
-          </div>
+          {type === 'transfer' ? (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm text-muted-foreground mb-2">Z portfela</label>
+                <select
+                  value={walletId}
+                  onChange={(e) => setWalletId(e.target.value)}
+                  className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
+                >
+                  {wallets.length === 0 && <option value="">Brak portfeli</option>}
+                  {wallets.map(w => (
+                    <option key={w.id} value={w.id}>{w.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm text-muted-foreground mb-2">Do portfela</label>
+                <select
+                  value={toWalletId}
+                  onChange={(e) => setToWalletId(e.target.value)}
+                  className={`w-full bg-input border rounded-lg px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring transition-all ${
+                    walletId && toWalletId && walletId === toWalletId ? 'border-red-500' : 'border-border'
+                  }`}
+                >
+                  {wallets.length === 0 && <option value="">Brak portfeli</option>}
+                  {wallets.filter(w => w.id !== walletId).map(w => (
+                    <option key={w.id} value={w.id}>{w.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          ) : (
+            <div>
+              <label className="block text-sm text-muted-foreground mb-2">Portfel</label>
+              <select
+                value={walletId}
+                onChange={(e) => setWalletId(e.target.value)}
+                className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
+              >
+                {wallets.length === 0 && <option value="">Brak portfeli</option>}
+                {wallets.map(w => (
+                  <option key={w.id} value={w.id}>{w.name} ({w.balance.toLocaleString()} PLN)</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div>
             <label className="block text-sm text-muted-foreground mb-2">Data</label>

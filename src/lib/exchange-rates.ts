@@ -60,6 +60,72 @@ export function convertAmount(
   return toCurrency === 'PLN' ? amountInPLN : amountInPLN * rates[toCurrency];
 }
 
+// --- Historyczne kursy walut ---
+
+export type HistoricalRates = Record<string, ExchangeRates>;
+
+const historicalCache = new Map<string, { data: HistoricalRates; timestamp: number }>();
+const HISTORICAL_CACHE_DURATION = 15 * 60 * 1000; // 15 min
+
+export async function getHistoricalRates(
+  startDate: string,
+  endDate: string
+): Promise<HistoricalRates> {
+  const cacheKey = `${startDate}_${endDate}`;
+  const now = Date.now();
+  const cached = historicalCache.get(cacheKey);
+  if (cached && now - cached.timestamp < HISTORICAL_CACHE_DURATION) {
+    return cached.data;
+  }
+
+  try {
+    const res = await fetch(
+      `https://api.frankfurter.app/${startDate}..${endDate}?from=PLN&to=USD,EUR`,
+      { next: { revalidate: 900 } }
+    );
+
+    if (!res.ok) throw new Error('Failed to fetch historical rates');
+
+    const json = await res.json();
+    const result: HistoricalRates = {};
+
+    // Frankfurter zwraca { rates: { "2026-01-01": { USD: 0.25, EUR: 0.23 }, ... } }
+    const ratesData = json.rates || {};
+    let lastRates: ExchangeRates = FALLBACK_RATES;
+
+    // Wypełnij każdy dzień w zakresie (w tym weekendy — użyj ostatniego dostępnego kursu)
+    const current = new Date(startDate);
+    const end = new Date(endDate);
+    while (current <= end) {
+      const dateStr = current.toISOString().split('T')[0];
+      if (ratesData[dateStr]) {
+        lastRates = {
+          PLN: 1,
+          USD: ratesData[dateStr].USD,
+          EUR: ratesData[dateStr].EUR,
+        };
+      }
+      result[dateStr] = lastRates;
+      current.setDate(current.getDate() + 1);
+    }
+
+    historicalCache.set(cacheKey, { data: result, timestamp: now });
+    return result;
+  } catch (error) {
+    console.error('Error fetching historical rates:', error);
+    // Fallback: zwróć stały kurs dla każdego dnia
+    const result: HistoricalRates = {};
+    const current = new Date(startDate);
+    const end = new Date(endDate);
+    const fallback = cachedRates || FALLBACK_RATES;
+    while (current <= end) {
+      result[current.toISOString().split('T')[0]] = fallback;
+      current.setDate(current.getDate() + 1);
+    }
+    return result;
+  }
+}
+
 const currencySymbols: Record<Currency, string> = {
   PLN: 'zł',
   USD: '$',

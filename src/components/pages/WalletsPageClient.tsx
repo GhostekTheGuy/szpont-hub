@@ -5,9 +5,11 @@ import { WalletCard } from '@/components/WalletCard';
 import { TransactionList } from '@/components/TransactionList';
 import { TransactionModal } from '@/components/TransactionModal';
 import { WalletModal } from '@/components/WalletModal';
+import { WalletChart } from '@/components/WalletChart';
 import { useFinanceStore, Transaction, Wallet } from '@/hooks/useFinanceStore';
 import { Plus } from 'lucide-react';
 import { deleteTransactionAction, deleteWalletAction } from '@/app/actions';
+import { type Currency } from '@/lib/exchange-rates';
 
 interface Props {
   initialWallets: Wallet[];
@@ -19,6 +21,7 @@ export function WalletsPageClient({ initialWallets, initialTransactions }: Props
   const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [editingWallet, setEditingWallet] = useState<Wallet | null>(null);
+  const [displayCurrency, setDisplayCurrency] = useState<Currency>('PLN');
 
   const { wallets, transactions, activeWalletId, setWallets, setTransactions, setActiveWallet } = useFinanceStore();
 
@@ -31,6 +34,10 @@ export function WalletsPageClient({ initialWallets, initialTransactions }: Props
     if (!activeWalletId) return transactions;
     return transactions.filter(t => t.wallet === activeWalletId);
   }, [transactions, activeWalletId]);
+
+  const activeWallet = useMemo(() => {
+    return wallets.find(w => w.id === activeWalletId);
+  }, [wallets, activeWalletId]);
 
   const handleDeleteTransaction = async (id: string) => {
     if (confirm('Czy na pewno?')) await deleteTransactionAction(id);
@@ -57,12 +64,23 @@ export function WalletsPageClient({ initialWallets, initialTransactions }: Props
             </button>
           )}
         </div>
-        <button
-          onClick={() => { setEditingWallet(null); setIsWalletModalOpen(true); }}
-          className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg transition-all"
-        >
-          <Plus className="w-4 h-4" /> Nowy portfel
-        </button>
+        <div className="flex items-center gap-2">
+          <select
+            value={displayCurrency}
+            onChange={(e) => setDisplayCurrency(e.target.value as Currency)}
+            className="bg-secondary border border-border rounded-md px-2 py-1.5 text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
+          >
+            <option value="PLN">PLN</option>
+            <option value="USD">USD</option>
+            <option value="EUR">EUR</option>
+          </select>
+          <button
+            onClick={() => { setEditingWallet(null); setIsWalletModalOpen(true); }}
+            className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg transition-all"
+          >
+            <Plus className="w-4 h-4" /> Nowy portfel
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
@@ -81,12 +99,21 @@ export function WalletsPageClient({ initialWallets, initialTransactions }: Props
         ))}
       </div>
 
+      {/* Wallet Chart */}
+      {activeWalletId && activeWallet && (
+        <WalletChart
+          walletId={activeWalletId}
+          walletName={activeWallet.name}
+          displayCurrency={displayCurrency}
+        />
+      )}
+
       {/* Transactions for selected wallet */}
       <div className="bg-card border border-border rounded-xl overflow-hidden">
         <div className="p-6 pb-0 flex items-center justify-between">
           <h2 className="text-xl font-bold text-card-foreground">
             {activeWalletId
-              ? `Transakcje — ${wallets.find(w => w.id === activeWalletId)?.name}`
+              ? `Transakcje — ${activeWallet?.name}`
               : 'Wszystkie transakcje'}
           </h2>
           <button

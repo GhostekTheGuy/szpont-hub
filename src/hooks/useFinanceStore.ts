@@ -9,9 +9,10 @@ export interface Transaction {
   date: string;
   wallet: string; // ID portfela
   walletName: string;
-  type: 'income' | 'outcome';
+  type: 'income' | 'outcome' | 'transfer';
   description: string | null;
   currency: Currency;
+  transfer_to_wallet?: string;
 }
 
 export interface Wallet {
@@ -27,10 +28,27 @@ export interface Asset {
   id: string;
   name: string;
   symbol: string;
+  coingecko_id: string;
   quantity: number;
   current_price: number;
   total_value: number;
   change_24h: number;
+  cost_basis: number;
+}
+
+export interface AssetSale {
+  id: string;
+  asset_name: string;
+  asset_symbol: string;
+  quantity_sold: number;
+  sale_price_per_unit: number;
+  cost_basis_per_unit: number;
+  total_proceeds: number;
+  total_cost: number;
+  profit: number;
+  tax_amount: number;
+  wallet_id: string;
+  sale_date: string;
 }
 
 export interface CalendarEvent {
@@ -51,6 +69,7 @@ interface FinanceState {
   wallets: Wallet[];
   transactions: Transaction[];
   assets: Asset[];
+  assetSales: AssetSale[];
   calendarEvents: CalendarEvent[];
   activeWalletId: string | null;
 
@@ -58,6 +77,7 @@ interface FinanceState {
   setWallets: (wallets: Wallet[]) => void;
   setTransactions: (transactions: Transaction[]) => void;
   setAssets: (assets: Asset[]) => void;
+  setAssetSales: (sales: AssetSale[]) => void;
   setCalendarEvents: (events: CalendarEvent[]) => void;
   setActiveWallet: (id: string | null) => void;
 }
@@ -66,12 +86,14 @@ export const useFinanceStore = create<FinanceState>((set) => ({
   wallets: [],
   transactions: [],
   assets: [],
+  assetSales: [],
   calendarEvents: [],
   activeWalletId: null,
 
   setWallets: (wallets) => set({ wallets }),
   setTransactions: (transactions) => set({ transactions }),
   setAssets: (assets) => set({ assets }),
+  setAssetSales: (assetSales) => set({ assetSales }),
   setCalendarEvents: (calendarEvents) => set({ calendarEvents }),
   setActiveWallet: (id) => set({ activeWalletId: id }),
 }));

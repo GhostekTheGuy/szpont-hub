@@ -1,14 +1,11 @@
 'use client';
 
-import { useMemo, useEffect, useRef } from 'react';
-import { format, isSameDay, isToday, addDays, startOfWeek, differenceInMinutes, parseISO } from 'date-fns';
-import { pl } from 'date-fns/locale';
+import { useMemo, useEffect, useRef, useState, useCallback } from 'react';
+import { format, isToday, addDays, parseISO } from 'date-fns';
 import type { CalendarEvent } from '@/hooks/useFinanceStore';
 
-const HOUR_HEIGHT = 60; // px per hour
-const START_HOUR = 6;
-const END_HOUR = 23;
-const HOURS = Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => START_HOUR + i);
+const BASE_HOUR_HEIGHT = 60;
+const PADDING_HOURS = 1;
 const DAY_LABELS = ['Pon', 'Wt', 'Śr', 'Czw', 'Pt', 'Sob', 'Niedz'];
 
 interface WeeklyCalendarProps {
@@ -20,15 +17,8 @@ interface WeeklyCalendarProps {
 
 function getEventColor(walletColor: string): string {
   if (!walletColor) return 'bg-primary/80';
-  if (walletColor.startsWith('plasma:')) {
-    const hex = walletColor.slice(7);
-    return '';
-  }
-  if (walletColor.startsWith('grainient:')) {
-    const hex = walletColor.slice(10).split(':')[0];
-    return '';
-  }
-  // Gradient - extract first tailwind color
+  if (walletColor.startsWith('plasma:')) return '';
+  if (walletColor.startsWith('grainient:')) return '';
   const match = walletColor.match(/from-(\w+-\d+)/);
   if (match) return `bg-${match[1]}`;
   return 'bg-primary/80';
@@ -45,6 +35,56 @@ function getEventStyle(walletColor: string): React.CSSProperties {
   return {};
 }
 
+function usePinchZoom(scrollRef: React.RefObject<HTMLDivElement | null>, initialScale: number) {
+  const [scale, setScale] = useState(initialScale);
+  const pinchRef = useRef({ active: false, startDist: 0, startScale: 1 });
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    const getDistance = (touches: TouchList) => {
+      const [a, b] = [touches[0], touches[1]];
+      return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+    };
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        pinchRef.current = {
+          active: true,
+          startDist: getDistance(e.touches),
+          startScale: scale,
+        };
+      }
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (!pinchRef.current.active || e.touches.length !== 2) return;
+      e.preventDefault();
+      const dist = getDistance(e.touches);
+      const ratio = dist / pinchRef.current.startDist;
+      const newScale = Math.min(Math.max(pinchRef.current.startScale * ratio, 0.5), 3);
+      setScale(newScale);
+    };
+
+    const onTouchEnd = () => {
+      pinchRef.current.active = false;
+    };
+
+    el.addEventListener('touchstart', onTouchStart, { passive: true });
+    el.addEventListener('touchmove', onTouchMove, { passive: false });
+    el.addEventListener('touchend', onTouchEnd, { passive: true });
+
+    return () => {
+      el.removeEventListener('touchstart', onTouchStart);
+      el.removeEventListener('touchmove', onTouchMove);
+      el.removeEventListener('touchend', onTouchEnd);
+    };
+  }, [scrollRef, scale]);
+
+  return scale;
+}
+
 export function WeeklyCalendar({ weekStart, events, onSlotClick, onEventClick }: WeeklyCalendarProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const days = useMemo(() =>
@@ -52,14 +92,51 @@ export function WeeklyCalendar({ weekStart, events, onSlotClick, onEventClick }:
     [weekStart]
   );
 
+  // Auto-scale: compute visible hour range from events
+  const { startHour, endHour, hours } = useMemo(() => {
+    let minHour = 8;
+    let maxHour = 18;
+
+    if (events.length > 0) {
+      minHour = 24;
+      maxHour = 0;
+      for (const event of events) {
+        const start = parseISO(event.start_time);
+        const end = parseISO(event.end_time);
+        minHour = Math.min(minHour, start.getHours());
+        maxHour = Math.max(maxHour, end.getHours() + (end.getMinutes() > 0 ? 1 : 0));
+      }
+    }
+
+    // Include current hour if viewing current week
+    const now = new Date();
+    const currentHour = now.getHours();
+    if (days.some(d => isToday(d))) {
+      minHour = Math.min(minHour, currentHour);
+      maxHour = Math.max(maxHour, currentHour + 1);
+    }
+
+    const sh = Math.max(0, minHour - PADDING_HOURS);
+    const eh = Math.min(24, maxHour + PADDING_HOURS);
+
+    return {
+      startHour: sh,
+      endHour: eh,
+      hours: Array.from({ length: eh - sh + 1 }, (_, i) => sh + i),
+    };
+  }, [events, days]);
+
+  const scale = usePinchZoom(scrollRef, 1);
+  const hourHeight = BASE_HOUR_HEIGHT * scale;
+
   // Scroll to current hour on mount
   useEffect(() => {
     if (scrollRef.current) {
       const now = new Date();
-      const scrollTo = (now.getHours() - START_HOUR - 2) * HOUR_HEIGHT;
+      const scrollTo = (now.getHours() - startHour - 2) * hourHeight;
       scrollRef.current.scrollTop = Math.max(0, scrollTo);
     }
-  }, []);
+  }, [startHour, hourHeight]);
 
   const eventsByDay = useMemo(() => {
     const map = new Map<string, CalendarEvent[]>();
@@ -78,14 +155,14 @@ export function WeeklyCalendar({ weekStart, events, onSlotClick, onEventClick }:
   // Current time indicator
   const now = new Date();
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
-  const nowTop = ((nowMinutes - START_HOUR * 60) / 60) * HOUR_HEIGHT;
-  const showNowLine = nowMinutes >= START_HOUR * 60 && nowMinutes <= END_HOUR * 60;
+  const nowTop = ((nowMinutes - startHour * 60) / 60) * hourHeight;
+  const showNowLine = nowMinutes >= startHour * 60 && nowMinutes <= endHour * 60;
 
   return (
-    <div className="flex flex-col h-[calc(100vh-12rem)] bg-card border border-border rounded-xl overflow-hidden">
+    <div className="flex flex-col h-[calc(100vh-12rem)] bg-card border border-border rounded-xl overflow-hidden touch-none md:touch-auto">
       {/* Header with day names */}
       <div className="flex border-b border-border shrink-0">
-        <div className="w-16 shrink-0" />
+        <div className="w-10 shrink-0" />
         {days.map((day, i) => (
           <div
             key={i}
@@ -105,14 +182,14 @@ export function WeeklyCalendar({ weekStart, events, onSlotClick, onEventClick }:
 
       {/* Scrollable grid */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden relative">
-        <div className="flex" style={{ minHeight: HOURS.length * HOUR_HEIGHT }}>
+        <div className="flex" style={{ minHeight: hours.length * hourHeight }}>
           {/* Time labels */}
-          <div className="w-16 shrink-0 relative">
-            {HOURS.map((hour) => (
+          <div className="w-10 shrink-0 relative">
+            {hours.map((hour) => (
               <div
                 key={hour}
-                className="absolute right-2 text-xs text-muted-foreground -translate-y-1/2"
-                style={{ top: (hour - START_HOUR) * HOUR_HEIGHT }}
+                className="absolute right-1.5 text-[10px] text-muted-foreground -translate-y-1/2"
+                style={{ top: (hour - startHour) * hourHeight }}
               >
                 {String(hour).padStart(2, '0')}:00
               </div>
@@ -131,11 +208,11 @@ export function WeeklyCalendar({ weekStart, events, onSlotClick, onEventClick }:
                 className={`flex-1 relative border-l border-border ${today ? 'bg-primary/5' : ''}`}
               >
                 {/* Hour grid lines */}
-                {HOURS.map((hour) => (
+                {hours.map((hour) => (
                   <div
                     key={hour}
                     className="absolute w-full border-t border-border/50 cursor-pointer hover:bg-accent/30 transition-colors"
-                    style={{ top: (hour - START_HOUR) * HOUR_HEIGHT, height: HOUR_HEIGHT }}
+                    style={{ top: (hour - startHour) * hourHeight, height: hourHeight }}
                     onClick={() => onSlotClick(day, hour)}
                   />
                 ))}
@@ -146,10 +223,10 @@ export function WeeklyCalendar({ weekStart, events, onSlotClick, onEventClick }:
                   const end = parseISO(event.end_time);
                   const startMin = start.getHours() * 60 + start.getMinutes();
                   const endMin = end.getHours() * 60 + end.getMinutes();
-                  const top = ((startMin - START_HOUR * 60) / 60) * HOUR_HEIGHT;
-                  const height = Math.max(((endMin - startMin) / 60) * HOUR_HEIGHT, 20);
-                  const hours = (endMin - startMin) / 60;
-                  const earnings = hours * event.hourly_rate;
+                  const top = ((startMin - startHour * 60) / 60) * hourHeight;
+                  const height = Math.max(((endMin - startMin) / 60) * hourHeight, 20);
+                  const eventHours = (endMin - startMin) / 60;
+                  const earnings = eventHours * event.hourly_rate;
 
                   const colorClass = getEventColor(event.walletColor);
                   const colorStyle = getEventStyle(event.walletColor);
@@ -158,7 +235,7 @@ export function WeeklyCalendar({ weekStart, events, onSlotClick, onEventClick }:
                   return (
                     <div
                       key={event.id}
-                      className={`absolute left-0.5 right-0.5 rounded-md px-1.5 py-0.5 cursor-pointer overflow-hidden transition-opacity hover:opacity-90 z-10 ${
+                      className={`absolute left-0.5 right-0.5 px-1.5 py-0.5 cursor-pointer overflow-hidden transition-opacity hover:opacity-90 z-10 ${
                         event.is_settled ? 'opacity-60' : ''
                       } ${useStyle ? '' : colorClass}`}
                       style={{

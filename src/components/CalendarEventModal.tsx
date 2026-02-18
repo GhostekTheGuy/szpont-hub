@@ -90,7 +90,11 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
 
     try {
       if (editingEvent) {
-        await editCalendarEvent(editingEvent.id, eventData);
+        // Instancje cykliczne mają ID w formacie "originalId_YYYY-MM-DD"
+        const realId = editingEvent.id.includes('_') && editingEvent.is_recurring
+          ? editingEvent.id.replace(/_\d{4}-\d{2}-\d{2}$/, '')
+          : editingEvent.id;
+        await editCalendarEvent(realId, eventData);
       } else {
         await addCalendarEvent(eventData);
       }
@@ -107,7 +111,10 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
     if (!editingEvent || !confirm('Usunąć wydarzenie?')) return;
     setLoading(true);
     try {
-      await deleteCalendarEvent(editingEvent.id);
+      const realId = editingEvent.id.includes('_') && editingEvent.is_recurring
+        ? editingEvent.id.replace(/_\d{4}-\d{2}-\d{2}$/, '')
+        : editingEvent.id;
+      await deleteCalendarEvent(realId);
       onClose();
     } catch (error) {
       console.error(error);

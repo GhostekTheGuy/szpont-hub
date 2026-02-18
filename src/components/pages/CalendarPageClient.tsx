@@ -7,6 +7,7 @@ import { WeeklyCalendar } from '@/components/WeeklyCalendar';
 import { CalendarEventModal } from '@/components/CalendarEventModal';
 import { WeeklySummaryModal } from '@/components/WeeklySummaryModal';
 import { ScanTogglModal } from '@/components/ScanTogglModal';
+import { TimerWidget } from '@/components/TimerWidget';
 import { ChevronLeft, ChevronRight, BarChart3, Timer } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addWeeks, subWeeks, isThisWeek, isSunday } from 'date-fns';
 import { pl } from 'date-fns/locale';
@@ -114,12 +115,14 @@ export function CalendarPageClient({ initialEvents, initialWallets }: Props) {
         </div>
 
         <div className="flex items-center gap-2">
+          <TimerWidget wallets={wallets} onStop={() => loadWeek(currentDate)} />
+
           <button
             onClick={() => setIsScanTogglOpen(true)}
             className="flex items-center gap-2 px-4 py-2 bg-secondary hover:bg-accent text-secondary-foreground rounded-lg transition-all"
           >
             <Timer className="w-4 h-4" />
-            <span className="hidden sm:inline">Import Toggl</span>
+            <span className="hidden sm:inline">Import</span>
           </button>
 
           <button

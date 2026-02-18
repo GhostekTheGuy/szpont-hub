@@ -1,12 +1,14 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useTransition } from 'react';
 import Link from 'next/link';
 import { WalletCard } from '@/components/WalletCard';
 import { TransactionList } from '@/components/TransactionList';
 import { AssetList } from '@/components/AssetList';
 import { FinancialChart } from '@/components/FinancialChart';
-import { BTCWidget } from '@/components/BTCWidget';
+import { MonthlyIncomeChart } from '@/components/MonthlyIncomeChart';
+import { ProfitChart } from '@/components/ProfitChart';
+import { PLNBTCChart } from '@/components/PLNBTCChart';
 import { TransactionModal } from '@/components/TransactionModal';
 import { WalletModal } from '@/components/WalletModal';
 import { useFinanceStore, Transaction, Wallet, Asset } from '@/hooks/useFinanceStore';
@@ -14,7 +16,8 @@ import { TrendingUp, Wallet as WalletIcon, ArrowUpRight, ArrowDownRight, Plus, A
 import { subDays, format } from 'date-fns';
 import { pl } from 'date-fns/locale';
 import { deleteTransactionAction, deleteWalletAction } from '@/app/actions';
-import { convertAmount, formatCurrency, type Currency, type ExchangeRates } from '@/lib/exchange-rates';
+import { convertAmount, formatCurrency, type Currency, type ExchangeRates, type HistoricalRates } from '@/lib/exchange-rates';
+import { getDashboardHistoricalRates } from '@/app/actions';
 
 interface Props {
   initialWallets: Wallet[];
@@ -40,6 +43,9 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
   const [range, setRange] = useState<'1W' | '1M' | '3M' | '1Y'>('1M');
   const [displayCurrency, setDisplayCurrency] = useState<Currency>('PLN');
 
+  const [historicalRates, setHistoricalRates] = useState<HistoricalRates | undefined>(undefined);
+  const [, startTransition] = useTransition();
+
   const { wallets, transactions, assets, setWallets, setTransactions, setAssets } = useFinanceStore();
 
   useEffect(() => {
@@ -47,6 +53,14 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
     setTransactions(initialTransactions);
     setAssets(initialAssets);
   }, [initialWallets, initialTransactions, initialAssets, setWallets, setTransactions, setAssets]);
+
+  // Pobierz historyczne kursy gdy zmieni się range
+  useEffect(() => {
+    startTransition(async () => {
+      const rates = await getDashboardHistoricalRates(range);
+      setHistoricalRates(rates);
+    });
+  }, [range]);
 
   const stats = useMemo(() => {
     // Salda portfeli są w PLN - przelicz na wybraną walutę
@@ -161,13 +175,22 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
       </div>
 
       {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-3">
-        <div className="lg:col-span-2 bg-card border border-border rounded-xl overflow-hidden">
-          <FinancialChart transactions={transactions} range={range} setRange={setRange} displayCurrency={displayCurrency} exchangeRates={exchangeRates} />
+      <div className="bg-card border border-border rounded-xl overflow-hidden mb-3">
+        <FinancialChart transactions={transactions} range={range} setRange={setRange} displayCurrency={displayCurrency} exchangeRates={exchangeRates} historicalRates={historicalRates} />
+      </div>
+
+      {/* Monthly Cashflow + Profit + PLN/BTC */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-3">
+        <div className="bg-card border border-border rounded-xl overflow-hidden">
+          <MonthlyIncomeChart transactions={transactions} displayCurrency={displayCurrency} exchangeRates={exchangeRates} />
         </div>
         <div className="bg-card border border-border rounded-xl overflow-hidden">
-          <BTCWidget />
+          <ProfitChart transactions={transactions} displayCurrency={displayCurrency} exchangeRates={exchangeRates} />
         </div>
+      </div>
+
+      <div className="bg-card border border-border rounded-xl overflow-hidden mb-3">
+        <PLNBTCChart />
       </div>
 
       {/* Wallets preview */}
@@ -202,15 +225,12 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
         </div>
         <div className="bg-card border border-border rounded-xl overflow-hidden">
           <TransactionList
-            transactions={transactions.slice(0, 10)}
+            transactions={transactions}
+            limit={4}
+            showSeeMore
             onDelete={handleDeleteTransaction}
             onEdit={(t) => { setEditingTransaction(t); setIsTransModalOpen(true); }}
           />
-          <div className="px-6 pb-4">
-            <Link href="/transactions" className="flex items-center justify-center gap-1 text-sm text-primary hover:underline">
-              Wszystkie transakcje <ArrowRight className="w-4 h-4" />
-            </Link>
-          </div>
         </div>
       </div>
 

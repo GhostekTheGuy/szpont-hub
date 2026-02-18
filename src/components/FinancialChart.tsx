@@ -1,11 +1,11 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useCallback } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Transaction } from '@/hooks/useFinanceStore';
 import { format, subDays } from 'date-fns';
 import { pl } from 'date-fns/locale';
-import { convertAmount, formatCurrency, type Currency, type ExchangeRates } from '@/lib/exchange-rates';
+import { convertAmount, formatCurrency, type Currency, type ExchangeRates, type HistoricalRates } from '@/lib/exchange-rates';
 
 interface FinancialChartProps {
   transactions: Transaction[];
@@ -13,9 +13,10 @@ interface FinancialChartProps {
   setRange: (range: '1W' | '1M' | '3M' | '1Y') => void;
   displayCurrency: Currency;
   exchangeRates: ExchangeRates;
+  historicalRates?: HistoricalRates;
 }
 
-export function FinancialChart({ transactions, range, setRange, displayCurrency, exchangeRates }: FinancialChartProps) {
+export function FinancialChart({ transactions, range, setRange, displayCurrency, exchangeRates, historicalRates }: FinancialChartProps) {
 
   const chartData = useMemo(() => {
     const days = range === '1W' ? 7 : range === '1M' ? 30 : range === '3M' ? 90 : 365;
@@ -28,8 +29,11 @@ export function FinancialChart({ transactions, range, setRange, displayCurrency,
 
       const transactionsUntilNow = transactions.filter(t => new Date(t.date) <= date);
 
+      // Użyj historycznego kursu dla tego dnia, albo fallback na bieżący
+      const ratesForDay = historicalRates?.[dateStr] || exchangeRates;
+
       const balance = transactionsUntilNow.reduce((acc, t) => {
-        return acc + convertAmount(t.amount, t.currency || 'PLN', displayCurrency, exchangeRates);
+        return acc + convertAmount(t.amount, t.currency || 'PLN', displayCurrency, ratesForDay);
       }, 0);
 
       data.push({
@@ -40,7 +44,23 @@ export function FinancialChart({ transactions, range, setRange, displayCurrency,
     }
 
     return data;
-  }, [transactions, range, displayCurrency, exchangeRates]);
+  }, [transactions, range, displayCurrency, exchangeRates, historicalRates]);
+
+  const yDomain = useMemo(() => {
+    if (chartData.length === 0) return [0, 100];
+    const values = chartData.map(d => d.value);
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const range = max - min;
+    const padding = range > 0 ? range * 0.1 : Math.abs(max) * 0.05 || 100;
+    return [Math.floor(min - padding), Math.ceil(max + padding)];
+  }, [chartData]);
+
+  const formatYTick = useCallback((value: number) => {
+    if (Math.abs(value) >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+    if (Math.abs(value) >= 1_000) return `${(value / 1_000).toFixed(1)}k`;
+    return value.toFixed(0);
+  }, []);
 
   return (
     <div className="p-6">
@@ -85,7 +105,8 @@ export function FinancialChart({ transactions, range, setRange, displayCurrency,
             tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
             axisLine={false}
             tickLine={false}
-            tickFormatter={(value) => `${(value / 1000).toFixed(1)}k`}
+            domain={yDomain}
+            tickFormatter={formatYTick}
           />
           <Tooltip
             contentStyle={{

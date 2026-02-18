@@ -1,5 +1,5 @@
 import { Asset } from '@/hooks/useFinanceStore';
-import { TrendingUp, TrendingDown, Coins } from 'lucide-react';
+import { TrendingUp, TrendingDown, Coins, Edit2, Trash2, BadgeDollarSign } from 'lucide-react';
 import { formatCurrency } from '@/lib/exchange-rates';
 import {
   TokenBTC,
@@ -44,9 +44,12 @@ const cryptoIconMap: Record<string, React.ComponentType<any>> = {
 
 interface AssetListProps {
   assets: Asset[];
+  onEdit?: (asset: Asset) => void;
+  onDelete?: (id: string) => void;
+  onSell?: (asset: Asset) => void;
 }
 
-export function AssetList({ assets }: AssetListProps) {
+export function AssetList({ assets, onEdit, onDelete, onSell }: AssetListProps) {
   const totalValue = assets.reduce((sum, asset) => sum + asset.total_value, 0);
 
   return (
@@ -70,11 +73,15 @@ export function AssetList({ assets }: AssetListProps) {
         ) : (
           assets.map((asset) => {
             const isPositive = asset.change_24h >= 0;
+            const unrealizedPL = asset.cost_basis > 0
+              ? (asset.current_price - asset.cost_basis) * asset.quantity
+              : 0;
+            const plPositive = unrealizedPL >= 0;
 
             return (
               <div
                 key={asset.id}
-                className="p-4 bg-muted/50 rounded-lg border border-border hover:bg-muted transition-colors"
+                className="p-4 bg-muted/50 rounded-lg border border-border hover:bg-muted transition-colors group"
               >
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-3">
@@ -97,25 +104,65 @@ export function AssetList({ assets }: AssetListProps) {
                       <p className="text-sm text-muted-foreground mt-0.5">
                         {asset.quantity} × {formatCurrency(asset.current_price)}
                       </p>
+                      {asset.cost_basis > 0 && (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Zakup: {formatCurrency(asset.cost_basis)} · P/L:{' '}
+                          <span className={plPositive ? 'text-green-500' : 'text-red-500'}>
+                            {plPositive ? '+' : ''}{formatCurrency(unrealizedPL)}
+                          </span>
+                        </p>
+                      )}
                     </div>
                   </div>
 
-                  <div className="text-right">
-                    <p className="text-lg font-bold text-card-foreground">
-                      {formatCurrency(asset.total_value)}
-                    </p>
-                    <div className={`flex items-center justify-end gap-1 mt-1 ${
-                      isPositive ? 'text-green-500' : 'text-red-500'
-                    }`}>
-                      {isPositive ? (
-                        <TrendingUp className="w-3 h-3" />
-                      ) : (
-                        <TrendingDown className="w-3 h-3" />
-                      )}
-                      <span className="text-sm font-medium">
-                        {isPositive ? '+' : ''}{asset.change_24h.toFixed(2)}%
-                      </span>
+                  <div className="flex items-center gap-2">
+                    <div className="text-right">
+                      <p className="text-lg font-bold text-card-foreground">
+                        {formatCurrency(asset.total_value)}
+                      </p>
+                      <div className={`flex items-center justify-end gap-1 mt-1 ${
+                        isPositive ? 'text-green-500' : 'text-red-500'
+                      }`}>
+                        {isPositive ? (
+                          <TrendingUp className="w-3 h-3" />
+                        ) : (
+                          <TrendingDown className="w-3 h-3" />
+                        )}
+                        <span className="text-sm font-medium">
+                          {isPositive ? '+' : ''}{asset.change_24h.toFixed(2)}%
+                        </span>
+                      </div>
                     </div>
+
+                    {(onEdit || onDelete || onSell) && (
+                      <div className="flex gap-1 opacity-0 lg:group-hover:opacity-100 transition-opacity">
+                        {onSell && (
+                          <button
+                            onClick={() => onSell(asset)}
+                            className="p-2 hover:bg-red-500/20 text-muted-foreground hover:text-red-500 rounded-md transition-colors"
+                            title="Sprzedaj"
+                          >
+                            <BadgeDollarSign className="w-4 h-4" />
+                          </button>
+                        )}
+                        {onEdit && (
+                          <button
+                            onClick={() => onEdit(asset)}
+                            className="p-2 hover:bg-accent text-muted-foreground hover:text-accent-foreground rounded-md transition-colors"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                        )}
+                        {onDelete && (
+                          <button
+                            onClick={() => onDelete(asset.id)}
+                            className="p-2 hover:bg-destructive/20 text-muted-foreground hover:text-destructive rounded-md transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -134,10 +181,6 @@ export function AssetList({ assets }: AssetListProps) {
           })
         )}
       </div>
-
-      <button className="w-full mt-4 py-3 text-sm text-muted-foreground hover:text-card-foreground hover:bg-accent rounded-lg border border-border transition-colors">
-        Zarządzaj aktywami
-      </button>
     </div>
   );
 }
