@@ -840,6 +840,29 @@ export async function deleteCalendarEvent(id: string) {
   revalidatePath('/', 'layout');
 }
 
+export async function toggleEventSettled(id: string, settled: boolean) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  // For recurring instances (id_YYYY-MM-DD), extract the real ID
+  const realId = id.includes('_') ? id.split('_').slice(0, -1).join('_') : id;
+
+  const { data: event } = await supabaseAdmin
+    .from('calendar_events')
+    .select('user_id')
+    .eq('id', realId)
+    .single();
+
+  if (!event || event.user_id !== userId) return;
+
+  await supabaseAdmin
+    .from('calendar_events')
+    .update({ is_settled: settled })
+    .eq('id', realId);
+
+  revalidatePath('/', 'layout');
+}
+
 export async function settleWeekAction(weekStart: string, weekEnd: string) {
   const userId = await getUserId();
   if (!userId) throw new Error('Unauthorized');

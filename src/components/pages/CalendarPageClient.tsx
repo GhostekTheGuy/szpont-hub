@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useFinanceStore, type Wallet, type CalendarEvent } from '@/hooks/useFinanceStore';
-import { getCalendarEvents } from '@/app/actions';
+import { getCalendarEvents, toggleEventSettled } from '@/app/actions';
 import { WeeklyCalendar } from '@/components/WeeklyCalendar';
 import { CalendarEventModal } from '@/components/CalendarEventModal';
 import { WeeklySummaryModal } from '@/components/WeeklySummaryModal';
@@ -85,6 +85,21 @@ export function CalendarPageClient({ initialEvents, initialWallets }: Props) {
     setPrefillHour(null);
     setIsEventModalOpen(true);
   };
+
+  const handleToggleSettled = useCallback(async (event: CalendarEvent, settled: boolean) => {
+    // Optimistic update
+    setCalendarEvents(
+      calendarEvents.map(e => e.id === event.id ? { ...e, is_settled: settled } : e)
+    );
+    try {
+      await toggleEventSettled(event.id, settled);
+    } catch {
+      // Revert on error
+      setCalendarEvents(
+        calendarEvents.map(e => e.id === event.id ? { ...e, is_settled: !settled } : e)
+      );
+    }
+  }, [calendarEvents, setCalendarEvents]);
 
   const handleModalClose = () => {
     setIsEventModalOpen(false);
@@ -172,6 +187,7 @@ export function CalendarPageClient({ initialEvents, initialWallets }: Props) {
           events={calendarEvents}
           onSlotClick={handleSlotClick}
           onEventClick={handleEventClick}
+          onToggleSettled={handleToggleSettled}
         />
       </div>
 
