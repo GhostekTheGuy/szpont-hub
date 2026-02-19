@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, useTransition } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { WalletCard } from '@/components/WalletCard';
 import { TransactionList } from '@/components/TransactionList';
@@ -44,7 +44,7 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
   const [displayCurrency, setDisplayCurrency] = useState<Currency>('PLN');
 
   const [historicalRates, setHistoricalRates] = useState<HistoricalRates | undefined>(undefined);
-  const [, startTransition] = useTransition();
+  const [ratesReady, setRatesReady] = useState(false);
 
   const { wallets, transactions, assets, setWallets, setTransactions, setAssets } = useFinanceStore();
 
@@ -56,10 +56,15 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
 
   // Pobierz historyczne kursy gdy zmieni się range
   useEffect(() => {
-    startTransition(async () => {
-      const rates = await getDashboardHistoricalRates(range);
-      setHistoricalRates(rates);
+    let cancelled = false;
+    setRatesReady(false);
+    getDashboardHistoricalRates(range).then((rates) => {
+      if (!cancelled) {
+        setHistoricalRates(rates);
+        setRatesReady(true);
+      }
     });
+    return () => { cancelled = true; };
   }, [range]);
 
   const stats = useMemo(() => {
@@ -152,7 +157,17 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
                     {formatCurrency(stats.totalNetWorth, displayCurrency)}
                   </div>
                 </div>
-                <FinancialChart transactions={transactions} range={range} setRange={setRange} displayCurrency={displayCurrency} exchangeRates={exchangeRates} historicalRates={historicalRates} />
+                {ratesReady ? (
+                  <FinancialChart transactions={transactions} range={range} setRange={setRange} displayCurrency={displayCurrency} exchangeRates={exchangeRates} historicalRates={historicalRates} />
+                ) : (
+                  <div className="p-6">
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="h-6 w-40 bg-muted rounded animate-pulse" />
+                      <div className="h-8 w-40 bg-muted rounded-lg animate-pulse" />
+                    </div>
+                    <div className="h-[300px] bg-muted/30 rounded-lg animate-pulse" />
+                  </div>
+                )}
               </div>
 
               {/* Right: stats column */}
