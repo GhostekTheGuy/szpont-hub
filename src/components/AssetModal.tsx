@@ -29,6 +29,7 @@ export function AssetModal({ isOpen, onClose, editingAsset }: AssetModalProps) {
   const [selectedCoin, setSelectedCoin] = useState<CoinResult | null>(null);
   const [quantity, setQuantity] = useState('');
   const [costBasis, setCostBasis] = useState('');
+  const [costCurrency, setCostCurrency] = useState<'PLN' | 'USD'>('PLN');
   const [loading, setLoading] = useState(false);
   const debounceRef = useRef<NodeJS.Timeout>();
 
@@ -42,12 +43,14 @@ export function AssetModal({ isOpen, onClose, editingAsset }: AssetModalProps) {
       });
       setQuantity(editingAsset.quantity.toString());
       setCostBasis(editingAsset.cost_basis > 0 ? editingAsset.cost_basis.toString() : '');
+      setCostCurrency('PLN');
       setQuery('');
       setResults([]);
     } else {
       setSelectedCoin(null);
       setQuantity('');
       setCostBasis('');
+      setCostCurrency('PLN');
       setQuery('');
       setResults([]);
     }
@@ -99,10 +102,27 @@ export function AssetModal({ isOpen, onClose, editingAsset }: AssetModalProps) {
     setLoading(true);
 
     try {
+      let costBasisPLN: number | undefined;
+      if (costBasis) {
+        const parsed = parseFloat(costBasis);
+        if (costCurrency === 'USD') {
+          // Fetch current USD/PLN rate to convert
+          const rateRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=usd&vs_currencies=pln');
+          let usdToPln = 4.0; // fallback
+          if (rateRes.ok) {
+            const rateData = await rateRes.json();
+            usdToPln = rateData?.usd?.pln || 4.0;
+          }
+          costBasisPLN = parsed * usdToPln;
+        } else {
+          costBasisPLN = parsed;
+        }
+      }
+
       if (editingAsset) {
         await editAssetAction(editingAsset.id, {
           quantity: parseFloat(quantity),
-          cost_basis: costBasis ? parseFloat(costBasis) : undefined,
+          cost_basis: costBasisPLN,
         });
       } else {
         await addAssetAction({
@@ -110,7 +130,7 @@ export function AssetModal({ isOpen, onClose, editingAsset }: AssetModalProps) {
           symbol: selectedCoin.symbol.toUpperCase(),
           coingecko_id: selectedCoin.id,
           quantity: parseFloat(quantity),
-          cost_basis: costBasis ? parseFloat(costBasis) : undefined,
+          cost_basis: costBasisPLN,
         });
       }
       router.refresh();
@@ -227,17 +247,27 @@ export function AssetModal({ isOpen, onClose, editingAsset }: AssetModalProps) {
               {/* Cena zakupu */}
               <div>
                 <label className="block text-sm text-muted-foreground mb-2">
-                  Cena zakupu (PLN/szt.)
+                  Cena zakupu za sztukę
                   <span className="text-xs ml-1 opacity-60">— puste = cena z CoinGecko</span>
                 </label>
-                <input
-                  type="number"
-                  step="any"
-                  value={costBasis}
-                  onChange={(e) => setCostBasis(e.target.value)}
-                  className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
-                  placeholder="Automatyczna"
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    step="any"
+                    value={costBasis}
+                    onChange={(e) => setCostBasis(e.target.value)}
+                    className="flex-1 bg-input border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
+                    placeholder="Automatyczna"
+                  />
+                  <select
+                    value={costCurrency}
+                    onChange={(e) => setCostCurrency(e.target.value as 'PLN' | 'USD')}
+                    className="bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    <option value="PLN">PLN</option>
+                    <option value="USD">USD</option>
+                  </select>
+                </div>
               </div>
 
               <button

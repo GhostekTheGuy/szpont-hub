@@ -13,6 +13,7 @@ interface ChartPoint {
 }
 
 type Range = '1W' | '1M' | '3M' | '1Y';
+type ChartCurrency = 'pln' | 'usd';
 
 const RANGE_DAYS: Record<Range, number> = {
   '1W': 7,
@@ -21,19 +22,26 @@ const RANGE_DAYS: Record<Range, number> = {
   '1Y': 365,
 };
 
+const CURRENCY_LABELS: Record<ChartCurrency, string> = {
+  pln: 'PLN',
+  usd: 'USD',
+};
+
 // In-memory cache so navigating away and back doesn't refetch
-const dataCache = new Map<Range, { data: ChartPoint[]; timestamp: number }>();
+const dataCache = new Map<string, { data: ChartPoint[]; timestamp: number }>();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 export const PLNBTCChart = memo(function PLNBTCChart() {
   const [range, setRange] = useState<Range>('1M');
+  const [currency, setCurrency] = useState<ChartCurrency>('pln');
   const [data, setData] = useState<ChartPoint[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
+    const cacheKey = `${range}_${currency}`;
 
-    const cached = dataCache.get(range);
+    const cached = dataCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
       setData(cached.data);
       setLoading(false);
@@ -45,7 +53,7 @@ export const PLNBTCChart = memo(function PLNBTCChart() {
       try {
         const days = RANGE_DAYS[range];
         const res = await fetch(
-          `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=pln&days=${days}`
+          `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=${currency}&days=${days}`
         );
         if (!res.ok) throw new Error('CoinGecko API error');
 
@@ -61,12 +69,12 @@ export const PLNBTCChart = memo(function PLNBTCChart() {
           const d = new Date(timestamp);
           return {
             date: d.toISOString(),
-            label: format(d, range === '1W' ? 'EEE' : 'dd MMM', { locale: pl }),
+            label: format(d, range === '1W' ? 'EEE dd.MM' : 'dd MMM', { locale: pl }),
             price,
           };
         });
 
-        dataCache.set(range, { data: points, timestamp: Date.now() });
+        dataCache.set(cacheKey, { data: points, timestamp: Date.now() });
         setData(points);
       } catch (err) {
         console.error('Error fetching BTC chart data:', err);
@@ -77,20 +85,36 @@ export const PLNBTCChart = memo(function PLNBTCChart() {
 
     fetchData();
     return () => { cancelled = true; };
-  }, [range]);
+  }, [range, currency]);
 
   const change = data.length >= 2
     ? ((data[data.length - 1].price - data[0].price) / data[0].price) * 100
     : 0;
   const isPositive = change >= 0;
   const currentPrice = data.length > 0 ? data[data.length - 1].price : 0;
+  const currencyLabel = CURRENCY_LABELS[currency];
+
+  const formatPrice = (value: number) => {
+    if (currency === 'pln') {
+      return value.toLocaleString('pl-PL', { maximumFractionDigits: 0 }) + ' zł';
+    }
+    return '$' + value.toLocaleString('en-US', { maximumFractionDigits: 0 });
+  };
 
   return (
     <div className="p-4 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <h3 className="text-base sm:text-xl font-bold text-card-foreground">PLN/BTC</h3>
+            <h3 className="text-base sm:text-xl font-bold text-card-foreground">BTC</h3>
+            <select
+              value={currency}
+              onChange={(e) => setCurrency(e.target.value as ChartCurrency)}
+              className="bg-secondary border border-border rounded-md px-1.5 py-0.5 text-xs text-foreground outline-none focus:ring-1 focus:ring-ring"
+            >
+              <option value="pln">PLN</option>
+              <option value="usd">USD</option>
+            </select>
             {data.length >= 2 && (
               <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md text-xs font-medium ${
                 isPositive ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'
@@ -101,7 +125,7 @@ export const PLNBTCChart = memo(function PLNBTCChart() {
             )}
           </div>
           <span className="text-xl sm:text-2xl font-bold text-foreground">
-            {currentPrice.toLocaleString('pl-PL', { maximumFractionDigits: 0 })} PLN
+            {formatPrice(currentPrice)}
           </span>
         </div>
         <div className="flex gap-1 bg-secondary rounded-lg p-1 shrink-0">
@@ -163,10 +187,7 @@ export const PLNBTCChart = memo(function PLNBTCChart() {
                 color: 'var(--card-foreground)',
               }}
               itemStyle={{ color: 'var(--card-foreground)' }}
-              formatter={(value: number) => [
-                value.toLocaleString('pl-PL', { style: 'currency', currency: 'PLN', maximumFractionDigits: 0 }),
-                'BTC',
-              ]}
+              formatter={(value: number) => [formatPrice(value), 'BTC']}
               labelStyle={{ color: 'var(--muted-foreground)' }}
             />
             <Area
