@@ -27,6 +27,10 @@ const ibmPlexMono = IBM_Plex_Mono({
 export const metadata: Metadata = {
   title: "$zpont Hub",
   description: "Zarządzaj swoimi finansami w jednym miejscu",
+  icons: {
+    icon: "/sygnet.svg",
+    apple: "/sygnet.svg",
+  },
 };
 
 export default function RootLayout({

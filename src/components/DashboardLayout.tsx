@@ -1,8 +1,9 @@
 'use client';
 
-import { ReactNode } from 'react';
+import { ReactNode, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import Image from 'next/image';
 import {
   LayoutDashboard,
   Wallet,
@@ -10,7 +11,8 @@ import {
   PiggyBank,
   CalendarDays,
   LogOut,
-  TrendingUp
+  ChevronsLeft,
+  ChevronsRight,
 } from 'lucide-react';
 import { signOutAction } from '@/app/actions';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -31,6 +33,7 @@ const navItems = [
 
 export function DashboardLayout({ children, userName }: DashboardLayoutProps) {
   const pathname = usePathname();
+  const [collapsed, setCollapsed] = useState(false);
 
   const isActive = (href: string) => {
     if (href === '/') return pathname === '/';
@@ -45,22 +48,25 @@ export function DashboardLayout({ children, userName }: DashboardLayoutProps) {
   return (
     <div className="min-h-screen bg-background">
       {/* Sidebar */}
-      <aside className="fixed left-0 top-0 z-40 h-screen w-64 bg-sidebar border-r border-sidebar-border hidden lg:block">
+      <aside
+        className={`fixed left-0 top-0 z-40 h-screen bg-sidebar border-r border-sidebar-border hidden lg:block transition-all duration-300 ${
+          collapsed ? 'w-[72px]' : 'w-52'
+        }`}
+      >
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className="p-6 border-b border-sidebar-border">
-            <Link href="/" className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-primary/20 border border-primary/30 rounded-xl flex items-center justify-center">
-                <TrendingUp className="w-5 h-5 text-primary" />
-              </div>
-              <span className="text-xl font-bold text-sidebar-foreground">
-                <span className="text-primary">$zpont</span>Hub
-              </span>
+          <div className={`border-b border-sidebar-border ${collapsed ? 'p-4 flex justify-center' : 'p-5'}`}>
+            <Link href="/" className="flex items-center justify-center">
+              {collapsed ? (
+                <Image src="/sygnet.svg" alt="SzpontHub" width={32} height={28} className="h-8 w-auto" />
+              ) : (
+                <Image src="/logo.svg" alt="SzpontHub" width={150} height={38} className="h-8 w-auto" />
+              )}
             </Link>
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 p-4 space-y-1">
+          <nav className={`flex-1 space-y-1 ${collapsed ? 'p-2' : 'p-3'}`}>
             {navItems.map((item) => {
               const Icon = item.icon;
               const active = isActive(item.href);
@@ -68,31 +74,60 @@ export function DashboardLayout({ children, userName }: DashboardLayoutProps) {
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                  title={collapsed ? item.label : undefined}
+                  className={`flex items-center gap-3 py-3 rounded-lg transition-colors ${
+                    collapsed ? 'justify-center px-2' : 'px-4'
+                  } ${
                     active
                       ? 'bg-sidebar-primary text-sidebar-primary-foreground'
                       : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
                   }`}
                 >
-                  <Icon className="w-5 h-5" />
-                  {item.label}
+                  <Icon className="w-5 h-5 shrink-0" />
+                  {!collapsed && <span>{item.label}</span>}
                 </Link>
               );
             })}
           </nav>
 
           {/* Bottom actions */}
-          <div className="p-4 border-t border-sidebar-border space-y-2">
-            <div className="flex items-center justify-between px-2">
-              <span className="text-sm text-sidebar-foreground/70">Motyw</span>
-              <ThemeToggle />
-            </div>
+          <div className={`border-t border-sidebar-border space-y-2 ${collapsed ? 'p-2' : 'p-3'}`}>
+            {collapsed ? (
+              <div className="flex justify-center py-1">
+                <ThemeToggle />
+              </div>
+            ) : (
+              <div className="flex items-center justify-between px-2">
+                <span className="text-sm text-sidebar-foreground/70">Motyw</span>
+                <ThemeToggle />
+              </div>
+            )}
             <button
               onClick={handleSignOut}
-              className="flex items-center gap-3 px-4 py-3 rounded-lg text-sidebar-foreground/70 hover:bg-destructive/10 hover:text-destructive transition-colors w-full"
+              title={collapsed ? 'Wyloguj się' : undefined}
+              className={`flex items-center gap-3 py-3 rounded-lg text-sidebar-foreground/70 hover:bg-destructive/10 hover:text-destructive transition-colors w-full ${
+                collapsed ? 'justify-center px-2' : 'px-4'
+              }`}
             >
-              <LogOut className="w-5 h-5" />
-              Wyloguj się
+              <LogOut className="w-5 h-5 shrink-0" />
+              {!collapsed && <span>Wyloguj się</span>}
+            </button>
+
+            {/* Collapse toggle */}
+            <button
+              onClick={() => setCollapsed(!collapsed)}
+              className={`flex items-center gap-3 py-3 rounded-lg text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors w-full ${
+                collapsed ? 'justify-center px-2' : 'px-4'
+              }`}
+            >
+              {collapsed ? (
+                <ChevronsRight className="w-5 h-5 shrink-0" />
+              ) : (
+                <>
+                  <ChevronsLeft className="w-5 h-5 shrink-0" />
+                  <span>Zwiń</span>
+                </>
+              )}
             </button>
           </div>
         </div>
@@ -101,11 +136,8 @@ export function DashboardLayout({ children, userName }: DashboardLayoutProps) {
       {/* Mobile header */}
       <header className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-card border-b border-border p-4">
         <div className="flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <TrendingUp className="w-6 h-6 text-primary" />
-            <span className="text-lg font-bold text-foreground">
-              <span className="text-primary">$zpont</span>Hub
-            </span>
+          <Link href="/" className="flex items-center">
+            <Image src="/sygnet.svg" alt="SzpontHub" width={32} height={28} className="h-7 w-auto" />
           </Link>
           <div className="flex items-center gap-2">
             <ThemeToggle />
@@ -120,7 +152,7 @@ export function DashboardLayout({ children, userName }: DashboardLayoutProps) {
       </header>
 
       {/* Main content */}
-      <main className="lg:ml-64 min-h-screen pb-20 lg:pb-0">
+      <main className={`min-h-screen pb-20 lg:pb-0 transition-all duration-300 ${collapsed ? 'lg:ml-[72px]' : 'lg:ml-52'}`}>
         <div className="p-6 pt-20 lg:pt-6">
           <PageTransition>
             {children}

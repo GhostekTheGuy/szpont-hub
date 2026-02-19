@@ -98,16 +98,19 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
 
   return (
     <>
-      <div className="mb-3 flex flex-col md:flex-row md:items-center justify-between gap-3">
+      {/* Hero header */}
+      <div className="mb-3 flex flex-col md:flex-row md:items-start justify-between gap-3">
         <div>
-          <h1 className="text-5xl font-bold text-foreground mb-2">
-            {getGreeting()}, <span className="text-primary">{userName}</span>
-          </h1>
-          <p className="text-xl text-muted-foreground">
-            {format(new Date(), "EEEE, d MMMM yyyy", { locale: pl })}
-          </p>
+          <div className="flex items-baseline gap-2 mb-0.5">
+            <h1 className="text-2xl font-bold text-foreground">
+              {getGreeting()}, <span className="text-primary">{userName}</span>
+            </h1>
+            <span className="text-sm text-muted-foreground">
+              {format(new Date(), "EEEE, d MMMM yyyy", { locale: pl })}
+            </span>
+          </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
           <button
             onClick={() => { setEditingWallet(null); setIsWalletModalOpen(true); }}
             className="flex items-center gap-2 px-4 py-2 bg-secondary hover:bg-secondary/80 text-secondary-foreground rounded-lg transition-colors border border-border"
@@ -123,114 +126,121 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
-        <div className="bg-card border border-border rounded-xl p-6">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-muted-foreground text-sm">Saldo</span>
-            <select
-              value={displayCurrency}
-              onChange={(e) => setDisplayCurrency(e.target.value as Currency)}
-              className="bg-secondary border border-border rounded-md px-2 py-0.5 text-xs text-foreground outline-none focus:ring-1 focus:ring-ring"
-            >
-              <option value="PLN">PLN</option>
-              <option value="USD">USD</option>
-              <option value="EUR">EUR</option>
-            </select>
+      {/* Main grid: left content + right sidebar */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-3">
+        {/* Left column — main content */}
+        <div className="min-w-0 space-y-3">
+          {/* Chart + net worth + stats in one card */}
+          <div className="bg-card border border-border rounded-xl overflow-hidden">
+            <div className="flex flex-col lg:flex-row">
+              {/* Left: net worth + chart */}
+              <div className="flex-1 min-w-0">
+                <div className="p-5 pb-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-muted-foreground text-sm">Wartość netto</span>
+                    <select
+                      value={displayCurrency}
+                      onChange={(e) => setDisplayCurrency(e.target.value as Currency)}
+                      className="bg-secondary border border-border rounded-md px-2 py-0.5 text-xs text-foreground outline-none focus:ring-1 focus:ring-ring"
+                    >
+                      <option value="PLN">PLN</option>
+                      <option value="USD">USD</option>
+                      <option value="EUR">EUR</option>
+                    </select>
+                  </div>
+                  <div className="text-3xl font-bold text-foreground">
+                    {formatCurrency(stats.totalNetWorth, displayCurrency)}
+                  </div>
+                </div>
+                <FinancialChart transactions={transactions} range={range} setRange={setRange} displayCurrency={displayCurrency} exchangeRates={exchangeRates} historicalRates={historicalRates} />
+              </div>
+
+              {/* Right: stats column */}
+              <div className="lg:w-[200px] lg:border-l border-t lg:border-t-0 border-border flex lg:flex-col divide-x lg:divide-x-0 lg:divide-y divide-border">
+                <div className="flex-1 p-4">
+                  <span className="text-muted-foreground text-xs">Przychody ({stats.periodLabel})</span>
+                  <div className="text-xl font-bold text-green-500 mt-1">
+                    {formatCurrency(stats.totalIncome, displayCurrency)}
+                  </div>
+                </div>
+                <div className="flex-1 p-4">
+                  <span className="text-muted-foreground text-xs">Wydatki ({stats.periodLabel})</span>
+                  <div className="text-xl font-bold text-red-500 mt-1">
+                    {formatCurrency(stats.totalOutcome, displayCurrency)}
+                  </div>
+                </div>
+                <div className="flex-1 p-4">
+                  <span className="text-muted-foreground text-xs">Bilans ({stats.periodLabel})</span>
+                  <div className={`text-xl font-bold mt-1 ${stats.profit >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                    {formatCurrency(stats.profit, displayCurrency)}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="text-3xl font-bold text-foreground">
-            {formatCurrency(stats.totalNetWorth, displayCurrency)}
+
+          {/* Monthly charts row */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            <div className="bg-card border border-border rounded-xl overflow-hidden">
+              <MonthlyIncomeChart transactions={transactions} displayCurrency={displayCurrency} exchangeRates={exchangeRates} />
+            </div>
+            <div className="bg-card border border-border rounded-xl overflow-hidden">
+              <ProfitChart transactions={transactions} displayCurrency={displayCurrency} exchangeRates={exchangeRates} />
+            </div>
+          </div>
+
+          {/* PLN/BTC chart */}
+          <div className="bg-card border border-border rounded-xl overflow-hidden">
+            <PLNBTCChart />
+          </div>
+
+          {/* Assets preview */}
+          <div className="bg-card border border-border rounded-xl overflow-hidden">
+            <AssetList assets={assets} />
+            <div className="px-6 pb-4">
+              <Link href="/assets" className="flex items-center justify-center gap-1 text-sm text-primary hover:underline">
+                Wszystkie aktywa <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
           </div>
         </div>
 
-        <div className="bg-card border border-border rounded-xl p-6">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-muted-foreground text-sm">Przychody ({stats.periodLabel})</span>
-            <ArrowUpRight className="w-5 h-5 text-green-500" />
+        {/* Right column — sidebar */}
+        <div className="space-y-3 lg:sticky lg:top-4 lg:self-start">
+          {/* Wallet cards */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-lg font-bold text-foreground">Portfele</h2>
+              <Link href="/wallets" className="flex items-center gap-1 text-xs text-primary hover:underline">
+                Wszystkie <ArrowRight className="w-3 h-3" />
+              </Link>
+            </div>
+            <div className="space-y-2">
+              {wallets.slice(0, 3).map((wallet) => (
+                <WalletCard
+                  key={wallet.id}
+                  wallet={wallet}
+                  onEdit={(w) => { setEditingWallet(w); setIsWalletModalOpen(true); }}
+                  onDelete={handleDeleteWallet}
+                />
+              ))}
+              {wallets.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-4">Brak portfeli</p>
+              )}
+            </div>
           </div>
-          <div className="text-3xl font-bold text-green-500">
-            {formatCurrency(stats.totalIncome, displayCurrency)}
-          </div>
-        </div>
 
-        <div className="bg-card border border-border rounded-xl p-6">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-muted-foreground text-sm">Wydatki ({stats.periodLabel})</span>
-            <ArrowDownRight className="w-5 h-5 text-red-500" />
-          </div>
-          <div className="text-3xl font-bold text-red-500">
-            {formatCurrency(stats.totalOutcome, displayCurrency)}
-          </div>
-        </div>
-
-        <div className="bg-card border border-border rounded-xl p-6">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-muted-foreground text-sm">Bilans ({stats.periodLabel})</span>
-            <TrendingUp className={`w-5 h-5 ${stats.profit >= 0 ? 'text-green-500' : 'text-red-500'}`} />
-          </div>
-          <div className={`text-3xl font-bold ${stats.profit >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-            {formatCurrency(stats.profit, displayCurrency)}
-          </div>
-        </div>
-      </div>
-
-      {/* Charts */}
-      <div className="bg-card border border-border rounded-xl overflow-hidden mb-3">
-        <FinancialChart transactions={transactions} range={range} setRange={setRange} displayCurrency={displayCurrency} exchangeRates={exchangeRates} historicalRates={historicalRates} />
-      </div>
-
-      {/* Monthly Cashflow + Profit + PLN/BTC */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-3">
-        <div className="bg-card border border-border rounded-xl overflow-hidden">
-          <MonthlyIncomeChart transactions={transactions} displayCurrency={displayCurrency} exchangeRates={exchangeRates} />
-        </div>
-        <div className="bg-card border border-border rounded-xl overflow-hidden">
-          <ProfitChart transactions={transactions} displayCurrency={displayCurrency} exchangeRates={exchangeRates} />
-        </div>
-      </div>
-
-      <div className="bg-card border border-border rounded-xl overflow-hidden mb-3">
-        <PLNBTCChart />
-      </div>
-
-      {/* Wallets preview */}
-      <div className="mb-3">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-2xl font-bold text-foreground">Portfele</h2>
-          <Link href="/wallets" className="flex items-center gap-1 text-sm text-primary hover:underline">
-            Zobacz wszystkie <ArrowRight className="w-4 h-4" />
-          </Link>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-          {wallets.slice(0, 4).map((wallet) => (
-            <WalletCard
-              key={wallet.id}
-              wallet={wallet}
-              onEdit={(w) => { setEditingWallet(w); setIsWalletModalOpen(true); }}
-              onDelete={handleDeleteWallet}
+          {/* Recent transactions */}
+          <div className="bg-card border border-border rounded-xl overflow-hidden">
+            <TransactionList
+              transactions={transactions}
+              limit={5}
+              showSeeMore
+              compact
+              onDelete={handleDeleteTransaction}
+              onEdit={(t) => { setEditingTransaction(t); setIsTransModalOpen(true); }}
             />
-          ))}
-        </div>
-      </div>
-
-      {/* Assets & Transactions preview */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <div className="bg-card border border-border rounded-xl overflow-hidden">
-          <AssetList assets={assets} />
-          <div className="px-6 pb-4">
-            <Link href="/assets" className="flex items-center justify-center gap-1 text-sm text-primary hover:underline">
-              Wszystkie aktywa <ArrowRight className="w-4 h-4" />
-            </Link>
           </div>
-        </div>
-        <div className="bg-card border border-border rounded-xl overflow-hidden">
-          <TransactionList
-            transactions={transactions}
-            limit={4}
-            showSeeMore
-            onDelete={handleDeleteTransaction}
-            onEdit={(t) => { setEditingTransaction(t); setIsTransModalOpen(true); }}
-          />
         </div>
       </div>
 

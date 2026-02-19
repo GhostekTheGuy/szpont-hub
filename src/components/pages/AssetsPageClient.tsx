@@ -84,21 +84,21 @@ export function AssetsPageClient({ initialAssets, initialWallets, initialSales, 
             className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-foreground bg-secondary hover:bg-accent rounded-lg border border-border transition-colors disabled:opacity-50"
           >
             <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-            Odśwież ceny
+            <span className="hidden sm:inline">Odśwież ceny</span>
           </button>
           <button
             onClick={() => { setSellingAsset(null); setSellModalOpen(true); }}
             className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-foreground bg-secondary hover:bg-accent rounded-lg border border-border transition-colors"
           >
             <BadgeDollarSign className="w-4 h-4" />
-            Dodaj sprzedaż
+            <span className="hidden sm:inline">Dodaj sprzedaż</span>
           </button>
           <button
             onClick={() => { setEditingAsset(null); setModalOpen(true); }}
             className="flex items-center gap-2 px-3 py-2 text-sm text-primary-foreground bg-primary hover:bg-primary/90 rounded-lg transition-colors"
           >
             <Plus className="w-4 h-4" />
-            Dodaj aktywo
+            <span className="hidden sm:inline">Dodaj aktywo</span>
           </button>
         </div>
       </div>

@@ -4,7 +4,7 @@
 
 @layer base {
   :root {
-    --background: oklch(0.9940 0 0);
+    --background: oklch(0.9777 0.0051 247.8763);
     --foreground: oklch(0 0 0);
     --card: oklch(0.9940 0 0);
     --card-foreground: oklch(0 0 0);
@@ -60,7 +60,7 @@
   }
 
   .dark {
-    --background: oklch(0.2223 0.0060 271.1393);
+    --background: oklch(0.2011 0.0039 286.0396);
     --foreground: oklch(0.9551 0 0);
     --card: oklch(0.2568 0.0076 274.6528);
     --card-foreground: oklch(0.9551 0 0);

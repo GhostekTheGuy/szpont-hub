@@ -134,7 +134,7 @@ export function CalendarPageClient({ initialEvents, initialWallets }: Props) {
             }`}
           >
             <BarChart3 className="w-4 h-4" />
-            Podsumowanie
+            <span className="hidden sm:inline">Podsumowanie</span>
           </button>
 
           <div className="flex items-center bg-secondary rounded-lg">
