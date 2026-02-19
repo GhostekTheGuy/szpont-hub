@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useFinanceStore, type Wallet, type CalendarEvent } from '@/hooks/useFinanceStore';
-import { getCalendarEvents, toggleEventSettled } from '@/app/actions';
+import { getCalendarEvents, toggleEventConfirmed } from '@/app/actions';
 import { WeeklyCalendar } from '@/components/WeeklyCalendar';
 import { CalendarEventModal } from '@/components/CalendarEventModal';
 import { WeeklySummaryModal } from '@/components/WeeklySummaryModal';
@@ -86,17 +86,17 @@ export function CalendarPageClient({ initialEvents, initialWallets }: Props) {
     setIsEventModalOpen(true);
   };
 
-  const handleToggleSettled = useCallback(async (event: CalendarEvent, settled: boolean) => {
+  const handleToggleConfirmed = useCallback(async (event: CalendarEvent, confirmed: boolean) => {
     // Optimistic update
     setCalendarEvents(
-      calendarEvents.map(e => e.id === event.id ? { ...e, is_settled: settled } : e)
+      calendarEvents.map(e => e.id === event.id ? { ...e, is_confirmed: confirmed } : e)
     );
     try {
-      await toggleEventSettled(event.id, settled);
+      await toggleEventConfirmed(event.id, confirmed);
     } catch {
       // Revert on error
       setCalendarEvents(
-        calendarEvents.map(e => e.id === event.id ? { ...e, is_settled: !settled } : e)
+        calendarEvents.map(e => e.id === event.id ? { ...e, is_confirmed: !confirmed } : e)
       );
     }
   }, [calendarEvents, setCalendarEvents]);
@@ -187,7 +187,7 @@ export function CalendarPageClient({ initialEvents, initialWallets }: Props) {
           events={calendarEvents}
           onSlotClick={handleSlotClick}
           onEventClick={handleEventClick}
-          onToggleSettled={handleToggleSettled}
+          onToggleConfirmed={handleToggleConfirmed}
         />
       </div>
 

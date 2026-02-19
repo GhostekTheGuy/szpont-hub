@@ -26,6 +26,7 @@ interface SummaryData {
   previousPeriodEarnings: number;
   previousPeriodHours: number;
   unsettledCount: number;
+  confirmedCount: number;
   eventCount: number;
 }
 
@@ -95,6 +96,7 @@ export function WeeklySummaryModal({ isOpen, onClose, weekStart, weekEnd, monthS
           previousWeekEarnings: data.previousPeriodEarnings,
           previousWeekHours: data.previousPeriodHours,
           eventCount: data.eventCount,
+          confirmedCount: data.confirmedCount,
           period: m === 'week' ? 'tydzień' : 'miesiąc',
         }),
       });
@@ -200,7 +202,7 @@ export function WeeklySummaryModal({ isOpen, onClose, weekStart, weekEnd, monthS
                     {summary.totalEarnings.toLocaleString('pl-PL', { minimumFractionDigits: 2 })} PLN
                   </div>
                   <div className="text-sm text-muted-foreground mt-1">
-                    {summary.totalHours.toFixed(1)}h pracy / {summary.eventCount} wydarzeń
+                    {summary.totalHours.toFixed(1)}h pracy / {summary.confirmedCount} z {summary.eventCount} wydarzeń potwierdzone
                   </div>
                 </div>
 
@@ -300,13 +302,18 @@ export function WeeklySummaryModal({ isOpen, onClose, weekStart, weekEnd, monthS
                   >
                     {settling
                       ? 'Zatwierdzanie...'
-                      : `Zatwierdź i dodaj transakcje (${summary.unsettledCount} wydarzeń)`}
+                      : `Zatwierdź i dodaj transakcje (${summary.unsettledCount} potwierdzonych)`}
                   </button>
                 )}
 
-                {summary.unsettledCount === 0 && summary.eventCount > 0 && (
+                {summary.unsettledCount === 0 && summary.confirmedCount > 0 && (
                   <div className="text-center text-sm text-green-500 py-2">
-                    Wszystkie wydarzenia zatwierdzone
+                    Wszystkie potwierdzone wydarzenia rozliczone
+                  </div>
+                )}
+                {summary.confirmedCount < summary.eventCount && (
+                  <div className="text-center text-sm text-muted-foreground py-1">
+                    {summary.eventCount - summary.confirmedCount} wydarzeń niepotwierdzone — zaznacz je w kalendarzu
                   </div>
                 )}
               </div>

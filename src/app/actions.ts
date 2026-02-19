@@ -663,6 +663,7 @@ export async function getCalendarEvents(weekStart: string, weekEnd: string) {
             start_time: instanceStart.toISOString(),
             end_time: instanceEnd.toISOString(),
             is_settled: false,
+            is_confirmed: false,
           });
         }
       }
@@ -683,6 +684,7 @@ export async function getCalendarEvents(weekStart: string, weekEnd: string) {
           start_time: instanceStart.toISOString(),
           end_time: instanceEnd.toISOString(),
           is_settled: false,
+          is_confirmed: false,
         });
       }
     } else if (rule === 'monthly') {
@@ -700,6 +702,7 @@ export async function getCalendarEvents(weekStart: string, weekEnd: string) {
               start_time: instanceStart.toISOString(),
               end_time: instanceEnd.toISOString(),
               is_settled: false,
+              is_confirmed: false,
             });
           }
           break;
@@ -731,6 +734,7 @@ export async function getCalendarEvents(weekStart: string, weekEnd: string) {
     is_recurring: e.is_recurring,
     recurrence_rule: e.recurrence_rule,
     is_settled: e.is_settled,
+    is_confirmed: e.is_confirmed ?? false,
   }));
 
   // Pobierz portfele do formularza
@@ -840,7 +844,7 @@ export async function deleteCalendarEvent(id: string) {
   revalidatePath('/', 'layout');
 }
 
-export async function toggleEventSettled(id: string, settled: boolean) {
+export async function toggleEventConfirmed(id: string, confirmed: boolean) {
   const userId = await getUserId();
   if (!userId) throw new Error('Unauthorized');
 
@@ -857,7 +861,7 @@ export async function toggleEventSettled(id: string, settled: boolean) {
 
   await supabaseAdmin
     .from('calendar_events')
-    .update({ is_settled: settled })
+    .update({ is_confirmed: confirmed })
     .eq('id', realId);
 
   revalidatePath('/', 'layout');
@@ -870,11 +874,12 @@ export async function settleWeekAction(weekStart: string, weekEnd: string) {
   const dek = await getDEK();
   const rates = await getExchangeRates();
 
-  // Pobierz niezatwierdzone eventy z tego tygodnia
+  // Pobierz potwierdzone ale niezatwierdzone eventy z tego tygodnia
   const { data: events, error } = await supabaseAdmin
     .from('calendar_events')
     .select('*')
     .eq('user_id', userId)
+    .eq('is_confirmed', true)
     .eq('is_settled', false)
     .gte('start_time', weekStart)
     .lte('end_time', weekEnd);
@@ -1010,9 +1015,11 @@ export async function getWeeklySummary(weekStart: string, weekEnd: string) {
     return { total, totalHours, byWallet: Array.from(byWallet.entries()).map(([id, data]) => ({ id, ...data })) };
   };
 
-  const current = calcEarnings(events);
+  const confirmedEvents = (events || []).filter(e => e.is_confirmed);
+  const current = calcEarnings(confirmedEvents);
   const previous = calcEarnings(prevEvents);
-  const unsettledCount = (events || []).filter(e => !e.is_settled).length;
+  const confirmedCount = confirmedEvents.length;
+  const unsettledCount = confirmedEvents.filter(e => !e.is_settled).length;
 
   return {
     totalEarnings: current.total,
@@ -1021,6 +1028,7 @@ export async function getWeeklySummary(weekStart: string, weekEnd: string) {
     previousWeekEarnings: previous.total,
     previousWeekHours: previous.totalHours,
     unsettledCount,
+    confirmedCount,
     eventCount: (events || []).length,
   };
 }
@@ -1103,9 +1111,11 @@ export async function getMonthlySummary(monthStart: string, monthEnd: string) {
     };
   };
 
-  const current = calcEarnings(events);
+  const confirmedEvents = (events || []).filter(e => e.is_confirmed);
+  const current = calcEarnings(confirmedEvents);
   const previous = calcEarnings(prevEvents);
-  const unsettledCount = (events || []).filter(e => !e.is_settled).length;
+  const confirmedCount = confirmedEvents.length;
+  const unsettledCount = confirmedEvents.filter(e => !e.is_settled).length;
 
   return {
     totalEarnings: current.total,
@@ -1115,6 +1125,7 @@ export async function getMonthlySummary(monthStart: string, monthEnd: string) {
     previousPeriodEarnings: previous.total,
     previousPeriodHours: previous.totalHours,
     unsettledCount,
+    confirmedCount,
     eventCount: (events || []).length,
   };
 }
@@ -1138,6 +1149,7 @@ export async function settleMonthAction(monthStart: string, monthEnd: string) {
     .from('calendar_events')
     .select('*')
     .eq('user_id', userId)
+    .eq('is_confirmed', true)
     .eq('is_settled', false)
     .gte('start_time', monthStart)
     .lte('end_time', monthEnd);

@@ -13,7 +13,7 @@ interface WeeklyCalendarProps {
   events: CalendarEvent[];
   onSlotClick: (date: Date, hour: number) => void;
   onEventClick: (event: CalendarEvent) => void;
-  onToggleSettled?: (event: CalendarEvent, settled: boolean) => void;
+  onToggleConfirmed?: (event: CalendarEvent, confirmed: boolean) => void;
 }
 
 function getEventColor(walletColor: string): string {
@@ -86,7 +86,7 @@ function usePinchZoom(scrollRef: React.RefObject<HTMLDivElement | null>, initial
   return scale;
 }
 
-export function WeeklyCalendar({ weekStart, events, onSlotClick, onEventClick, onToggleSettled }: WeeklyCalendarProps) {
+export function WeeklyCalendar({ weekStart, events, onSlotClick, onEventClick, onToggleConfirmed }: WeeklyCalendarProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const days = useMemo(() =>
     Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
@@ -260,20 +260,20 @@ export function WeeklyCalendar({ weekStart, events, onSlotClick, onEventClick, o
                           {earnings.toFixed(0)} PLN
                         </div>
                       )}
-                      {/* Settle checkbox */}
-                      {onToggleSettled && (
+                      {/* Confirm checkbox */}
+                      {onToggleConfirmed && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            onToggleSettled(event, !event.is_settled);
+                            onToggleConfirmed(event, !event.is_confirmed);
                           }}
                           className={`absolute top-0.5 right-0.5 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
-                            event.is_settled
+                            event.is_confirmed
                               ? 'bg-white/30 border-white/50'
                               : 'bg-black/20 border-white/40 hover:border-white/70'
                           }`}
                         >
-                          {event.is_settled && (
+                          {event.is_confirmed && (
                             <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                             </svg>

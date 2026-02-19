@@ -63,6 +63,7 @@ export interface CalendarEvent {
   is_recurring: boolean;
   recurrence_rule: string | null;
   is_settled: boolean;
+  is_confirmed: boolean;
 }
 
 interface FinanceState {
