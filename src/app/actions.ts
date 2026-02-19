@@ -848,21 +848,88 @@ export async function toggleEventConfirmed(id: string, confirmed: boolean) {
   const userId = await getUserId();
   if (!userId) throw new Error('Unauthorized');
 
-  // For recurring instances (id_YYYY-MM-DD), extract the real ID
-  const realId = id.includes('_') ? id.split('_').slice(0, -1).join('_') : id;
+  // Check if this is a recurring instance (id_YYYY-MM-DD)
+  const isInstance = id.includes('_') && /\d{4}-\d{2}-\d{2}$/.test(id);
 
-  const { data: event } = await supabaseAdmin
-    .from('calendar_events')
-    .select('user_id')
-    .eq('id', realId)
-    .single();
+  if (isInstance) {
+    // Recurring instance — we need to materialize it as a real record
+    const parentId = id.split('_').slice(0, -1).join('_');
 
-  if (!event || event.user_id !== userId) return;
+    const { data: parent } = await supabaseAdmin
+      .from('calendar_events')
+      .select('*')
+      .eq('id', parentId)
+      .eq('user_id', userId)
+      .single();
 
-  await supabaseAdmin
-    .from('calendar_events')
-    .update({ is_confirmed: confirmed })
-    .eq('id', realId);
+    if (!parent) return;
+
+    if (confirmed) {
+      // Check if already materialized
+      const { data: existing } = await supabaseAdmin
+        .from('calendar_events')
+        .select('id')
+        .eq('id', id)
+        .single();
+
+      if (existing) {
+        // Already exists — just update
+        await supabaseAdmin
+          .from('calendar_events')
+          .update({ is_confirmed: true })
+          .eq('id', id);
+      } else {
+        // Parse instance date from the ID suffix
+        const dateStr = id.split('_').pop()!;
+        const origStart = new Date(parent.start_time);
+        const origEnd = new Date(parent.end_time);
+        const durationMs = origEnd.getTime() - origStart.getTime();
+
+        const instanceStart = new Date(dateStr + 'T00:00:00');
+        instanceStart.setHours(origStart.getHours(), origStart.getMinutes(), origStart.getSeconds(), 0);
+        const instanceEnd = new Date(instanceStart.getTime() + durationMs);
+
+        // Materialize as a non-recurring confirmed event
+        await supabaseAdmin
+          .from('calendar_events')
+          .insert({
+            id,
+            user_id: userId,
+            title: parent.title,
+            wallet_id: parent.wallet_id,
+            hourly_rate: parent.hourly_rate,
+            start_time: instanceStart.toISOString(),
+            end_time: instanceEnd.toISOString(),
+            is_recurring: false,
+            recurrence_rule: null,
+            is_settled: false,
+            is_confirmed: true,
+            created_at: new Date().toISOString(),
+          });
+      }
+    } else {
+      // Unconfirm — delete the materialized instance (it'll be regenerated from parent)
+      await supabaseAdmin
+        .from('calendar_events')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', userId);
+    }
+  } else {
+    // Regular (non-recurring) event — simple toggle
+    const { data: event } = await supabaseAdmin
+      .from('calendar_events')
+      .select('user_id')
+      .eq('id', id)
+      .single();
+
+    if (!event || event.user_id !== userId) return;
+
+    await supabaseAdmin
+      .from('calendar_events')
+      .update({ is_confirmed: confirmed })
+      .eq('id', id);
+  }
 
   revalidatePath('/', 'layout');
 }
