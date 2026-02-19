@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, memo } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { format } from 'date-fns';
 import { pl } from 'date-fns/locale';
@@ -21,13 +21,24 @@ const RANGE_DAYS: Record<Range, number> = {
   '1Y': 365,
 };
 
-export function PLNBTCChart() {
+// In-memory cache so navigating away and back doesn't refetch
+const dataCache = new Map<Range, { data: ChartPoint[]; timestamp: number }>();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+export const PLNBTCChart = memo(function PLNBTCChart() {
   const [range, setRange] = useState<Range>('1M');
   const [data, setData] = useState<ChartPoint[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
+
+    const cached = dataCache.get(range);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+      setData(cached.data);
+      setLoading(false);
+      return;
+    }
 
     const fetchData = async () => {
       setLoading(true);
@@ -43,20 +54,20 @@ export function PLNBTCChart() {
 
         if (cancelled) return;
 
-        // Sample points based on range
         const step = range === '1W' ? 6 : range === '1M' ? 12 : range === '3M' ? 24 : 48;
         const sampled = prices.filter((_, i) => i % step === 0 || i === prices.length - 1);
 
-        setData(
-          sampled.map(([timestamp, price]) => {
-            const d = new Date(timestamp);
-            return {
-              date: d.toISOString(),
-              label: format(d, range === '1W' ? 'EEE' : 'dd MMM', { locale: pl }),
-              price,
-            };
-          })
-        );
+        const points = sampled.map(([timestamp, price]) => {
+          const d = new Date(timestamp);
+          return {
+            date: d.toISOString(),
+            label: format(d, range === '1W' ? 'EEE' : 'dd MMM', { locale: pl }),
+            price,
+          };
+        });
+
+        dataCache.set(range, { data: points, timestamp: Date.now() });
+        setData(points);
       } catch (err) {
         console.error('Error fetching BTC chart data:', err);
       } finally {
@@ -171,4 +182,4 @@ export function PLNBTCChart() {
       )}
     </div>
   );
-}
+});

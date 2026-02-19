@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, memo } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Transaction } from '@/hooks/useFinanceStore';
 import { format, subDays } from 'date-fns';
@@ -16,29 +16,44 @@ interface FinancialChartProps {
   historicalRates?: HistoricalRates;
 }
 
-export function FinancialChart({ transactions, range, setRange, displayCurrency, exchangeRates, historicalRates }: FinancialChartProps) {
+export const FinancialChart = memo(function FinancialChart({ transactions, range, setRange, displayCurrency, exchangeRates, historicalRates }: FinancialChartProps) {
 
   const chartData = useMemo(() => {
     const days = range === '1W' ? 7 : range === '1M' ? 30 : range === '3M' ? 90 : 365;
-    const data = [];
-
     const today = new Date();
+    const startDate = subDays(today, days);
+
+    // Sort transactions by date once, then accumulate — O(n log n + n + days) instead of O(n * days)
+    const sorted = [...transactions].sort((a, b) => a.date.localeCompare(b.date));
+
+    // Pre-compute balance from all transactions BEFORE the range start
+    let runningBalance = 0;
+    let txIndex = 0;
+    const startDateStr = format(startDate, 'yyyy-MM-dd');
+
+    for (; txIndex < sorted.length; txIndex++) {
+      const t = sorted[txIndex];
+      if (t.date > startDateStr) break;
+      const ratesForDay = historicalRates?.[t.date.slice(0, 10)] || exchangeRates;
+      runningBalance += convertAmount(t.amount, t.currency || 'PLN', displayCurrency, ratesForDay);
+    }
+
+    // Walk day-by-day, only adding transactions for that day
+    const data = [];
     for (let i = days; i >= 0; i--) {
       const date = subDays(today, i);
       const dateStr = format(date, 'yyyy-MM-dd');
 
-      const transactionsUntilNow = transactions.filter(t => new Date(t.date) <= date);
-
-      // Użyj historycznego kursu dla tego dnia, albo fallback na bieżący
-      const ratesForDay = historicalRates?.[dateStr] || exchangeRates;
-
-      const balance = transactionsUntilNow.reduce((acc, t) => {
-        return acc + convertAmount(t.amount, t.currency || 'PLN', displayCurrency, ratesForDay);
-      }, 0);
+      for (; txIndex < sorted.length; txIndex++) {
+        const t = sorted[txIndex];
+        if (t.date.slice(0, 10) > dateStr) break;
+        const ratesForDay = historicalRates?.[t.date.slice(0, 10)] || exchangeRates;
+        runningBalance += convertAmount(t.amount, t.currency || 'PLN', displayCurrency, ratesForDay);
+      }
 
       data.push({
         date: format(date, 'dd MMM', { locale: pl }),
-        value: balance,
+        value: runningBalance,
         fullDate: dateStr
       });
     }
@@ -131,4 +146,4 @@ export function FinancialChart({ transactions, range, setRange, displayCurrency,
       </ResponsiveContainer>
     </div>
   );
-}
+});

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, memo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { Transaction } from '@/hooks/useFinanceStore';
 import { subMonths, format } from 'date-fns';
@@ -13,7 +13,7 @@ interface MonthlyIncomeChartProps {
   exchangeRates: ExchangeRates;
 }
 
-export function MonthlyIncomeChart({ transactions, displayCurrency, exchangeRates }: MonthlyIncomeChartProps) {
+export const MonthlyIncomeChart = memo(function MonthlyIncomeChart({ transactions, displayCurrency, exchangeRates }: MonthlyIncomeChartProps) {
   const chartData = useMemo(() => {
     const today = new Date();
     const months: { key: string; label: string }[] = [];
@@ -121,4 +121,4 @@ export function MonthlyIncomeChart({ transactions, displayCurrency, exchangeRate
       </ResponsiveContainer>
     </div>
   );
-}
+});

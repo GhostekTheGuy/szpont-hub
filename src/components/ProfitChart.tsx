@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, memo } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Transaction } from '@/hooks/useFinanceStore';
 import { subMonths, format } from 'date-fns';
@@ -13,7 +13,7 @@ interface ProfitChartProps {
   exchangeRates: ExchangeRates;
 }
 
-export function ProfitChart({ transactions, displayCurrency, exchangeRates }: ProfitChartProps) {
+export const ProfitChart = memo(function ProfitChart({ transactions, displayCurrency, exchangeRates }: ProfitChartProps) {
   const { chartData, totalProfit } = useMemo(() => {
     const today = new Date();
     const months: { key: string; label: string }[] = [];
@@ -137,4 +137,4 @@ export function ProfitChart({ transactions, displayCurrency, exchangeRates }: Pr
       </div>
     </div>
   );
-}
+});
