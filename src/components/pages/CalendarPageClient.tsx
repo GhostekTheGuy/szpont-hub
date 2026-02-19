@@ -87,19 +87,20 @@ export function CalendarPageClient({ initialEvents, initialWallets }: Props) {
   };
 
   const handleToggleConfirmed = useCallback(async (event: CalendarEvent, confirmed: boolean) => {
-    // Optimistic update
+    // Optimistic update — read current state to avoid stale closure
+    const current = () => useFinanceStore.getState().calendarEvents;
     setCalendarEvents(
-      calendarEvents.map(e => e.id === event.id ? { ...e, is_confirmed: confirmed } : e)
+      current().map(e => e.id === event.id ? { ...e, is_confirmed: confirmed } : e)
     );
     try {
       await toggleEventConfirmed(event.id, confirmed);
     } catch {
       // Revert on error
       setCalendarEvents(
-        calendarEvents.map(e => e.id === event.id ? { ...e, is_confirmed: !confirmed } : e)
+        current().map(e => e.id === event.id ? { ...e, is_confirmed: !confirmed } : e)
       );
     }
-  }, [calendarEvents, setCalendarEvents]);
+  }, [setCalendarEvents]);
 
   const handleModalClose = () => {
     setIsEventModalOpen(false);
