@@ -152,12 +152,13 @@ export function DashboardLayout({ children, userName }: DashboardLayoutProps) {
       </header>
 
       {/* Main content */}
-      <main className={`min-h-screen pb-20 lg:pb-0 transition-all duration-300 ${collapsed ? 'lg:ml-[72px]' : 'lg:ml-52'}`}>
+      <main className={`relative min-h-screen pb-20 lg:pb-0 transition-all duration-300 ${collapsed ? 'lg:ml-[72px]' : 'lg:ml-52'}`}>
         <div className="p-6 pt-20 lg:pt-6">
           <PageTransition>
             {children}
           </PageTransition>
         </div>
+        <div className="pointer-events-none fixed bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-background to-transparent z-30" />
       </main>
 
       {/* Mobile bottom navigation */}

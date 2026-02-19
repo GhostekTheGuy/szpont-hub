@@ -75,30 +75,30 @@ export function PLNBTCChart() {
   const currentPrice = data.length > 0 ? data[data.length - 1].price : 0;
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h3 className="text-xl font-bold text-card-foreground">PLN/BTC</h3>
-          <div className="flex items-center gap-2 mt-1">
-            <span className="text-2xl font-bold text-foreground">
-              {currentPrice.toLocaleString('pl-PL', { maximumFractionDigits: 0 })} PLN
-            </span>
+    <div className="p-4 sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <h3 className="text-base sm:text-xl font-bold text-card-foreground">PLN/BTC</h3>
             {data.length >= 2 && (
-              <span className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-sm font-medium ${
+              <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md text-xs font-medium ${
                 isPositive ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'
               }`}>
-                {isPositive ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+                {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
                 {Math.abs(change).toFixed(2)}%
               </span>
             )}
           </div>
+          <span className="text-xl sm:text-2xl font-bold text-foreground">
+            {currentPrice.toLocaleString('pl-PL', { maximumFractionDigits: 0 })} PLN
+          </span>
         </div>
-        <div className="flex gap-1 bg-secondary rounded-lg p-1">
+        <div className="flex gap-1 bg-secondary rounded-lg p-1 shrink-0">
           {(['1W', '1M', '3M', '1Y'] as const).map((r) => (
             <button
               key={r}
               onClick={() => setRange(r)}
-              className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+              className={`px-2.5 py-1 text-xs sm:text-sm rounded-md transition-colors ${
                 range === r
                   ? 'bg-primary text-primary-foreground'
                   : 'text-muted-foreground hover:text-card-foreground'
