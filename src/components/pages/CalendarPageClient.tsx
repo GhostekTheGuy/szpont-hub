@@ -147,68 +147,125 @@ export function CalendarPageClient({ initialEvents, initialWallets, initialHabit
   return (
     <>
       {/* Header */}
-      <div className="mb-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">
-            {viewMode === 'calendar' ? 'Kalendarz' : 'Nawyki'}
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {format(weekStart, 'd MMM', { locale: pl })} — {format(weekEnd, 'd MMM yyyy', { locale: pl })}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {/* View mode toggle */}
-          <div className="flex items-center bg-secondary rounded-lg p-0.5">
-            <button
-              onClick={() => handleViewModeChange('calendar')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-                viewMode === 'calendar'
-                  ? 'bg-card text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <Calendar className="w-4 h-4" />
-              <span className="hidden sm:inline">Praca</span>
-            </button>
-            <button
-              onClick={() => handleViewModeChange('habits')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-                viewMode === 'habits'
-                  ? 'bg-card text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <Target className="w-4 h-4" />
-              <span className="hidden sm:inline">Nawyki</span>
-            </button>
+      <div className="mb-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">
+              {viewMode === 'calendar' ? 'Kalendarz' : 'Nawyki'}
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              {format(weekStart, 'd MMM', { locale: pl })} — {format(weekEnd, 'd MMM yyyy', { locale: pl })}
+            </p>
           </div>
 
+          {/* Desktop-only: view mode toggle inline */}
+          <div className="hidden md:flex items-center gap-2">
+            <div className="flex items-center bg-secondary rounded-lg p-0.5">
+              <button
+                onClick={() => handleViewModeChange('calendar')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                  viewMode === 'calendar'
+                    ? 'bg-card text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Calendar className="w-4 h-4" />
+                Praca
+              </button>
+              <button
+                onClick={() => handleViewModeChange('habits')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                  viewMode === 'habits'
+                    ? 'bg-card text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Target className="w-4 h-4" />
+                Nawyki
+              </button>
+            </div>
+
+            {viewMode === 'calendar' && (
+              <>
+                <TimerWidget wallets={wallets} onStop={() => loadWeek(currentDate)} />
+
+                <button
+                  onClick={() => setIsScanTogglOpen(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-secondary hover:bg-accent text-secondary-foreground rounded-lg transition-all"
+                >
+                  <Timer className="w-4 h-4" />
+                  Import
+                </button>
+
+                <button
+                  onClick={() => setIsSummaryModalOpen(true)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                    isSundayToday
+                      ? 'bg-green-600 hover:bg-green-700 text-white animate-pulse'
+                      : 'bg-secondary hover:bg-accent text-secondary-foreground'
+                  }`}
+                >
+                  <BarChart3 className="w-4 h-4" />
+                  Podsumowanie
+                </button>
+              </>
+            )}
+
+            <div className="flex items-center bg-secondary rounded-lg">
+              <button
+                onClick={goToPrevWeek}
+                className="p-2 hover:bg-accent rounded-l-lg transition-colors"
+                disabled={loadingWeek}
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button
+                onClick={goToToday}
+                className={`px-3 py-2 text-sm font-medium transition-colors ${
+                  isCurrent ? 'text-primary' : 'text-foreground hover:text-primary'
+                }`}
+                disabled={loadingWeek}
+              >
+                Dziś
+              </button>
+              <button
+                onClick={goToNextWeek}
+                className="p-2 hover:bg-accent rounded-r-lg transition-colors"
+                disabled={loadingWeek}
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Mobile: action buttons row */}
+        <div className="flex md:hidden items-center gap-2">
           {viewMode === 'calendar' && (
             <>
               <TimerWidget wallets={wallets} onStop={() => loadWeek(currentDate)} />
 
               <button
                 onClick={() => setIsScanTogglOpen(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-secondary hover:bg-accent text-secondary-foreground rounded-lg transition-all"
+                className="flex items-center gap-2 px-3 py-2 bg-secondary hover:bg-accent text-secondary-foreground rounded-lg transition-all"
               >
                 <Timer className="w-4 h-4" />
-                <span className="hidden sm:inline">Import</span>
               </button>
 
               <button
                 onClick={() => setIsSummaryModalOpen(true)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${
                   isSundayToday
                     ? 'bg-green-600 hover:bg-green-700 text-white animate-pulse'
                     : 'bg-secondary hover:bg-accent text-secondary-foreground'
                 }`}
               >
                 <BarChart3 className="w-4 h-4" />
-                <span className="hidden sm:inline">Podsumowanie</span>
               </button>
             </>
           )}
+
+          <div className="flex-1" />
 
           <div className="flex items-center bg-secondary rounded-lg">
             <button
@@ -235,6 +292,32 @@ export function CalendarPageClient({ initialEvents, initialWallets, initialHabit
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
+        </div>
+
+        {/* Mobile: view mode toggle as full-width row below header */}
+        <div className="flex md:hidden items-center bg-secondary rounded-lg p-0.5">
+          <button
+            onClick={() => handleViewModeChange('calendar')}
+            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-all ${
+              viewMode === 'calendar'
+                ? 'bg-card text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Calendar className="w-4 h-4" />
+            Praca
+          </button>
+          <button
+            onClick={() => handleViewModeChange('habits')}
+            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-all ${
+              viewMode === 'habits'
+                ? 'bg-card text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Target className="w-4 h-4" />
+            Nawyki
+          </button>
         </div>
       </div>
 
