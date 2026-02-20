@@ -1,5 +1,37 @@
 import { NextResponse } from "next/server";
 
+async function extractPdfText(buffer: ArrayBuffer): Promise<string> {
+  // Import internal module directly to avoid pdf-parse's top-level fs.readFileSync in index.js
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const pdfParse = require("pdf-parse/lib/pdf-parse.js");
+  const data = await pdfParse(Buffer.from(buffer));
+  return data.text;
+}
+
+const RECEIPT_PROMPT = `Przeanalizuj ten wyciąg bankowy / rachunek / paragon / fakturę i wyodrębnij WSZYSTKIE transakcje.
+
+Zwróć TYLKO czysty JSON (bez markdown, bez komentarzy, bez tekstu przed/po) — tablicę obiektów:
+[
+  {
+    "amount": <kwota jako liczba, zawsze dodatnia>,
+    "type": "<income lub outcome>",
+    "category": "<kategoria po polsku: Przelew, Jedzenie, Transport, Zakupy, Rozrywka, Zdrowie, Edukacja, Rachunki, Zwrot, Inne>",
+    "date": "<data w formacie YYYY-MM-DD>",
+    "description": "<krótki opis po polsku, max 60 znaków>"
+  }
+]
+
+Zasady:
+- Wyodrębnij KAŻDĄ transakcję z tabeli/listy
+- Kwota zawsze dodatnia (bez znaku minus)
+- Określ typ: "income" dla wpływów/przelewów przychodzących/zwrotów, "outcome" dla wydatków/przelewów wychodzących/płatności
+- Słowa kluczowe dla income: "PRZYCHODZĄCY", "WPŁYW", "ZWROT", "UZNANIE"
+- Słowa kluczowe dla outcome: "WYCHODZĄCY", "WYPŁATA", "OBCIĄŻENIE", "PŁATNOŚĆ", "ZAKUP"
+- Data z kolumny "Data operacji" jeśli dostępna
+- Opis: skrócony opis operacji (nazwa odbiorcy/nadawcy lub tytuł)
+- Jeśli nie widać daty, użyj: ${new Date().toISOString().split("T")[0]}
+- Jeśli jest tylko 1 transakcja, zwróć tablicę z 1 elementem`;
+
 export async function POST(request: Request) {
   try {
     const apiKey = process.env.GROQ_API_KEY;
@@ -15,15 +47,53 @@ export async function POST(request: Request) {
 
     if (!file) {
       return NextResponse.json(
-        { error: "Brak pliku obrazu" },
+        { error: "Brak pliku" },
         { status: 400 }
       );
     }
 
+    const isPdf = file.type === "application/pdf" || file.name?.toLowerCase().endsWith(".pdf");
     const bytes = await file.arrayBuffer();
-    const base64 = Buffer.from(bytes).toString("base64");
-    const mimeType = file.type || "image/jpeg";
-    const dataUrl = `data:${mimeType};base64,${base64}`;
+
+    let messages;
+
+    if (isPdf) {
+      const pdfText = await extractPdfText(bytes);
+
+      if (!pdfText.trim()) {
+        return NextResponse.json(
+          { error: "Nie udało się odczytać tekstu z PDF. Plik może być zeskanowany — spróbuj wgrać jako obraz." },
+          { status: 422 }
+        );
+      }
+
+      messages = [
+        {
+          role: "user" as const,
+          content: `${RECEIPT_PROMPT}\n\nOto treść dokumentu:\n\n${pdfText}`,
+        },
+      ];
+    } else {
+      const base64 = Buffer.from(bytes).toString("base64");
+      const mimeType = file.type || "image/jpeg";
+      const dataUrl = `data:${mimeType};base64,${base64}`;
+
+      messages = [
+        {
+          role: "user" as const,
+          content: [
+            {
+              type: "image_url" as const,
+              image_url: { url: dataUrl },
+            },
+            {
+              type: "text" as const,
+              text: RECEIPT_PROMPT,
+            },
+          ],
+        },
+      ];
+    }
 
     const response = await fetch(
       "https://api.groq.com/openai/v1/chat/completions",
@@ -35,43 +105,7 @@ export async function POST(request: Request) {
         },
         body: JSON.stringify({
           model: "meta-llama/llama-4-scout-17b-16e-instruct",
-          messages: [
-            {
-              role: "user",
-              content: [
-                {
-                  type: "image_url",
-                  image_url: { url: dataUrl },
-                },
-                {
-                  type: "text",
-                  text: `Przeanalizuj ten wyciąg bankowy / rachunek / paragon / fakturę i wyodrębnij WSZYSTKIE transakcje widoczne na zdjęciu.
-
-Zwróć TYLKO czysty JSON (bez markdown, bez komentarzy, bez tekstu przed/po) — tablicę obiektów:
-[
-  {
-    "amount": <kwota jako liczba, zawsze dodatnia>,
-    "type": "<income lub outcome>",
-    "category": "<kategoria po polsku: Przelew, Jedzenie, Transport, Zakupy, Rozrywka, Zdrowie, Edukacja, Rachunki, Zwrot, Inne>",
-    "date": "<data w formacie YYYY-MM-DD>",
-    "description": "<krótki opis po polsku, max 60 znaków>"
-  }
-]
-
-Zasady:
-- Wyodrębnij KAŻDĄ transakcję z tabeli/listy na zdjęciu
-- Kwota zawsze dodatnia (bez znaku minus)
-- Określ typ: "income" dla wpływów/przelewów przychodzących/zwrotów, "outcome" dla wydatków/przelewów wychodzących/płatności
-- Słowa kluczowe dla income: "PRZYCHODZĄCY", "WPŁYW", "ZWROT", "UZNANIE"
-- Słowa kluczowe dla outcome: "WYCHODZĄCY", "WYPŁATA", "OBCIĄŻENIE", "PŁATNOŚĆ", "ZAKUP"
-- Data z kolumny "Data operacji" jeśli dostępna
-- Opis: skrócony opis operacji (nazwa odbiorcy/nadawcy lub tytuł)
-- Jeśli nie widać daty, użyj: ${new Date().toISOString().split("T")[0]}
-- Jeśli jest tylko 1 transakcja, zwróć tablicę z 1 elementem`,
-                },
-              ],
-            },
-          ],
+          messages,
           max_tokens: 4096,
           temperature: 0.1,
         }),

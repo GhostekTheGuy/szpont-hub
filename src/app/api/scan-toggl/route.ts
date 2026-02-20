@@ -1,5 +1,36 @@
 import { NextResponse } from "next/server";
 
+async function extractPdfText(buffer: ArrayBuffer): Promise<string> {
+  // Import internal module directly to avoid pdf-parse's top-level fs.readFileSync in index.js
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const pdfParse = require("pdf-parse/lib/pdf-parse.js");
+  const data = await pdfParse(Buffer.from(buffer));
+  return data.text;
+}
+
+const TOGGL_PROMPT = `Przeanalizuj ten raport z Toggl Track (lub innego time trackera) i wyodrębnij WSZYSTKIE przedziały czasowe / wpisy pracy.
+
+Zwróć TYLKO czysty JSON (bez markdown, bez komentarzy, bez tekstu przed/po) — tablicę obiektów:
+[
+  {
+    "title": "<nazwa zadania / projektu>",
+    "date": "<data w formacie YYYY-MM-DD>",
+    "start_time": "<godzina rozpoczęcia w formacie HH:MM>",
+    "end_time": "<godzina zakończenia w formacie HH:MM>",
+    "duration_hours": <czas trwania w godzinach jako liczba, np. 1.5>
+  }
+]
+
+Zasady:
+- Wyodrębnij KAŻDY wpis czasowy
+- Jeśli widać tylko czas trwania (np. "1:30:00") bez start/end, ustaw start_time na "09:00" i oblicz end_time
+- Jeśli widać start i end time, użyj ich dokładnie
+- Data z kolumny daty, jeśli nie widać użyj: ${new Date().toISOString().split("T")[0]}
+- Tytuł: nazwa projektu / zadania / klienta widoczna przy wpisie
+- duration_hours jako liczba dziesiętna (1h30m = 1.5)
+- Godziny w formacie 24h (HH:MM)
+- Jeśli jest tylko 1 wpis, zwróć tablicę z 1 elementem`;
+
 export async function POST(request: Request) {
   try {
     const apiKey = process.env.GROQ_API_KEY;
@@ -15,15 +46,53 @@ export async function POST(request: Request) {
 
     if (!file) {
       return NextResponse.json(
-        { error: "Brak pliku obrazu" },
+        { error: "Brak pliku" },
         { status: 400 }
       );
     }
 
+    const isPdf = file.type === "application/pdf" || file.name?.toLowerCase().endsWith(".pdf");
     const bytes = await file.arrayBuffer();
-    const base64 = Buffer.from(bytes).toString("base64");
-    const mimeType = file.type || "image/jpeg";
-    const dataUrl = `data:${mimeType};base64,${base64}`;
+
+    let messages;
+
+    if (isPdf) {
+      const pdfText = await extractPdfText(bytes);
+
+      if (!pdfText.trim()) {
+        return NextResponse.json(
+          { error: "Nie udało się odczytać tekstu z PDF. Plik może być zeskanowany — spróbuj wgrać jako obraz." },
+          { status: 422 }
+        );
+      }
+
+      messages = [
+        {
+          role: "user" as const,
+          content: `${TOGGL_PROMPT}\n\nOto treść raportu:\n\n${pdfText}`,
+        },
+      ];
+    } else {
+      const base64 = Buffer.from(bytes).toString("base64");
+      const mimeType = file.type || "image/jpeg";
+      const dataUrl = `data:${mimeType};base64,${base64}`;
+
+      messages = [
+        {
+          role: "user" as const,
+          content: [
+            {
+              type: "image_url" as const,
+              image_url: { url: dataUrl },
+            },
+            {
+              type: "text" as const,
+              text: TOGGL_PROMPT,
+            },
+          ],
+        },
+      ];
+    }
 
     const response = await fetch(
       "https://api.groq.com/openai/v1/chat/completions",
@@ -35,42 +104,7 @@ export async function POST(request: Request) {
         },
         body: JSON.stringify({
           model: "meta-llama/llama-4-scout-17b-16e-instruct",
-          messages: [
-            {
-              role: "user",
-              content: [
-                {
-                  type: "image_url",
-                  image_url: { url: dataUrl },
-                },
-                {
-                  type: "text",
-                  text: `Przeanalizuj ten screenshot z Toggl Track (lub innego time trackera) i wyodrębnij WSZYSTKIE przedziały czasowe / wpisy pracy widoczne na zdjęciu.
-
-Zwróć TYLKO czysty JSON (bez markdown, bez komentarzy, bez tekstu przed/po) — tablicę obiektów:
-[
-  {
-    "title": "<nazwa zadania / projektu>",
-    "date": "<data w formacie YYYY-MM-DD>",
-    "start_time": "<godzina rozpoczęcia w formacie HH:MM>",
-    "end_time": "<godzina zakończenia w formacie HH:MM>",
-    "duration_hours": <czas trwania w godzinach jako liczba, np. 1.5>
-  }
-]
-
-Zasady:
-- Wyodrębnij KAŻDY wpis czasowy widoczny na screenshocie
-- Jeśli widać tylko czas trwania (np. "1:30:00") bez start/end, ustaw start_time na "09:00" i oblicz end_time
-- Jeśli widać start i end time, użyj ich dokładnie
-- Data z kolumny daty, jeśli nie widać użyj: ${new Date().toISOString().split("T")[0]}
-- Tytuł: nazwa projektu / zadania / klienta widoczna przy wpisie
-- duration_hours jako liczba dziesiętna (1h30m = 1.5)
-- Godziny w formacie 24h (HH:MM)
-- Jeśli jest tylko 1 wpis, zwróć tablicę z 1 elementem`,
-                },
-              ],
-            },
-          ],
+          messages,
           max_tokens: 4096,
           temperature: 0.1,
         }),

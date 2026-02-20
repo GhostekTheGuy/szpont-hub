@@ -352,8 +352,9 @@ export function WeeklyCalendar({
                             className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 self-center transition-colors ${
                               event.is_confirmed
                                 ? 'bg-primary border-primary'
-                                : 'border-border hover:border-primary/50'
+                                : 'hover:border-primary/70'
                             }`}
+                            style={{ borderColor: event.is_confirmed ? '' : 'var(--card-foreground)' }}
                           >
                             {event.is_confirmed && (
                               <svg className="w-3 h-3 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
@@ -409,7 +410,8 @@ function DayTimeGrid({
       scrollToHour = 7;
     }
     scrollRef.current.scrollTop = scrollToHour * HOUR_HEIGHT;
-  }, [selectedDate, events]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate]);
 
   // Current time indicator
   const now = new Date();
@@ -497,8 +499,9 @@ function DayTimeGrid({
                       className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors ${
                         event.is_confirmed
                           ? 'bg-primary border-primary'
-                          : 'border-border hover:border-primary/50'
+                          : 'hover:border-primary/70'
                       }`}
+                      style={{ borderColor: event.is_confirmed ? '' : 'var(--card-foreground)' }}
                     >
                       {event.is_confirmed && (
                         <svg className="w-3 h-3 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
@@ -575,7 +578,8 @@ function WeekTimeGrid({
       scrollToHour = today ? Math.max(0, new Date().getHours() - 2) : 7;
     }
     scrollRef.current.scrollTop = scrollToHour * HOUR_HEIGHT;
-  }, [weekDays, allWeekEvents]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [weekDays]);
 
   const now = new Date();
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
@@ -703,8 +707,9 @@ function WeekTimeGrid({
                             className={`w-4 h-4 rounded border-[1.5px] flex items-center justify-center shrink-0 mt-0.5 transition-colors ${
                               event.is_confirmed
                                 ? 'bg-primary border-primary'
-                                : 'border-border hover:border-primary/50'
+                                : 'hover:border-primary/70'
                             }`}
+                            style={{ borderColor: event.is_confirmed ? '' : 'var(--card-foreground)' }}
                           >
                             {event.is_confirmed && (
                               <svg className="w-2.5 h-2.5 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>

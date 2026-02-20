@@ -1,11 +1,11 @@
 'use client';
 
 import { useEffect, useState, ChangeEvent, ChangeEventHandler } from 'react';
-import { X, Camera, CalendarIcon } from 'lucide-react';
+import { X, CalendarIcon } from 'lucide-react';
 import { useFinanceStore, Transaction } from '@/hooks/useFinanceStore';
 import { addTransactionAction, editTransactionAction, addTransferAction } from '@/app/actions';
 import type { Currency } from '@/lib/exchange-rates';
-import { ScanReceiptModal } from '@/components/ScanReceiptModal';
+
 import { motion, AnimatePresence } from 'framer-motion';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -33,7 +33,7 @@ export function TransactionModal({ isOpen, onClose, editingTransaction }: Transa
   const [toWalletId, setToWalletId] = useState('');
   const [currency, setCurrency] = useState<Currency>('PLN');
   const [loading, setLoading] = useState(false);
-  const [isScanOpen, setIsScanOpen] = useState(false);
+
 
   useEffect(() => {
     if (editingTransaction) {
@@ -127,21 +127,6 @@ export function TransactionModal({ isOpen, onClose, editingTransaction }: Transa
           </button>
         </div>
 
-        {!editingTransaction && (
-          <button
-            type="button"
-            onClick={() => { setIsScanOpen(true); onClose(); }}
-            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
-          >
-            <Camera className="w-4 h-4" />
-            Skanuj rachunek
-          </button>
-        )}
-
-        <ScanReceiptModal
-          isOpen={isScanOpen}
-          onClose={() => setIsScanOpen(false)}
-        />
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-3 gap-3">

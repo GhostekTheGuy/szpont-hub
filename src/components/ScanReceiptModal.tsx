@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
-import { X, Upload, Camera, Loader2, Check, Trash2 } from 'lucide-react';
+import { X, Upload, Camera, Loader2, Check, Trash2, FileText } from 'lucide-react';
 import { useFinanceStore } from '@/hooks/useFinanceStore';
 import { addTransactionAction } from '@/app/actions';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -56,20 +56,27 @@ export function ScanReceiptModal({ isOpen, onClose }: ScanReceiptModalProps) {
     onClose();
   };
 
+  const isPdf = imageFile?.type === 'application/pdf' || imageFile?.name?.toLowerCase().endsWith('.pdf');
+
   const handleFile = (file: File) => {
-    if (!file.type.startsWith('image/')) {
-      setError('Wybierz plik obrazu (JPG, PNG, etc.)');
+    const isFilePdf = file.type === 'application/pdf' || file.name?.toLowerCase().endsWith('.pdf');
+    if (!file.type.startsWith('image/') && !isFilePdf) {
+      setError('Wybierz plik obrazu (JPG, PNG) lub PDF');
       return;
     }
-    if (file.size > 10 * 1024 * 1024) {
-      setError('Plik jest za duży (max 10MB)');
+    if (file.size > 20 * 1024 * 1024) {
+      setError('Plik jest za duży (max 20MB)');
       return;
     }
     setError(null);
     setImageFile(file);
-    const reader = new FileReader();
-    reader.onload = (e) => setImagePreview(e.target?.result as string);
-    reader.readAsDataURL(file);
+    if (isFilePdf) {
+      setImagePreview('pdf');
+    } else {
+      const reader = new FileReader();
+      reader.onload = (e) => setImagePreview(e.target?.result as string);
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -225,7 +232,7 @@ export function ScanReceiptModal({ isOpen, onClose }: ScanReceiptModalProps) {
               >
                 <Upload className="w-10 h-10 mx-auto mb-3 text-muted-foreground" />
                 <p className="text-foreground font-medium mb-1">
-                  Przeciągnij zdjęcie rachunku
+                  Przeciągnij zdjęcie lub PDF rachunku
                 </p>
                 <p className="text-sm text-muted-foreground">
                   lub kliknij aby wybrać plik
@@ -233,7 +240,7 @@ export function ScanReceiptModal({ isOpen, onClose }: ScanReceiptModalProps) {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/*,.pdf,application/pdf"
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
@@ -244,11 +251,23 @@ export function ScanReceiptModal({ isOpen, onClose }: ScanReceiptModalProps) {
             ) : (
               <div className="space-y-4">
                 <div className="relative rounded-xl overflow-hidden border border-border">
-                  <img
-                    src={imagePreview}
-                    alt="Podgląd rachunku"
-                    className="w-full max-h-64 object-contain bg-black/20"
-                  />
+                  {isPdf ? (
+                    <div className="flex items-center gap-3 p-6 bg-black/20">
+                      <FileText className="w-10 h-10 text-red-400 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-foreground font-medium truncate">{imageFile?.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          PDF ({((imageFile?.size || 0) / 1024).toFixed(0)} KB)
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <img
+                      src={imagePreview!}
+                      alt="Podgląd rachunku"
+                      className="w-full max-h-64 object-contain bg-black/20"
+                    />
+                  )}
                   {state !== 'analyzing' && (
                     <button
                       onClick={() => { setImageFile(null); setImagePreview(null); }}

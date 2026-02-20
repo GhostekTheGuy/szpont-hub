@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
-import { X, Upload, Timer, Loader2, Check, Trash2 } from 'lucide-react';
+import { X, Upload, Timer, Loader2, Check, Trash2, FileText } from 'lucide-react';
 import { useFinanceStore } from '@/hooks/useFinanceStore';
 import { addCalendarEvent } from '@/app/actions';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -58,20 +58,27 @@ export function ScanTogglModal({ isOpen, onClose }: ScanTogglModalProps) {
     onClose();
   };
 
+  const isPdf = imageFile?.type === 'application/pdf' || imageFile?.name?.toLowerCase().endsWith('.pdf');
+
   const handleFile = (file: File) => {
-    if (!file.type.startsWith('image/')) {
-      setError('Wybierz plik obrazu (JPG, PNG, etc.)');
+    const isFilePdf = file.type === 'application/pdf' || file.name?.toLowerCase().endsWith('.pdf');
+    if (!file.type.startsWith('image/') && !isFilePdf) {
+      setError('Wybierz plik obrazu (JPG, PNG) lub PDF');
       return;
     }
-    if (file.size > 10 * 1024 * 1024) {
-      setError('Plik jest za duży (max 10MB)');
+    if (file.size > 20 * 1024 * 1024) {
+      setError('Plik jest za duży (max 20MB)');
       return;
     }
     setError(null);
     setImageFile(file);
-    const reader = new FileReader();
-    reader.onload = (e) => setImagePreview(e.target?.result as string);
-    reader.readAsDataURL(file);
+    if (isFilePdf) {
+      setImagePreview('pdf');
+    } else {
+      const reader = new FileReader();
+      reader.onload = (e) => setImagePreview(e.target?.result as string);
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -244,7 +251,7 @@ export function ScanTogglModal({ isOpen, onClose }: ScanTogglModalProps) {
                   >
                     <Upload className="w-10 h-10 mx-auto mb-3 text-muted-foreground" />
                     <p className="text-foreground font-medium mb-1">
-                      Przeciągnij screenshot z Toggl Track
+                      Przeciągnij screenshot lub PDF z Toggl Track
                     </p>
                     <p className="text-sm text-muted-foreground">
                       lub kliknij aby wybrać plik
@@ -252,7 +259,7 @@ export function ScanTogglModal({ isOpen, onClose }: ScanTogglModalProps) {
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept="image/*"
+                      accept="image/*,.pdf,application/pdf"
                       className="hidden"
                       onChange={(e) => {
                         const file = e.target.files?.[0];
@@ -263,11 +270,23 @@ export function ScanTogglModal({ isOpen, onClose }: ScanTogglModalProps) {
                 ) : (
                   <div className="space-y-4">
                     <div className="relative rounded-xl overflow-hidden border border-border">
-                      <img
-                        src={imagePreview}
-                        alt="Podgląd screenshota"
-                        className="w-full max-h-64 object-contain bg-black/20"
-                      />
+                      {isPdf ? (
+                        <div className="flex items-center gap-3 p-6 bg-black/20">
+                          <FileText className="w-10 h-10 text-red-400 shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-foreground font-medium truncate">{imageFile?.name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              PDF ({((imageFile?.size || 0) / 1024).toFixed(0)} KB)
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <img
+                          src={imagePreview!}
+                          alt="Podgląd screenshota"
+                          className="w-full max-h-64 object-contain bg-black/20"
+                        />
+                      )}
                       {state !== 'analyzing' && (
                         <button
                           onClick={() => { setImageFile(null); setImagePreview(null); }}
@@ -375,7 +394,7 @@ export function ScanTogglModal({ isOpen, onClose }: ScanTogglModalProps) {
                           className={`w-5 h-5 rounded flex-shrink-0 flex items-center justify-center border transition-colors ${
                             entry.selected
                               ? 'bg-primary border-primary text-primary-foreground'
-                              : 'border-border hover:border-primary/50'
+                              : 'border-card-foreground hover:border-primary/70'
                           }`}
                         >
                           {entry.selected && <Check className="w-3 h-3" />}
