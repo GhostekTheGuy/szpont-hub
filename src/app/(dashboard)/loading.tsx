@@ -2,7 +2,7 @@ export default function DashboardLoading() {
   return (
     <div className="animate-pulse">
       {/* Hero header */}
-      <div className="mb-3 flex flex-col md:flex-row md:items-start justify-between gap-3">
+      <div className="mb-3 flex flex-col md:flex-row md:items-start justify-between gap-3 px-4 lg:px-0">
         <div>
           <div className="h-8 w-72 bg-muted rounded-lg mb-1" />
         </div>
@@ -17,7 +17,7 @@ export default function DashboardLoading() {
         {/* Left column */}
         <div className="min-w-0 space-y-3">
           {/* Net worth */}
-          <div>
+          <div className="px-4 lg:px-0">
             <div className="h-4 w-32 bg-muted rounded mb-2" />
             <div className="h-10 w-56 bg-muted rounded" />
           </div>
@@ -63,7 +63,7 @@ export default function DashboardLoading() {
         </div>
 
         {/* Right sidebar */}
-        <div className="space-y-3">
+        <div className="space-y-3 px-4 lg:px-0">
           {/* Wallets header */}
           <div className="flex items-center justify-between mb-2">
             <div className="h-5 w-20 bg-muted rounded" />

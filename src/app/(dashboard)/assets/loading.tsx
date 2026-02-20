@@ -2,21 +2,21 @@ export default function AssetsLoading() {
   return (
     <div className="animate-pulse">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 px-4 lg:px-0">
         <div className="h-9 w-24 bg-muted rounded-lg" />
         <div className="flex items-center gap-2">
-          <div className="h-9 w-10 sm:w-36 bg-muted rounded-lg" />
           <div className="h-9 w-10 sm:w-32 bg-muted rounded-lg" />
           <div className="h-9 w-10 sm:w-32 bg-muted rounded-lg" />
+          <div className="h-9 w-10 sm:w-28 bg-muted rounded-lg" />
         </div>
       </div>
 
-      {/* Asset list */}
+      {/* Asset list card */}
       <div className="bg-card border border-border rounded-xl overflow-hidden p-4 sm:p-6">
         <div className="h-7 w-32 bg-muted rounded mb-4" />
 
         {/* Table header (desktop) */}
-        <div className="hidden sm:flex items-center gap-4 px-4 py-2 mb-2 text-sm">
+        <div className="hidden sm:flex items-center gap-4 px-4 py-2 mb-2">
           <div className="h-3 w-24 bg-muted rounded flex-1" />
           <div className="h-3 w-16 bg-muted rounded" />
           <div className="h-3 w-20 bg-muted rounded" />
@@ -49,7 +49,7 @@ export default function AssetsLoading() {
         </div>
       </div>
 
-      {/* Tax summary skeleton */}
+      {/* Tax summary */}
       <div className="mt-6 bg-card border border-border rounded-xl p-6">
         <div className="h-6 w-48 bg-muted rounded mb-4" />
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
