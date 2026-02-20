@@ -85,6 +85,12 @@ const config: Config = {
         serif: ["var(--font-serif)", "Georgia", "serif"],
         mono: ["var(--font-mono)", "monospace"],
       },
+      keyframes: {
+        fadeIn: {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
+      },
       boxShadow: {
         "2xs": "var(--shadow-2xs)",
         xs: "var(--shadow-xs)",

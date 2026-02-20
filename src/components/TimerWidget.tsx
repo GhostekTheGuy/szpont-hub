@@ -182,60 +182,59 @@ export function TimerWidget({ wallets, onStop }: TimerWidgetProps) {
         <motion.div
           key="form"
           layout
-          initial={{ opacity: 0, width: 0, scale: 0.9, filter: 'blur(4px)' }}
-          animate={{ opacity: 1, width: 'auto', scale: 1, filter: 'blur(0px)' }}
-          exit={{ opacity: 0, width: 0, scale: 0.9, filter: 'blur(4px)' }}
-          transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
-          className="overflow-hidden"
+          initial={{ opacity: 0, scale: 0.95, filter: 'blur(4px)' }}
+          animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+          exit={{ opacity: 0, scale: 0.95, filter: 'blur(4px)' }}
+          transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
+          className="w-full"
         >
-          <motion.div
-            className="flex items-center gap-2 bg-secondary border border-border rounded-lg px-3 py-1.5"
-            initial={{ x: -8 }}
-            animate={{ x: 0 }}
-            transition={{ duration: 0.25, delay: 0.05 }}
-          >
-            <input
-              ref={titleInputRef}
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Tytuł..."
-              className="bg-input border border-border rounded px-2 py-1 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-ring w-28"
-              onKeyDown={(e) => e.key === 'Enter' && handleStart()}
-            />
-            <select
-              value={walletId}
-              onChange={(e) => setWalletId(e.target.value)}
-              className="bg-input border border-border rounded px-2 py-1 text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
-            >
-              {wallets.map(w => (
-                <option key={w.id} value={w.id}>{w.name}</option>
-              ))}
-            </select>
-            <input
-              type="number"
-              value={hourlyRate}
-              onChange={(e) => setHourlyRate(e.target.value)}
-              placeholder="PLN/h"
-              step="0.01"
-              className="bg-input border border-border rounded px-2 py-1 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-ring w-20"
-              onKeyDown={(e) => e.key === 'Enter' && handleStart()}
-            />
-            <button
-              onClick={handleStart}
-              disabled={!title.trim() || !walletId || !hourlyRate}
-              className="p-1.5 bg-green-600 hover:bg-green-700 text-white rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Rozpocznij"
-            >
-              <Play className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={() => setShowForm(false)}
-              className="p-1 hover:bg-accent rounded transition-colors text-muted-foreground"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </motion.div>
+          <div className="bg-secondary border border-border rounded-lg px-3 py-2 space-y-2">
+            <div className="flex items-center gap-2">
+              <input
+                ref={titleInputRef}
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Tytuł..."
+                className="bg-input border border-border rounded px-2 py-1 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-ring flex-1 min-w-0"
+                onKeyDown={(e) => e.key === 'Enter' && handleStart()}
+              />
+              <button
+                onClick={() => setShowForm(false)}
+                className="p-1 hover:bg-accent rounded transition-colors text-muted-foreground shrink-0"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <select
+                value={walletId}
+                onChange={(e) => setWalletId(e.target.value)}
+                className="bg-input border border-border rounded px-2 py-1 text-sm text-foreground outline-none focus:ring-1 focus:ring-ring flex-1 min-w-0"
+              >
+                {wallets.map(w => (
+                  <option key={w.id} value={w.id}>{w.name}</option>
+                ))}
+              </select>
+              <input
+                type="number"
+                value={hourlyRate}
+                onChange={(e) => setHourlyRate(e.target.value)}
+                placeholder="PLN/h"
+                step="0.01"
+                className="bg-input border border-border rounded px-2 py-1 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-ring w-20 shrink-0"
+                onKeyDown={(e) => e.key === 'Enter' && handleStart()}
+              />
+              <button
+                onClick={handleStart}
+                disabled={!title.trim() || !walletId || !hourlyRate}
+                className="p-1.5 bg-green-600 hover:bg-green-700 text-white rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+                title="Rozpocznij"
+              >
+                <Play className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
         </motion.div>
       )}
 

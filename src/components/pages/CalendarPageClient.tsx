@@ -8,8 +8,17 @@ import { CalendarEventModal } from '@/components/CalendarEventModal';
 import { WeeklySummaryModal } from '@/components/WeeklySummaryModal';
 import { ScanTogglModal } from '@/components/ScanTogglModal';
 import { TimerWidget } from '@/components/TimerWidget';
-import { ChevronLeft, ChevronRight, BarChart3, Timer } from 'lucide-react';
-import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addWeeks, subWeeks, isThisWeek, isSunday } from 'date-fns';
+import { BarChart3, Timer } from 'lucide-react';
+import {
+  format,
+  startOfWeek,
+  endOfWeek,
+  startOfMonth,
+  endOfMonth,
+  addMonths,
+  subMonths,
+  isSunday,
+} from 'date-fns';
 import { pl } from 'date-fns/locale';
 
 interface Props {
@@ -20,56 +29,61 @@ interface Props {
 export function CalendarPageClient({ initialEvents, initialWallets }: Props) {
   const { calendarEvents, setCalendarEvents, setWallets, wallets } = useFinanceStore();
 
-  const [currentDate, setCurrentDate] = useState(new Date());
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
   const [isScanTogglOpen, setIsScanTogglOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
   const [prefillDate, setPrefillDate] = useState<Date | null>(null);
   const [prefillHour, setPrefillHour] = useState<number | null>(null);
-  const [loadingWeek, setLoadingWeek] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
-  const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 });
-  const monthStart = startOfMonth(currentDate);
-  const monthEnd = endOfMonth(currentDate);
+  const monthStart = startOfMonth(currentMonth);
+  const monthEnd = endOfMonth(currentMonth);
 
   useEffect(() => {
     setWallets(initialWallets);
     setCalendarEvents(initialEvents);
   }, [initialWallets, initialEvents, setWallets, setCalendarEvents]);
 
-  const loadWeek = useCallback(async (date: Date) => {
-    setLoadingWeek(true);
-    const ws = startOfWeek(date, { weekStartsOn: 1 }).toISOString();
-    const we = endOfWeek(date, { weekStartsOn: 1 }).toISOString();
+  const loadMonth = useCallback(async (date: Date) => {
+    setLoading(true);
+    const ms = startOfWeek(startOfMonth(date), { weekStartsOn: 1 }).toISOString();
+    const me = endOfWeek(endOfMonth(date), { weekStartsOn: 1 }).toISOString();
     try {
-      const data = await getCalendarEvents(ws, we);
+      const data = await getCalendarEvents(ms, me);
       if (data) {
         setCalendarEvents(data.events);
       }
     } catch (error) {
       console.error('Error loading calendar events:', error);
     } finally {
-      setLoadingWeek(false);
+      setLoading(false);
     }
   }, [setCalendarEvents]);
 
-  const goToPrevWeek = () => {
-    const newDate = subWeeks(currentDate, 1);
-    setCurrentDate(newDate);
-    loadWeek(newDate);
+  const goToPrevMonth = () => {
+    const newDate = subMonths(currentMonth, 1);
+    setCurrentMonth(newDate);
+    loadMonth(newDate);
   };
 
-  const goToNextWeek = () => {
-    const newDate = addWeeks(currentDate, 1);
-    setCurrentDate(newDate);
-    loadWeek(newDate);
+  const goToNextMonth = () => {
+    const newDate = addMonths(currentMonth, 1);
+    setCurrentMonth(newDate);
+    loadMonth(newDate);
   };
 
   const goToToday = () => {
-    setCurrentDate(new Date());
-    loadWeek(new Date());
+    const now = new Date();
+    setCurrentMonth(now);
+    setSelectedDate(now);
+    loadMonth(now);
+  };
+
+  const handleSelectDate = (date: Date) => {
+    setSelectedDate(date);
   };
 
   const handleSlotClick = (date: Date, hour: number) => {
@@ -105,141 +119,65 @@ export function CalendarPageClient({ initialEvents, initialWallets }: Props) {
     setEditingEvent(null);
     setPrefillDate(null);
     setPrefillHour(null);
-    loadWeek(currentDate);
+    loadMonth(currentMonth);
   };
 
   const handleSummaryClose = () => {
     setIsSummaryModalOpen(false);
-    loadWeek(currentDate);
+    loadMonth(currentMonth);
   };
 
-  const isCurrent = isThisWeek(currentDate, { weekStartsOn: 1 });
   const isSundayToday = isSunday(new Date());
+
+  // For WeeklySummaryModal: derive week from selectedDate
+  const summaryDate = selectedDate || new Date();
+  const weekStart = startOfWeek(summaryDate, { weekStartsOn: 1 });
+  const weekEnd = endOfWeek(summaryDate, { weekStartsOn: 1 });
 
   return (
     <>
       {/* Header */}
-      <div className="mb-4 space-y-3 px-4 lg:px-0">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground">Praca</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              {format(weekStart, 'd MMM', { locale: pl })} — {format(weekEnd, 'd MMM yyyy', { locale: pl })}
-            </p>
-          </div>
-
-          {/* Desktop actions */}
-          <div className="hidden md:flex items-center gap-2">
-            <TimerWidget wallets={wallets} onStop={() => loadWeek(currentDate)} />
-
-            <button
-              onClick={() => setIsScanTogglOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-secondary hover:bg-accent text-secondary-foreground rounded-lg transition-all"
-            >
-              <Timer className="w-4 h-4" />
-              Import
-            </button>
-
-            <button
-              onClick={() => setIsSummaryModalOpen(true)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
-                isSundayToday
-                  ? 'bg-green-600 hover:bg-green-700 text-white animate-pulse'
-                  : 'bg-secondary hover:bg-accent text-secondary-foreground'
-              }`}
-            >
-              <BarChart3 className="w-4 h-4" />
-              Podsumowanie
-            </button>
-
-            <div className="flex items-center bg-secondary rounded-lg">
-              <button
-                onClick={goToPrevWeek}
-                className="p-2 hover:bg-accent rounded-l-lg transition-colors"
-                disabled={loadingWeek}
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <button
-                onClick={goToToday}
-                className={`px-3 py-2 text-sm font-medium transition-colors ${
-                  isCurrent ? 'text-primary' : 'text-foreground hover:text-primary'
-                }`}
-                disabled={loadingWeek}
-              >
-                Dziś
-              </button>
-              <button
-                onClick={goToNextWeek}
-                className="p-2 hover:bg-accent rounded-r-lg transition-colors"
-                disabled={loadingWeek}
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Mobile action buttons */}
-        <div className="flex md:hidden items-center gap-2">
-          <TimerWidget wallets={wallets} onStop={() => loadWeek(currentDate)} />
-
-          <button
-            onClick={() => setIsScanTogglOpen(true)}
-            className="flex items-center gap-2 px-3 py-2 bg-secondary hover:bg-accent text-secondary-foreground rounded-lg transition-all"
-          >
-            <Timer className="w-4 h-4" />
-          </button>
-
-          <button
-            onClick={() => setIsSummaryModalOpen(true)}
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${
-              isSundayToday
-                ? 'bg-green-600 hover:bg-green-700 text-white animate-pulse'
-                : 'bg-secondary hover:bg-accent text-secondary-foreground'
-            }`}
-          >
-            <BarChart3 className="w-4 h-4" />
-          </button>
-
-          <div className="flex-1" />
-
-          <div className="flex items-center bg-secondary rounded-lg">
-            <button
-              onClick={goToPrevWeek}
-              className="p-2 hover:bg-accent rounded-l-lg transition-colors"
-              disabled={loadingWeek}
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <button
-              onClick={goToToday}
-              className={`px-3 py-2 text-sm font-medium transition-colors ${
-                isCurrent ? 'text-primary' : 'text-foreground hover:text-primary'
-              }`}
-              disabled={loadingWeek}
-            >
-              Dziś
-            </button>
-            <button
-              onClick={goToNextWeek}
-              className="p-2 hover:bg-accent rounded-r-lg transition-colors"
-              disabled={loadingWeek}
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
+      <div className="mb-4 px-4 lg:px-0">
+        <h1 className="text-3xl font-bold text-foreground">Praca</h1>
       </div>
 
       {/* Content */}
-      <div className={loadingWeek ? 'opacity-50 pointer-events-none transition-opacity' : 'transition-opacity'}>
+      <div className={`px-4 lg:px-0 ${loading ? 'opacity-50 pointer-events-none transition-opacity' : 'transition-opacity'}`}>
         <WeeklyCalendar
-          weekStart={weekStart}
           events={calendarEvents}
-          onSlotClick={handleSlotClick}
+          currentMonth={currentMonth}
+          selectedDate={selectedDate}
+          onSelectDate={handleSelectDate}
           onEventClick={handleEventClick}
+          onSlotClick={handleSlotClick}
           onToggleConfirmed={handleToggleConfirmed}
+          onPrevMonth={goToPrevMonth}
+          onNextMonth={goToNextMonth}
+          onToday={goToToday}
+          loading={loading}
+          topWidget={<TimerWidget wallets={wallets} onStop={() => loadMonth(currentMonth)} />}
+          actionButtons={
+            <>
+              <button
+                onClick={() => setIsScanTogglOpen(true)}
+                className="flex items-center gap-2 px-3 py-2 bg-secondary hover:bg-accent text-secondary-foreground rounded-lg transition-all text-sm"
+              >
+                <Timer className="w-4 h-4" />
+                Import
+              </button>
+              <button
+                onClick={() => setIsSummaryModalOpen(true)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all text-sm ${
+                  isSundayToday
+                    ? 'bg-green-600 hover:bg-green-700 text-white animate-pulse'
+                    : 'bg-secondary hover:bg-accent text-secondary-foreground'
+                }`}
+              >
+                <BarChart3 className="w-4 h-4" />
+                Podsumowanie
+              </button>
+            </>
+          }
         />
       </div>
 
@@ -259,12 +197,12 @@ export function CalendarPageClient({ initialEvents, initialWallets }: Props) {
         weekEnd={weekEnd.toISOString()}
         monthStart={monthStart.toISOString()}
         monthEnd={monthEnd.toISOString()}
-        monthLabel={format(currentDate, 'LLLL yyyy', { locale: pl })}
+        monthLabel={format(currentMonth, 'LLLL yyyy', { locale: pl })}
       />
 
       <ScanTogglModal
         isOpen={isScanTogglOpen}
-        onClose={() => { setIsScanTogglOpen(false); loadWeek(currentDate); }}
+        onClose={() => { setIsScanTogglOpen(false); loadMonth(currentMonth); }}
       />
     </>
   );

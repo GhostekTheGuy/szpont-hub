@@ -87,7 +87,7 @@ export function WalletCard({ wallet, onEdit, onDelete }: WalletCardProps) {
     switch (parsed.effect) {
       case 'plasma':
         return (
-          <div className="absolute inset-0">
+          <div className="absolute inset-0 animate-[fadeIn_0.6s_ease-out_forwards]">
             <Plasma
               color={parsed.plasmaColor}
               speed={0.3}
@@ -99,7 +99,7 @@ export function WalletCard({ wallet, onEdit, onDelete }: WalletCardProps) {
         );
       case 'grainient':
         return (
-          <div className="absolute inset-0">
+          <div className="absolute inset-0 animate-[fadeIn_0.6s_ease-out_forwards]">
             <Grainient
               color1={parsed.grainientColors![0]}
               color2={parsed.grainientColors![1]}
@@ -134,9 +134,11 @@ export function WalletCard({ wallet, onEdit, onDelete }: WalletCardProps) {
     ? `relative overflow-hidden rounded-2xl bg-gradient-to-br ${parsed.gradient} p-[1px] group`
     : 'relative overflow-hidden rounded-2xl p-[1px] group';
 
+  const needsFallback = parsed.effect === 'plasma' || parsed.effect === 'grainient';
+
   const innerClass = parsed.effect === 'gradient'
     ? `relative rounded-[calc(1rem-1px)] bg-gradient-to-br ${parsed.gradient} p-5 h-full`
-    : 'relative rounded-[calc(1rem-1px)] overflow-hidden p-5 h-full bg-black';
+    : 'relative rounded-[calc(1rem-1px)] overflow-hidden p-5 h-full';
 
   return (
     <div
@@ -159,7 +161,7 @@ export function WalletCard({ wallet, onEdit, onDelete }: WalletCardProps) {
         </div>
       )}
 
-      <div className={innerClass}>
+      <div className={innerClass} style={needsFallback ? { backgroundColor: 'var(--background)' } : undefined}>
         {renderBackground()}
 
         {/* Action buttons */}
