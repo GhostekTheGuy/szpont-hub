@@ -22,6 +22,7 @@ function timeToString(h: number, m: number): string {
 export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate, prefillHour }: CalendarEventModalProps) {
   const { wallets } = useFinanceStore();
 
+  const [eventType, setEventType] = useState<'work' | 'personal'>('work');
   const [title, setTitle] = useState('');
   const [walletId, setWalletId] = useState('');
   const [hourlyRate, setHourlyRate] = useState('');
@@ -33,9 +34,11 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
   const [loading, setLoading] = useState(false);
 
   const isGoogleEvent = !!editingEvent?.google_event_id;
+  const isPersonal = eventType === 'personal';
 
   useEffect(() => {
     if (editingEvent) {
+      setEventType(editingEvent.event_type || 'work');
       setTitle(editingEvent.title);
       setWalletId(editingEvent.wallet_id || '');
       setHourlyRate(editingEvent.hourly_rate.toString());
@@ -47,6 +50,7 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
       setIsRecurring(editingEvent.is_recurring);
       setRecurrenceRule(editingEvent.recurrence_rule);
     } else {
+      setEventType('work');
       setTitle('');
       if (wallets.length > 0) setWalletId(wallets[0].id);
       setHourlyRate('');
@@ -69,7 +73,8 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!walletId || !title || !hourlyRate) return;
+    if (!isPersonal && (!walletId || !hourlyRate)) return;
+    if (!title) return;
     setLoading(true);
 
     const startDt = new Date(`${date}T${startTime}:00`);
@@ -77,12 +82,13 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
 
     const eventData = {
       title,
-      wallet_id: walletId,
-      hourly_rate: parseFloat(hourlyRate),
+      wallet_id: isPersonal ? '' : walletId,
+      hourly_rate: isPersonal ? 0 : parseFloat(hourlyRate),
       start_time: startDt.toISOString(),
       end_time: endDt.toISOString(),
       is_recurring: isRecurring,
       recurrence_rule: isRecurring ? recurrenceRule : null,
+      event_type: eventType,
     };
 
     try {
@@ -157,6 +163,32 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Event type toggle */}
+              <div className="flex bg-secondary rounded-lg p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setEventType('work')}
+                  className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                    eventType === 'work'
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Praca
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEventType('personal')}
+                  className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                    eventType === 'personal'
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Osobiste
+                </button>
+              </div>
+
               <div>
                 <label className="block text-sm text-muted-foreground mb-2">Nazwa wydarzenia</label>
                 <input
@@ -166,7 +198,7 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
                   onChange={(e) => setTitle(e.target.value)}
                   disabled={isGoogleEvent}
                   className={`w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all ${isGoogleEvent ? 'opacity-60 cursor-not-allowed' : ''}`}
-                  placeholder="np. Freelance - projekt X"
+                  placeholder={isPersonal ? 'np. Call z klientem' : 'np. Freelance - projekt X'}
                 />
               </div>
 
@@ -205,32 +237,36 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm text-muted-foreground mb-2">Portfel</label>
-                <select
-                  value={walletId}
-                  onChange={(e) => setWalletId(e.target.value)}
-                  className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
-                >
-                  {wallets.length === 0 && <option value="">Brak portfeli</option>}
-                  {wallets.map(w => (
-                    <option key={w.id} value={w.id}>{w.name}</option>
-                  ))}
-                </select>
-              </div>
+              {!isPersonal && (
+                <>
+                  <div>
+                    <label className="block text-sm text-muted-foreground mb-2">Portfel</label>
+                    <select
+                      value={walletId}
+                      onChange={(e) => setWalletId(e.target.value)}
+                      className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
+                    >
+                      {wallets.length === 0 && <option value="">Brak portfeli</option>}
+                      {wallets.map(w => (
+                        <option key={w.id} value={w.id}>{w.name}</option>
+                      ))}
+                    </select>
+                  </div>
 
-              <div>
-                <label className="block text-sm text-muted-foreground mb-2">Stawka / godzinę (PLN)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  required
-                  value={hourlyRate}
-                  onChange={(e) => setHourlyRate(e.target.value)}
-                  className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
-                  placeholder="0.00"
-                />
-              </div>
+                  <div>
+                    <label className="block text-sm text-muted-foreground mb-2">Stawka / godzinę (PLN)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      required
+                      value={hourlyRate}
+                      onChange={(e) => setHourlyRate(e.target.value)}
+                      className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
+                      placeholder="0.00"
+                    />
+                  </div>
+                </>
+              )}
 
               {!isGoogleEvent && (
                 <div className="flex items-center gap-3">
@@ -263,7 +299,7 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
 
               {isGoogleEvent && (
                 <p className="text-xs text-muted-foreground">
-                  Tytuł i czas są synchronizowane z Google Calendar. Możesz edytować portfel i stawkę.
+                  Tytuł i czas są synchronizowane z Google Calendar. Możesz edytować portfel, stawkę i typ.
                 </p>
               )}
 
@@ -280,7 +316,7 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
                 )}
                 <button
                   type="submit"
-                  disabled={loading || wallets.length === 0}
+                  disabled={loading || (!isPersonal && wallets.length === 0)}
                   className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground font-medium py-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loading ? 'Zapisywanie...' : (editingEvent ? 'Zapisz zmiany' : 'Dodaj wydarzenie')}

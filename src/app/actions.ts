@@ -769,6 +769,7 @@ export async function getCalendarEvents(weekStart: string, weekEnd: string) {
     recurrence_rule: e.recurrence_rule,
     is_settled: e.is_settled,
     is_confirmed: e.is_confirmed ?? false,
+    event_type: (e.event_type || 'work') as 'work' | 'personal',
     google_event_id: e.google_event_id || null,
     google_calendar_id: e.google_calendar_id || null,
   }));
@@ -793,11 +794,13 @@ export async function addCalendarEvent(data: {
   end_time: string;
   is_recurring: boolean;
   recurrence_rule: string | null;
+  event_type?: 'work' | 'personal';
 }) {
   const userId = await getUserId();
   if (!userId) throw new Error('Unauthorized');
 
   const dek = await getDEK();
+  const isPersonal = data.event_type === 'personal';
 
   const { error } = await supabaseAdmin
     .from('calendar_events')
@@ -805,12 +808,13 @@ export async function addCalendarEvent(data: {
       id: nanoid(),
       user_id: userId,
       title: encryptString(data.title, dek),
-      wallet_id: data.wallet_id,
-      hourly_rate: encryptNumber(data.hourly_rate, dek),
+      wallet_id: isPersonal ? null : data.wallet_id,
+      hourly_rate: isPersonal ? encryptNumber(0, dek) : encryptNumber(data.hourly_rate, dek),
       start_time: data.start_time,
       end_time: data.end_time,
       is_recurring: data.is_recurring,
       recurrence_rule: data.recurrence_rule,
+      event_type: data.event_type || 'work',
       created_at: new Date().toISOString(),
     });
 
@@ -830,6 +834,7 @@ export async function editCalendarEvent(id: string, data: {
   end_time: string;
   is_recurring: boolean;
   recurrence_rule: string | null;
+  event_type?: 'work' | 'personal';
 }) {
   const userId = await getUserId();
   if (!userId) throw new Error('Unauthorized');
@@ -843,17 +848,19 @@ export async function editCalendarEvent(id: string, data: {
   if (!event || event.user_id !== userId) return;
 
   const dek = await getDEK();
+  const isPersonal = data.event_type === 'personal';
 
   await supabaseAdmin
     .from('calendar_events')
     .update({
       title: encryptString(data.title, dek),
-      wallet_id: data.wallet_id,
-      hourly_rate: encryptNumber(data.hourly_rate, dek),
+      wallet_id: isPersonal ? null : data.wallet_id,
+      hourly_rate: isPersonal ? encryptNumber(0, dek) : encryptNumber(data.hourly_rate, dek),
       start_time: data.start_time,
       end_time: data.end_time,
       is_recurring: data.is_recurring,
       recurrence_rule: data.recurrence_rule,
+      event_type: data.event_type || 'work',
     })
     .eq('id', id);
 
@@ -940,6 +947,7 @@ export async function toggleEventConfirmed(id: string, confirmed: boolean) {
             recurrence_rule: null,
             is_settled: false,
             is_confirmed: true,
+            event_type: parent.event_type || 'work',
             created_at: new Date().toISOString(),
           });
       }
@@ -977,7 +985,7 @@ export async function settleWeekAction(weekStart: string, weekEnd: string) {
   const dek = await getDEK();
   const rates = await getExchangeRates();
 
-  // Pobierz potwierdzone ale niezatwierdzone eventy z tego tygodnia
+  // Pobierz potwierdzone ale niezatwierdzone eventy z tego tygodnia (tylko work)
   const { data: events, error } = await supabaseAdmin
     .from('calendar_events')
     .select('*')
@@ -989,8 +997,12 @@ export async function settleWeekAction(weekStart: string, weekEnd: string) {
 
   if (error || !events || events.length === 0) return { settled: 0 };
 
+  // Filter out personal events — only settle work events
+  const workEvents = events.filter(e => (e.event_type || 'work') === 'work');
+  if (workEvents.length === 0) return { settled: 0 };
+
   // Pobierz portfele z track_from do filtrowania
-  const walletIds = Array.from(new Set(events.filter(e => e.wallet_id).map(e => e.wallet_id)));
+  const walletIds = Array.from(new Set(workEvents.filter(e => e.wallet_id).map(e => e.wallet_id)));
   const { data: walletsRaw } = await supabaseAdmin
     .from('wallets')
     .select('id, track_from')
@@ -1002,7 +1014,7 @@ export async function settleWeekAction(weekStart: string, weekEnd: string) {
   }
 
   // Filtruj eventy: odrzuć te przed track_from portfela
-  const filteredEvents = events.filter(event => {
+  const filteredEvents = workEvents.filter(event => {
     if (!event.wallet_id) return false;
     const trackFrom = walletTrackFrom.get(event.wallet_id);
     if (!trackFrom) return true;
@@ -1118,6 +1130,7 @@ export async function getWeeklySummary(weekStart: string, weekEnd: string) {
     const byWallet = new Map<string, { name: string; color: string; earnings: number; hours: number }>();
 
     for (const e of evts || []) {
+      if ((e.event_type || 'work') !== 'work') continue;
       const rate = decryptNumber(e.hourly_rate, dek);
       const hours = (new Date(e.end_time).getTime() - new Date(e.start_time).getTime()) / (1000 * 60 * 60);
       const earnings = hours * rate;
@@ -1202,6 +1215,7 @@ export async function getMonthlySummary(monthStart: string, monthEnd: string) {
     const weeklyBreakdown = new Map<string, number>();
 
     for (const e of evts || []) {
+      if ((e.event_type || 'work') !== 'work') continue;
       const rate = decryptNumber(e.hourly_rate, dek);
       const hours = (new Date(e.end_time).getTime() - new Date(e.start_time).getTime()) / (1000 * 60 * 60);
       const earnings = hours * rate;
@@ -1282,8 +1296,12 @@ export async function settleMonthAction(monthStart: string, monthEnd: string) {
 
   if (error || !events || events.length === 0) return { settled: 0 };
 
+  // Filter out personal events — only settle work events
+  const workMonthEvents = events.filter(e => (e.event_type || 'work') === 'work');
+  if (workMonthEvents.length === 0) return { settled: 0 };
+
   // Pobierz portfele z track_from do filtrowania
-  const mWalletIds = Array.from(new Set(events.filter(e => e.wallet_id).map(e => e.wallet_id)));
+  const mWalletIds = Array.from(new Set(workMonthEvents.filter(e => e.wallet_id).map(e => e.wallet_id)));
   const { data: mWalletsRaw } = await supabaseAdmin
     .from('wallets')
     .select('id, track_from')
@@ -1295,7 +1313,7 @@ export async function settleMonthAction(monthStart: string, monthEnd: string) {
   }
 
   // Filtruj eventy: odrzuć te przed track_from portfela
-  const filteredMonthEvents = events.filter(event => {
+  const filteredMonthEvents = workMonthEvents.filter(event => {
     if (!event.wallet_id) return false;
     const trackFrom = mWalletTrackFrom.get(event.wallet_id);
     if (!trackFrom) return true;

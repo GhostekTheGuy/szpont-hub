@@ -55,6 +55,8 @@ function GoogleIcon({ className = "w-3 h-3" }: { className?: string }) {
   );
 }
 
+const PERSONAL_EVENT_COLOR = '#22c55e';
+
 function getIndicatorColor(walletColor: string): string {
   if (!walletColor) return 'hsl(var(--primary))';
   if (walletColor.startsWith('plasma:')) return walletColor.slice(7);
@@ -63,6 +65,11 @@ function getIndicatorColor(walletColor: string): string {
   const hexMatch = walletColor.match(/#[0-9a-fA-F]{3,8}/);
   if (hexMatch) return hexMatch[0];
   return 'hsl(var(--primary))';
+}
+
+function getEventColor(event: CalendarEvent): string {
+  if (event.event_type === 'personal') return PERSONAL_EVENT_COLOR;
+  return getIndicatorColor(event.walletColor);
 }
 
 export function WeeklyCalendar({
@@ -203,7 +210,7 @@ export function WeeklyCalendar({
                       <div
                         key={i}
                         className="w-[6px] h-[4px] rounded-full"
-                        style={{ backgroundColor: getIndicatorColor(ev.walletColor) }}
+                        style={{ backgroundColor: getEventColor(ev) }}
                       />
                     ))}
                     {overflow > 0 && (
@@ -328,7 +335,7 @@ export function WeeklyCalendar({
                     const endMin = end.getHours() * 60 + end.getMinutes();
                     const eventHours = (endMin - startMin) / 60;
                     const earnings = eventHours * event.hourly_rate;
-                    const indicatorColor = getIndicatorColor(event.walletColor);
+                    const indicatorColor = getEventColor(event);
 
                     return (
                       <div
@@ -351,11 +358,15 @@ export function WeeklyCalendar({
                             {format(start, 'HH:mm')} – {format(end, 'HH:mm')}
                             <span className="mx-1.5">·</span>
                             {eventHours.toFixed(1)}h
-                            <span className="mx-1.5">·</span>
-                            {earnings.toFixed(0)} PLN
+                            {event.event_type !== 'personal' && (
+                              <>
+                                <span className="mx-1.5">·</span>
+                                {earnings.toFixed(0)} PLN
+                              </>
+                            )}
                           </div>
                         </div>
-                        {onToggleConfirmed && (
+                        {onToggleConfirmed && event.is_recurring && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -473,7 +484,7 @@ function DayTimeGrid({
             const height = Math.max(((endMin - startMin) / 60) * HOUR_HEIGHT, 24);
             const eventHours = (endMin - startMin) / 60;
             const earnings = eventHours * event.hourly_rate;
-            const color = getIndicatorColor(event.walletColor);
+            const color = getEventColor(event);
 
             return (
               <div
@@ -498,12 +509,16 @@ function DayTimeGrid({
                     {height > 36 && (
                       <div className="text-xs text-muted-foreground mt-0.5">
                         {format(start, 'HH:mm')} – {format(end, 'HH:mm')}
-                        <span className="mx-1">·</span>
-                        {earnings.toFixed(0)} PLN
+                        {event.event_type !== 'personal' && (
+                          <>
+                            <span className="mx-1">·</span>
+                            {earnings.toFixed(0)} PLN
+                          </>
+                        )}
                       </div>
                     )}
                   </div>
-                  {onToggleConfirmed && (
+                  {onToggleConfirmed && event.is_recurring && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -682,7 +697,7 @@ function WeekTimeGrid({
                   const height = Math.max(((endMin - startMin) / 60) * HOUR_HEIGHT, 20);
                   const eventHours = (endMin - startMin) / 60;
                   const earnings = eventHours * event.hourly_rate;
-                  const color = getIndicatorColor(event.walletColor);
+                  const color = getEventColor(event);
 
                   return (
                     <div
@@ -707,12 +722,16 @@ function WeekTimeGrid({
                           {height > 30 && (
                             <div className="text-[10px] text-muted-foreground truncate">
                               {format(start, 'HH:mm')} – {format(end, 'HH:mm')}
-                              <span className="mx-0.5">·</span>
-                              {earnings.toFixed(0)} PLN
+                              {event.event_type !== 'personal' && (
+                                <>
+                                  <span className="mx-0.5">·</span>
+                                  {earnings.toFixed(0)} PLN
+                                </>
+                              )}
                             </div>
                           )}
                         </div>
-                        {onToggleConfirmed && (
+                        {onToggleConfirmed && event.is_recurring && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();

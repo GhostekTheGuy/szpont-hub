@@ -80,6 +80,7 @@ export interface CalendarEvent {
   recurrence_rule: string | null;
   is_settled: boolean;
   is_confirmed: boolean;
+  event_type: 'work' | 'personal';
   google_event_id?: string | null;
   google_calendar_id?: string | null;
 }
