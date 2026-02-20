@@ -10,20 +10,17 @@ import {
   PiggyBank,
   CalendarDays,
   Target,
-  LogOut,
   ChevronsLeft,
   ChevronsRight,
-  Eye,
-  EyeOff,
+  Settings,
 } from 'lucide-react';
-import { signOutAction } from '@/app/actions';
-import { ThemeToggle } from '@/components/ThemeToggle';
 import { PageTransition } from '@/components/PageTransition';
-import { useFinanceStore } from '@/hooks/useFinanceStore';
+import { Spotlight } from '@/components/Spotlight';
 
 interface DashboardLayoutProps {
   children: ReactNode;
   userName: string;
+  avatarUrl: string | null;
 }
 
 const navItems = [
@@ -34,23 +31,49 @@ const navItems = [
   { href: '/habits', label: 'Nawyki', icon: Target },
 ];
 
-export function DashboardLayout({ children, userName }: DashboardLayoutProps) {
+function UserAvatar({ userName, avatarUrl, size = 'sm' }: { userName: string; avatarUrl: string | null; size?: 'sm' | 'md' }) {
+  const initials = userName
+    .split(' ')
+    .map((n) => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+
+  const sizeClass = size === 'sm' ? 'w-8 h-8 text-xs' : 'w-9 h-9 text-sm';
+
+  if (avatarUrl) {
+    return (
+      <img
+        src={avatarUrl}
+        alt={userName}
+        className={`${sizeClass} rounded-full object-cover`}
+      />
+    );
+  }
+
+  return (
+    <div className={`${sizeClass} rounded-full bg-primary/10 text-primary flex items-center justify-center font-semibold`}>
+      {initials}
+    </div>
+  );
+}
+
+export function DashboardLayout({ children, userName, avatarUrl }: DashboardLayoutProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
-  const { balanceMasked, toggleBalanceMask } = useFinanceStore();
 
   const isActive = (href: string) => {
     if (href === '/') return pathname === '/';
     return pathname.startsWith(href);
   };
 
-  const handleSignOut = async () => {
-    await signOutAction();
-    window.location.href = '/login';
-  };
+  const settingsActive = pathname.startsWith('/settings');
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Spotlight */}
+      <Spotlight />
+
       {/* Sidebar */}
       <aside
         className={`fixed left-0 top-0 z-40 h-screen bg-sidebar border-r border-sidebar-border hidden lg:block transition-all duration-300 ${
@@ -94,32 +117,23 @@ export function DashboardLayout({ children, userName }: DashboardLayoutProps) {
             })}
           </nav>
 
-          {/* Bottom actions */}
-          <div className={`border-t border-sidebar-border space-y-0.5 ${collapsed ? 'p-2' : 'p-3'}`}>
-            <div className={`flex items-center rounded-lg text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors ${collapsed ? 'justify-center' : 'justify-between pl-4 pr-2'}`}>
-              {!collapsed && <span className="text-sm">Motyw</span>}
-              <ThemeToggle />
-            </div>
-            <button
-              onClick={toggleBalanceMask}
-              title={balanceMasked ? 'Pokaż kwoty' : 'Ukryj kwoty'}
-              className={`flex items-center gap-3 py-2.5 rounded-lg text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors w-full ${
-                collapsed ? 'justify-center px-2' : 'px-4'
+          {/* Bottom: profile + collapse */}
+          <div className={`border-t border-sidebar-border ${collapsed ? 'p-2' : 'p-3'} space-y-0.5`}>
+            <Link
+              href="/settings"
+              title={collapsed ? 'Ustawienia' : undefined}
+              className={`flex items-center gap-3 py-2.5 rounded-lg transition-colors w-full ${
+                collapsed ? 'justify-center px-2' : 'px-3'
+              } ${
+                settingsActive
+                  ? 'bg-sidebar-primary text-sidebar-primary-foreground'
+                  : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
               }`}
             >
-              {balanceMasked ? <EyeOff className="w-5 h-5 shrink-0" /> : <Eye className="w-5 h-5 shrink-0" />}
-              {!collapsed && <span>{balanceMasked ? 'Pokaż kwoty' : 'Ukryj kwoty'}</span>}
-            </button>
-            <button
-              onClick={handleSignOut}
-              title={collapsed ? 'Wyloguj się' : undefined}
-              className={`flex items-center gap-3 py-2.5 rounded-lg text-sidebar-foreground/70 hover:bg-destructive/10 hover:text-destructive transition-colors w-full ${
-                collapsed ? 'justify-center px-2' : 'px-4'
-              }`}
-            >
-              <LogOut className="w-5 h-5 shrink-0" />
-              {!collapsed && <span>Wyloguj się</span>}
-            </button>
+              <UserAvatar userName={userName} avatarUrl={avatarUrl} />
+              {!collapsed && <span className="text-sm truncate">{userName}</span>}
+            </Link>
+
             <button
               onClick={() => setCollapsed(!collapsed)}
               className={`flex items-center gap-3 py-2.5 rounded-lg text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors w-full ${
@@ -145,22 +159,9 @@ export function DashboardLayout({ children, userName }: DashboardLayoutProps) {
           <Link href="/" className="flex items-center">
             <Image src="/sygnet.svg" alt="SzpontHub" width={32} height={28} className="h-7 w-auto" />
           </Link>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={toggleBalanceMask}
-              className="p-2 text-muted-foreground hover:text-foreground transition-colors"
-              title={balanceMasked ? 'Pokaż kwoty' : 'Ukryj kwoty'}
-            >
-              {balanceMasked ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-            </button>
-            <ThemeToggle />
-            <button
-              onClick={handleSignOut}
-              className="p-2 text-muted-foreground hover:text-destructive transition-colors"
-            >
-              <LogOut className="w-5 h-5" />
-            </button>
-          </div>
+          <Link href="/settings" className="p-1">
+            <UserAvatar userName={userName} avatarUrl={avatarUrl} />
+          </Link>
         </div>
       </header>
 
@@ -195,6 +196,15 @@ export function DashboardLayout({ children, userName }: DashboardLayoutProps) {
               </Link>
             );
           })}
+          <Link
+            href="/settings"
+            className={`flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition-colors ${
+              settingsActive ? 'text-primary' : 'text-muted-foreground'
+            }`}
+          >
+            <Settings className="w-5 h-5" />
+            <span className="text-xs font-medium">Ustawienia</span>
+          </Link>
         </div>
       </nav>
     </div>

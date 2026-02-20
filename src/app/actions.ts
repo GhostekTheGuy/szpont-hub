@@ -626,6 +626,19 @@ export async function deleteWalletAction(id: string) {
   revalidatePath('/', 'layout');
 }
 
+// --- RESET HASŁA ---
+export async function resetPasswordAction() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user?.email) throw new Error('No email found');
+
+  const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
+    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/auth/callback?next=/update-password`,
+  });
+
+  if (error) throw new Error(error.message);
+}
+
 // --- WYLOGOWANIE ---
 export async function signOutAction() {
   const supabase = await createClient();
@@ -702,24 +715,28 @@ export async function getCalendarEvents(weekStart: string, weekEnd: string) {
         }
       }
     } else if (rule === 'weekly') {
-      // Znajdź instancję na ten sam dzień tygodnia w tym tygodniu
+      // Znajdź pierwszą instancję na ten sam dzień tygodnia w zakresie, potem co 7 dni
       const origDay = origStart.getDay(); // 0=Sun, 1=Mon, ...
       const wsDay = wsDate.getDay();
       let diff = origDay - wsDay;
       if (diff < 0) diff += 7;
-      const instanceStart = new Date(wsDate);
-      instanceStart.setDate(instanceStart.getDate() + diff);
-      instanceStart.setHours(origStart.getHours(), origStart.getMinutes(), origStart.getSeconds(), 0);
-      const instanceEnd = new Date(instanceStart.getTime() + durationMs);
-      if (instanceStart >= wsDate && instanceEnd <= weDate) {
-        expandedRecurring.push({
-          ...event,
-          id: `${event.id}_${instanceStart.toISOString().split('T')[0]}`,
-          start_time: instanceStart.toISOString(),
-          end_time: instanceEnd.toISOString(),
-          is_settled: false,
-          is_confirmed: false,
-        });
+      const firstInstance = new Date(wsDate);
+      firstInstance.setDate(firstInstance.getDate() + diff);
+
+      for (let d = new Date(firstInstance); d <= weDate; d.setDate(d.getDate() + 7)) {
+        const instanceStart = new Date(d);
+        instanceStart.setHours(origStart.getHours(), origStart.getMinutes(), origStart.getSeconds(), 0);
+        const instanceEnd = new Date(instanceStart.getTime() + durationMs);
+        if (instanceStart >= wsDate && instanceEnd <= weDate && instanceStart > origStart) {
+          expandedRecurring.push({
+            ...event,
+            id: `${event.id}_${instanceStart.toISOString().split('T')[0]}`,
+            start_time: instanceStart.toISOString(),
+            end_time: instanceEnd.toISOString(),
+            is_settled: false,
+            is_confirmed: false,
+          });
+        }
       }
     } else if (rule === 'monthly') {
       // Znajdź instancję w tym samym dniu miesiąca

@@ -1,12 +1,8 @@
 import { redirect } from "next/navigation";
-import { DashboardLayout } from "@/components/DashboardLayout";
 import { getUser } from "@/lib/supabase/cached";
+import { UserPanel } from "@/components/UserPanel";
 
-export default async function DashboardGroupLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default async function SettingsPage() {
   const user = await getUser();
 
   if (!user) {
@@ -14,11 +10,14 @@ export default async function DashboardGroupLayout({
   }
 
   const userName = user.user_metadata?.name || user.email?.split('@')[0] || 'Użytkownik';
+  const userEmail = user.email || '';
   const avatarUrl = user.user_metadata?.avatar_url || null;
 
   return (
-    <DashboardLayout userName={userName} avatarUrl={avatarUrl}>
-      {children}
-    </DashboardLayout>
+    <UserPanel
+      userName={userName}
+      userEmail={userEmail}
+      avatarUrl={avatarUrl}
+    />
   );
 }
