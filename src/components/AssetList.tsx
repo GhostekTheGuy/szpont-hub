@@ -91,7 +91,9 @@ export function AssetList({ assets, onEdit, onDelete, onSell }: AssetListProps) 
                         if (IconComponent) {
                           return <IconComponent size={24} variant="branded" />;
                         }
-                        return <Coins className="w-5 h-5 text-muted-foreground" />;
+                        return asset.asset_type === 'stock'
+                          ? <TrendingUp className="w-5 h-5 text-muted-foreground" />
+                          : <Coins className="w-5 h-5 text-muted-foreground" />;
                       })()}
                     </div>
                     <div>

@@ -165,6 +165,7 @@ export async function getDashboardData() {
     total_value: decryptNumber(a.total_value, dek),
     change_24h: decryptNumber(a.change_24h, dek),
     cost_basis: a.cost_basis ? decryptNumber(a.cost_basis, dek) : 0,
+    asset_type: (a.asset_type || 'crypto') as 'crypto' | 'stock',
   }));
 
   return { wallets, transactions, assets: decryptedAssets, exchangeRates: rates };
@@ -209,6 +210,7 @@ export async function getAssetsData() {
     total_value: decryptNumber(a.total_value, dek),
     change_24h: decryptNumber(a.change_24h, dek),
     cost_basis: a.cost_basis ? decryptNumber(a.cost_basis, dek) : 0,
+    asset_type: (a.asset_type || 'crypto') as 'crypto' | 'stock',
   }));
 
   return { assets: decryptedAssets };
@@ -1359,6 +1361,52 @@ export async function settleMonthAction(monthStart: string, monthEnd: string) {
   return { settled: filteredMonthEvents.length };
 }
 
+// --- YAHOO FINANCE ---
+
+export async function searchYahooFinance(query: string): Promise<{ symbol: string; name: string; exchange: string; type: string }[]> {
+  try {
+    const res = await fetch(
+      `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=8&newsCount=0&listsCount=0`,
+      { headers: { 'User-Agent': 'Mozilla/5.0' } }
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data.quotes || [])
+      .filter((q: { quoteType: string }) => ['EQUITY', 'ETF', 'FUTURE', 'INDEX', 'COMMODITY'].includes(q.quoteType))
+      .map((q: { symbol: string; shortname?: string; longname?: string; exchange?: string; quoteType?: string }) => ({
+        symbol: q.symbol,
+        name: q.longname || q.shortname || q.symbol,
+        exchange: q.exchange || '',
+        type: q.quoteType || 'EQUITY',
+      }));
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchYahooQuotes(symbols: string[]): Promise<{ symbol: string; price: number; change: number; currency: string }[]> {
+  const results: { symbol: string; price: number; change: number; currency: string }[] = [];
+  for (const symbol of symbols) {
+    try {
+      const res = await fetch(
+        `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=2d`,
+        { headers: { 'User-Agent': 'Mozilla/5.0' } }
+      );
+      if (!res.ok) continue;
+      const data = await res.json();
+      const meta = data.chart?.result?.[0]?.meta;
+      if (!meta) continue;
+      const price = meta.regularMarketPrice || 0;
+      const prevClose = meta.chartPreviousClose || price;
+      const change = prevClose > 0 ? ((price - prevClose) / prevClose) * 100 : 0;
+      results.push({ symbol, price, change, currency: meta.currency || 'USD' });
+    } catch {
+      // skip failed symbol
+    }
+  }
+  return results;
+}
+
 // --- AKTYWA CRUD ---
 
 export async function addAssetAction(data: {
@@ -1367,28 +1415,57 @@ export async function addAssetAction(data: {
   coingecko_id: string;
   quantity: number;
   cost_basis?: number;
+  asset_type?: 'crypto' | 'stock';
 }) {
   const userId = await getUserId();
   if (!userId) throw new Error('Unauthorized');
 
   const dek = await getDEK();
+  const assetType = data.asset_type || 'crypto';
 
-  // Pobierz cenę z CoinGecko
   let currentPrice = 0;
   let change24h = 0;
-  try {
-    const res = await fetch(
-      `https://api.coingecko.com/api/v3/coins/markets?vs_currency=pln&ids=${data.coingecko_id}&sparkline=false&price_change_percentage=24h`
-    );
-    if (res.ok) {
-      const coins = await res.json();
-      if (coins.length > 0) {
-        currentPrice = coins[0].current_price || 0;
-        change24h = coins[0].price_change_percentage_24h || 0;
+
+  if (assetType === 'stock') {
+    // Yahoo Finance — price in original currency, convert to PLN
+    try {
+      const quotes = await fetchYahooQuotes([data.symbol]);
+      if (quotes.length > 0) {
+        const q = quotes[0];
+        change24h = q.change;
+        if (q.currency === 'PLN') {
+          currentPrice = q.price;
+        } else {
+          // Convert to PLN using exchange rates
+          const rates = await getExchangeRates();
+          const curr = q.currency as Currency;
+          if (rates[curr] !== undefined) {
+            currentPrice = q.price / rates[curr]; // rates are FROM PLN, so USD price / rates.USD = PLN
+          } else {
+            // Fallback: assume USD
+            currentPrice = q.price / (rates.USD || 0.25);
+          }
+        }
       }
+    } catch {
+      // price stays 0
     }
-  } catch {
-    // Ignoruj błędy API — cena zostanie 0
+  } else {
+    // CoinGecko — price already in PLN
+    try {
+      const res = await fetch(
+        `https://api.coingecko.com/api/v3/coins/markets?vs_currency=pln&ids=${data.coingecko_id}&sparkline=false&price_change_percentage=24h`
+      );
+      if (res.ok) {
+        const coins = await res.json();
+        if (coins.length > 0) {
+          currentPrice = coins[0].current_price || 0;
+          change24h = coins[0].price_change_percentage_24h || 0;
+        }
+      }
+    } catch {
+      // price stays 0
+    }
   }
 
   const totalValue = data.quantity * currentPrice;
@@ -1401,12 +1478,13 @@ export async function addAssetAction(data: {
       user_id: userId,
       name: encryptString(data.name, dek),
       symbol: encryptString(data.symbol, dek),
-      coingecko_id: encryptString(data.coingecko_id, dek),
+      coingecko_id: encryptString(data.coingecko_id || '', dek),
       quantity: encryptNumber(data.quantity, dek),
       current_price: encryptNumber(currentPrice, dek),
       total_value: encryptNumber(totalValue, dek),
       change_24h: encryptNumber(change24h, dek),
       cost_basis: encryptNumber(costBasis, dek),
+      asset_type: assetType,
       created_at: new Date().toISOString(),
     });
 
@@ -1481,46 +1559,89 @@ export async function refreshAssetPricesAction() {
 
   if (!assets || assets.length === 0) return;
 
-  // Odszyfruj coingecko_id dla każdego aktywa
   const assetMap = assets.map(a => ({
     id: a.id,
     coingecko_id: decryptString(a.coingecko_id, dek) || a.coingecko_id || '',
+    symbol: decryptString(a.symbol, dek) || a.symbol || '',
     quantity: decryptNumber(a.quantity, dek),
+    asset_type: (a.asset_type || 'crypto') as 'crypto' | 'stock',
   }));
 
-  const ids = assetMap.map(a => a.coingecko_id).filter(Boolean).join(',');
-  if (!ids) return;
+  const cryptoAssets = assetMap.filter(a => a.asset_type === 'crypto');
+  const stockAssets = assetMap.filter(a => a.asset_type === 'stock');
 
-  try {
-    const res = await fetch(
-      `https://api.coingecko.com/api/v3/coins/markets?vs_currency=pln&ids=${ids}&sparkline=false&price_change_percentage=24h`
-    );
-    if (!res.ok) return;
+  // Refresh crypto via CoinGecko
+  if (cryptoAssets.length > 0) {
+    const ids = cryptoAssets.map(a => a.coingecko_id).filter(Boolean).join(',');
+    if (ids) {
+      try {
+        const res = await fetch(
+          `https://api.coingecko.com/api/v3/coins/markets?vs_currency=pln&ids=${ids}&sparkline=false&price_change_percentage=24h`
+        );
+        if (res.ok) {
+          const coins = await res.json();
+          const priceMap = new Map<string, { price: number; change: number }>(
+            coins.map((c: { id: string; current_price: number; price_change_percentage_24h: number }) => [
+              c.id,
+              { price: c.current_price || 0, change: c.price_change_percentage_24h || 0 },
+            ])
+          );
 
-    const coins = await res.json();
-    const priceMap = new Map<string, { price: number; change: number }>(
-      coins.map((c: { id: string; current_price: number; price_change_percentage_24h: number }) => [
-        c.id,
-        { price: c.current_price || 0, change: c.price_change_percentage_24h || 0 },
-      ])
-    );
+          for (const asset of cryptoAssets) {
+            const coinData = priceMap.get(asset.coingecko_id);
+            if (!coinData) continue;
 
-    for (const asset of assetMap) {
-      const coinData = priceMap.get(asset.coingecko_id);
-      if (!coinData) continue;
-
-      const totalValue = asset.quantity * coinData.price;
-      await supabaseAdmin
-        .from('assets')
-        .update({
-          current_price: encryptNumber(coinData.price, dek),
-          total_value: encryptNumber(totalValue, dek),
-          change_24h: encryptNumber(coinData.change, dek),
-        })
-        .eq('id', asset.id);
+            const totalValue = asset.quantity * coinData.price;
+            await supabaseAdmin
+              .from('assets')
+              .update({
+                current_price: encryptNumber(coinData.price, dek),
+                total_value: encryptNumber(totalValue, dek),
+                change_24h: encryptNumber(coinData.change, dek),
+              })
+              .eq('id', asset.id);
+          }
+        }
+      } catch {
+        // Ignoruj błędy API
+      }
     }
-  } catch {
-    // Ignoruj błędy API
+  }
+
+  // Refresh stocks/ETF/commodities via Yahoo Finance
+  if (stockAssets.length > 0) {
+    try {
+      const symbols = stockAssets.map(a => a.symbol).filter(Boolean);
+      const quotes = await fetchYahooQuotes(symbols);
+      const rates = await getExchangeRates();
+
+      const quoteMap = new Map(quotes.map(q => [q.symbol, q]));
+
+      for (const asset of stockAssets) {
+        const q = quoteMap.get(asset.symbol);
+        if (!q) continue;
+
+        let pricePLN: number;
+        if (q.currency === 'PLN') {
+          pricePLN = q.price;
+        } else {
+          const curr = q.currency as Currency;
+          pricePLN = rates[curr] !== undefined ? q.price / rates[curr] : q.price / (rates.USD || 0.25);
+        }
+
+        const totalValue = asset.quantity * pricePLN;
+        await supabaseAdmin
+          .from('assets')
+          .update({
+            current_price: encryptNumber(pricePLN, dek),
+            total_value: encryptNumber(totalValue, dek),
+            change_24h: encryptNumber(q.change, dek),
+          })
+          .eq('id', asset.id);
+      }
+    } catch {
+      // Ignoruj błędy API
+    }
   }
 
   revalidatePath('/', 'layout');

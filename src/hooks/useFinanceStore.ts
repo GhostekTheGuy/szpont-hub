@@ -35,6 +35,7 @@ export interface Asset {
   total_value: number;
   change_24h: number;
   cost_basis: number;
+  asset_type: 'crypto' | 'stock';
 }
 
 export interface AssetSale {
