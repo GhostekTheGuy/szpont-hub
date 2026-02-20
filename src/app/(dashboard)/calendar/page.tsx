@@ -1,4 +1,4 @@
-import { getCalendarEvents, getWalletsWithTransactions } from "@/app/actions";
+import { getCalendarEvents, getWalletsWithTransactions, getGoogleCalendarConnection } from "@/app/actions";
 import { CalendarPageClient } from "@/components/pages/CalendarPageClient";
 import { startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
 
@@ -7,9 +7,10 @@ export default async function CalendarPage() {
   const rangeStart = startOfWeek(startOfMonth(now), { weekStartsOn: 1 }).toISOString();
   const rangeEnd = endOfWeek(endOfMonth(now), { weekStartsOn: 1 }).toISOString();
 
-  const [calendarData, walletsData] = await Promise.all([
+  const [calendarData, walletsData, googleConnection] = await Promise.all([
     getCalendarEvents(rangeStart, rangeEnd),
     getWalletsWithTransactions(),
+    getGoogleCalendarConnection(),
   ]);
 
   if (!calendarData || !walletsData) {
@@ -24,6 +25,7 @@ export default async function CalendarPage() {
     <CalendarPageClient
       initialEvents={calendarData.events}
       initialWallets={walletsData.wallets}
+      googleConnection={googleConnection}
     />
   );
 }

@@ -769,6 +769,8 @@ export async function getCalendarEvents(weekStart: string, weekEnd: string) {
     recurrence_rule: e.recurrence_rule,
     is_settled: e.is_settled,
     is_confirmed: e.is_confirmed ?? false,
+    google_event_id: e.google_event_id || null,
+    google_calendar_id: e.google_calendar_id || null,
   }));
 
   // Pobierz portfele do formularza
@@ -2080,6 +2082,117 @@ export async function toggleHabitEntry(habitId: string, date: string, completed:
       .eq('habit_id', habitId)
       .eq('date', date);
   }
+
+  revalidatePath('/', 'layout');
+}
+
+// --- GOOGLE CALENDAR ---
+
+export async function getGoogleCalendarConnection() {
+  const userId = await getUserId();
+  if (!userId) return null;
+
+  const { data: connection } = await supabaseAdmin
+    .from('google_calendar_connections')
+    .select('id, google_email, created_at, updated_at')
+    .eq('user_id', userId)
+    .single();
+
+  if (!connection) return null;
+
+  return {
+    id: connection.id,
+    email: connection.google_email,
+    connected: true,
+    connectedAt: connection.created_at,
+  };
+}
+
+export async function getGoogleCalendarMappings() {
+  const userId = await getUserId();
+  if (!userId) return [];
+
+  const dek = await getDEK();
+
+  const { data: mappings } = await supabaseAdmin
+    .from('google_calendar_mappings')
+    .select('*, wallet:wallets(id, name, color)')
+    .eq('user_id', userId);
+
+  if (!mappings) return [];
+
+  return mappings.map(m => ({
+    id: m.id,
+    google_calendar_id: m.google_calendar_id,
+    calendar_name: m.calendar_name,
+    wallet_id: m.wallet_id,
+    walletName: m.wallet_id && m.wallet ? decryptString(m.wallet.name, dek) || '' : '',
+    walletColor: m.wallet?.color || '',
+    hourly_rate: m.hourly_rate ? decryptNumber(m.hourly_rate, dek) : 0,
+    is_enabled: m.is_enabled,
+    last_synced_at: m.last_synced_at,
+  }));
+}
+
+export async function updateGoogleCalendarMapping(
+  id: string,
+  data: { wallet_id?: string | null; hourly_rate?: number; is_enabled?: boolean }
+) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  const { data: mapping } = await supabaseAdmin
+    .from('google_calendar_mappings')
+    .select('user_id, google_calendar_id')
+    .eq('id', id)
+    .single();
+
+  if (!mapping || mapping.user_id !== userId) throw new Error('Not found');
+
+  const dek = await getDEK();
+  const updateData: Record<string, unknown> = {};
+
+  if (data.wallet_id !== undefined) updateData.wallet_id = data.wallet_id;
+  if (data.hourly_rate !== undefined) updateData.hourly_rate = encryptNumber(data.hourly_rate, dek);
+  if (data.is_enabled !== undefined) updateData.is_enabled = data.is_enabled;
+
+  await supabaseAdmin
+    .from('google_calendar_mappings')
+    .update(updateData)
+    .eq('id', id);
+
+  // Also update existing Google events from this calendar with new wallet/rate
+  if (data.wallet_id !== undefined || data.hourly_rate !== undefined) {
+    const eventUpdates: Record<string, unknown> = {};
+    if (data.wallet_id !== undefined) eventUpdates.wallet_id = data.wallet_id;
+    if (data.hourly_rate !== undefined) eventUpdates.hourly_rate = encryptNumber(data.hourly_rate, dek);
+
+    await supabaseAdmin
+      .from('calendar_events')
+      .update(eventUpdates)
+      .eq('user_id', userId)
+      .eq('google_calendar_id', mapping.google_calendar_id);
+  }
+
+  revalidatePath('/', 'layout');
+}
+
+export async function disconnectGoogleCalendar() {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  // Delete all Google-synced events
+  await supabaseAdmin
+    .from('calendar_events')
+    .delete()
+    .eq('user_id', userId)
+    .not('google_event_id', 'is', null);
+
+  // Delete mappings and connection (cascade handles mappings)
+  await supabaseAdmin
+    .from('google_calendar_connections')
+    .delete()
+    .eq('user_id', userId);
 
   revalidatePath('/', 'layout');
 }
