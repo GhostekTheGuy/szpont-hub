@@ -22,6 +22,7 @@ export interface Wallet {
   icon: string;
   color: string;
   type: 'fiat' | 'crypto' | 'stock';
+  track_from?: string;
 }
 
 export interface Asset {
@@ -51,6 +52,20 @@ export interface AssetSale {
   sale_date: string;
 }
 
+export interface Habit {
+  id: string;
+  name: string;
+  color: string;
+  icon: string;
+}
+
+export interface HabitEntry {
+  id: string;
+  habit_id: string;
+  date: string;
+  completed: boolean;
+}
+
 export interface CalendarEvent {
   id: string;
   title: string;
@@ -72,6 +87,8 @@ interface FinanceState {
   assets: Asset[];
   assetSales: AssetSale[];
   calendarEvents: CalendarEvent[];
+  habits: Habit[];
+  habitEntries: HabitEntry[];
   activeWalletId: string | null;
 
   // Tylko settery - żadnej logiki dodawania/usuwania tutaj!
@@ -80,6 +97,8 @@ interface FinanceState {
   setAssets: (assets: Asset[]) => void;
   setAssetSales: (sales: AssetSale[]) => void;
   setCalendarEvents: (events: CalendarEvent[]) => void;
+  setHabits: (habits: Habit[]) => void;
+  setHabitEntries: (entries: HabitEntry[]) => void;
   setActiveWallet: (id: string | null) => void;
 }
 
@@ -89,6 +108,8 @@ export const useFinanceStore = create<FinanceState>((set) => ({
   assets: [],
   assetSales: [],
   calendarEvents: [],
+  habits: [],
+  habitEntries: [],
   activeWalletId: null,
 
   setWallets: (wallets) => set({ wallets }),
@@ -96,5 +117,7 @@ export const useFinanceStore = create<FinanceState>((set) => ({
   setAssets: (assets) => set({ assets }),
   setAssetSales: (assetSales) => set({ assetSales }),
   setCalendarEvents: (calendarEvents) => set({ calendarEvents }),
+  setHabits: (habits) => set({ habits }),
+  setHabitEntries: (habitEntries) => set({ habitEntries }),
   setActiveWallet: (id) => set({ activeWalletId: id }),
 }));

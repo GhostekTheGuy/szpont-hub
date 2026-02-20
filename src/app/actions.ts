@@ -106,6 +106,7 @@ async function fetchWalletsAndTransactions(userId: string, existingDek?: Buffer)
     ...w,
     name: decryptString(w.name, dek) || w.name,
     balance: decryptNumber(w.balance, dek),
+    track_from: w.track_from ? decryptString(w.track_from, dek) : undefined,
   }));
 
   const { data: transactionsRaw, error: transError } = await supabaseAdmin
@@ -515,6 +516,8 @@ export async function addWalletAction(data: any) {
 
   const dek = await getDEK();
 
+  const trackFrom = data.track_from || new Date().toISOString().split('T')[0];
+
   const { error } = await supabaseAdmin
     .from('wallets')
     .insert({
@@ -525,6 +528,7 @@ export async function addWalletAction(data: any) {
       color: data.color,
       icon: data.icon,
       balance: encryptNumber(0, dek),
+      track_from: encryptString(trackFrom, dek),
       currency: 'PLN',
       created_at: new Date().toISOString()
     });
@@ -552,15 +556,43 @@ export async function editWalletAction(id: string, data: any) {
 
   const dek = await getDEK();
 
+  const updateData: Record<string, any> = {
+    name: encryptString(data.name, dek),
+    type: data.type,
+    color: data.color,
+    icon: data.icon,
+  };
+
+  if (data.track_from) {
+    updateData.track_from = encryptString(data.track_from, dek);
+  }
+
   await supabaseAdmin
     .from('wallets')
-    .update({
-      name: encryptString(data.name, dek),
-      type: data.type,
-      color: data.color,
-      icon: data.icon
-    })
+    .update(updateData)
     .eq('id', id);
+
+  revalidatePath('/', 'layout');
+}
+
+export async function adjustBalanceAction(walletId: string, newBalance: number) {
+  const userId = await getUserId();
+  if (!userId) throw new Error("Unauthorized");
+
+  const { data: wallet } = await supabaseAdmin
+    .from('wallets')
+    .select('user_id')
+    .eq('id', walletId)
+    .single();
+
+  if (!wallet || wallet.user_id !== userId) throw new Error("Wallet not found");
+
+  const dek = await getDEK();
+
+  await supabaseAdmin
+    .from('wallets')
+    .update({ balance: encryptNumber(newBalance, dek) })
+    .eq('id', walletId);
 
   revalidatePath('/', 'layout');
 }
@@ -953,10 +985,33 @@ export async function settleWeekAction(weekStart: string, weekEnd: string) {
 
   if (error || !events || events.length === 0) return { settled: 0 };
 
+  // Pobierz portfele z track_from do filtrowania
+  const walletIds = Array.from(new Set(events.filter(e => e.wallet_id).map(e => e.wallet_id)));
+  const { data: walletsRaw } = await supabaseAdmin
+    .from('wallets')
+    .select('id, track_from')
+    .in('id', walletIds);
+
+  const walletTrackFrom = new Map<string, string | undefined>();
+  for (const w of walletsRaw || []) {
+    walletTrackFrom.set(w.id, w.track_from ? decryptString(w.track_from, dek) || undefined : undefined);
+  }
+
+  // Filtruj eventy: odrzuć te przed track_from portfela
+  const filteredEvents = events.filter(event => {
+    if (!event.wallet_id) return false;
+    const trackFrom = walletTrackFrom.get(event.wallet_id);
+    if (!trackFrom) return true;
+    const eventDate = event.start_time.split('T')[0];
+    return eventDate >= trackFrom;
+  });
+
+  if (filteredEvents.length === 0) return { settled: 0 };
+
   // Grupuj zarobki per portfel
   const walletEarnings = new Map<string, number>();
 
-  for (const event of events) {
+  for (const event of filteredEvents) {
     if (!event.wallet_id) continue;
     const hourlyRate = decryptNumber(event.hourly_rate, dek);
     const start = new Date(event.start_time);
@@ -1007,14 +1062,14 @@ export async function settleWeekAction(weekStart: string, weekEnd: string) {
   }
 
   // Oznacz eventy jako settled
-  const eventIds = events.map(e => e.id);
+  const eventIds = filteredEvents.map(e => e.id);
   await supabaseAdmin
     .from('calendar_events')
     .update({ is_settled: true })
     .in('id', eventIds);
 
   revalidatePath('/', 'layout');
-  return { settled: events.length };
+  return { settled: filteredEvents.length };
 }
 
 export async function getWeeklySummary(weekStart: string, weekEnd: string) {
@@ -1223,9 +1278,32 @@ export async function settleMonthAction(monthStart: string, monthEnd: string) {
 
   if (error || !events || events.length === 0) return { settled: 0 };
 
+  // Pobierz portfele z track_from do filtrowania
+  const mWalletIds = Array.from(new Set(events.filter(e => e.wallet_id).map(e => e.wallet_id)));
+  const { data: mWalletsRaw } = await supabaseAdmin
+    .from('wallets')
+    .select('id, track_from')
+    .in('id', mWalletIds);
+
+  const mWalletTrackFrom = new Map<string, string | undefined>();
+  for (const w of mWalletsRaw || []) {
+    mWalletTrackFrom.set(w.id, w.track_from ? decryptString(w.track_from, dek) || undefined : undefined);
+  }
+
+  // Filtruj eventy: odrzuć te przed track_from portfela
+  const filteredMonthEvents = events.filter(event => {
+    if (!event.wallet_id) return false;
+    const trackFrom = mWalletTrackFrom.get(event.wallet_id);
+    if (!trackFrom) return true;
+    const eventDate = event.start_time.split('T')[0];
+    return eventDate >= trackFrom;
+  });
+
+  if (filteredMonthEvents.length === 0) return { settled: 0 };
+
   const walletEarnings = new Map<string, number>();
 
-  for (const event of events) {
+  for (const event of filteredMonthEvents) {
     if (!event.wallet_id) continue;
     const hourlyRate = decryptNumber(event.hourly_rate, dek);
     const start = new Date(event.start_time);
@@ -1271,14 +1349,14 @@ export async function settleMonthAction(monthStart: string, monthEnd: string) {
       .eq('id', walletId);
   }
 
-  const eventIds = events.map(e => e.id);
+  const eventIds = filteredMonthEvents.map(e => e.id);
   await supabaseAdmin
     .from('calendar_events')
     .update({ is_settled: true })
     .in('id', eventIds);
 
   revalidatePath('/', 'layout');
-  return { settled: events.length };
+  return { settled: filteredMonthEvents.length };
 }
 
 // --- AKTYWA CRUD ---
@@ -1719,6 +1797,168 @@ export async function addManualSaleAction(data: {
     .from('wallets')
     .update({ balance: encryptNumber(currentBalance + netProceeds, dek) })
     .eq('id', data.walletId);
+
+  revalidatePath('/', 'layout');
+}
+
+// --- NAWYKI (HABITS) ---
+
+export async function getHabits() {
+  const userId = await getUserId();
+  if (!userId) return null;
+
+  const dek = await getDEK();
+
+  const [{ data: habits, error: habitsError }, { data: entries, error: entriesError }] = await Promise.all([
+    supabaseAdmin
+      .from('habits')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: true }),
+    supabaseAdmin
+      .from('habit_entries')
+      .select('*, habit:habits!inner(user_id)')
+      .eq('habit.user_id', userId),
+  ]);
+
+  if (habitsError) console.error('Error fetching habits:', habitsError);
+  if (entriesError) console.error('Error fetching habit entries:', entriesError);
+
+  const decryptedHabits = (habits || []).map(h => ({
+    id: h.id,
+    name: decryptString(h.name, dek) || h.name,
+    color: h.color,
+    icon: h.icon,
+  }));
+
+  const decryptedEntries = (entries || []).map(e => ({
+    id: e.id,
+    habit_id: e.habit_id,
+    date: e.date,
+    completed: e.completed,
+  }));
+
+  return { habits: decryptedHabits, entries: decryptedEntries };
+}
+
+export async function addHabit(data: { name: string; color: string; icon: string }) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  const dek = await getDEK();
+
+  const { error } = await supabaseAdmin
+    .from('habits')
+    .insert({
+      id: nanoid(),
+      user_id: userId,
+      name: encryptString(data.name, dek),
+      color: data.color,
+      icon: data.icon,
+      created_at: new Date().toISOString(),
+    });
+
+  if (error) {
+    console.error('Error adding habit:', error);
+    throw new Error(error.message);
+  }
+
+  revalidatePath('/', 'layout');
+}
+
+export async function editHabit(id: string, data: { name: string; color: string; icon: string }) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  const { data: habit } = await supabaseAdmin
+    .from('habits')
+    .select('user_id')
+    .eq('id', id)
+    .single();
+
+  if (!habit || habit.user_id !== userId) return;
+
+  const dek = await getDEK();
+
+  await supabaseAdmin
+    .from('habits')
+    .update({
+      name: encryptString(data.name, dek),
+      color: data.color,
+      icon: data.icon,
+    })
+    .eq('id', id);
+
+  revalidatePath('/', 'layout');
+}
+
+export async function deleteHabit(id: string) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  const { data: habit } = await supabaseAdmin
+    .from('habits')
+    .select('user_id')
+    .eq('id', id)
+    .single();
+
+  if (!habit || habit.user_id !== userId) return;
+
+  // habit_entries mają ON DELETE CASCADE
+  await supabaseAdmin
+    .from('habits')
+    .delete()
+    .eq('id', id);
+
+  revalidatePath('/', 'layout');
+}
+
+export async function toggleHabitEntry(habitId: string, date: string, completed: boolean) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  // Sprawdź ownership
+  const { data: habit } = await supabaseAdmin
+    .from('habits')
+    .select('user_id')
+    .eq('id', habitId)
+    .single();
+
+  if (!habit || habit.user_id !== userId) return;
+
+  if (completed) {
+    // Upsert - dodaj lub zaktualizuj entry
+    const { data: existing } = await supabaseAdmin
+      .from('habit_entries')
+      .select('id')
+      .eq('habit_id', habitId)
+      .eq('date', date)
+      .single();
+
+    if (existing) {
+      await supabaseAdmin
+        .from('habit_entries')
+        .update({ completed: true })
+        .eq('id', existing.id);
+    } else {
+      await supabaseAdmin
+        .from('habit_entries')
+        .insert({
+          id: nanoid(),
+          habit_id: habitId,
+          date,
+          completed: true,
+          created_at: new Date().toISOString(),
+        });
+    }
+  } else {
+    // Usuń entry (unchecked = brak rekordu)
+    await supabaseAdmin
+      .from('habit_entries')
+      .delete()
+      .eq('habit_id', habitId)
+      .eq('date', date);
+  }
 
   revalidatePath('/', 'layout');
 }

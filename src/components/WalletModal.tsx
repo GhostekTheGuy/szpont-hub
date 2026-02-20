@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { X, Wallet as WalletIcon, Banknote, Bitcoin, TrendingUp, CreditCard, PiggyBank, Sparkles, Waves, Palette } from 'lucide-react';
-import { addWalletAction, editWalletAction } from '@/app/actions';
+import { addWalletAction, editWalletAction, adjustBalanceAction } from '@/app/actions';
 import { Wallet } from '@/hooks/useFinanceStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { parseWalletColor, type CardEffect } from '@/components/WalletCard';
@@ -45,6 +45,9 @@ export function WalletModal({ isOpen, onClose, editingWallet }: WalletModalProps
   const [icon, setIcon] = useState('wallet');
   const [loading, setLoading] = useState(false);
 
+  const [balance, setBalance] = useState('');
+  const [trackFrom, setTrackFrom] = useState('');
+
   const [effect, setEffect] = useState<CardEffect>('gradient');
   const [gradient, setGradient] = useState('from-violet-600 to-purple-500');
   const [plasmaColor, setPlasmaColor] = useState('#8b5cf6');
@@ -57,6 +60,8 @@ export function WalletModal({ isOpen, onClose, editingWallet }: WalletModalProps
       setName(editingWallet.name);
       setType(editingWallet.type);
       setIcon(editingWallet.icon || 'wallet');
+      setBalance(String(editingWallet.balance));
+      setTrackFrom(editingWallet.track_from || '');
 
       const parsed = parseWalletColor(editingWallet.color);
       setEffect(parsed.effect);
@@ -71,6 +76,8 @@ export function WalletModal({ isOpen, onClose, editingWallet }: WalletModalProps
       setName('');
       setType('fiat');
       setIcon('wallet');
+      setBalance('');
+      setTrackFrom(new Date().toISOString().split('T')[0]);
       setEffect('gradient');
       setGradient('from-violet-600 to-purple-500');
       setPlasmaColor('#8b5cf6');
@@ -95,9 +102,15 @@ export function WalletModal({ isOpen, onClose, editingWallet }: WalletModalProps
 
     try {
       if (editingWallet) {
-        await editWalletAction(editingWallet.id, { name, type, color, icon });
+        await editWalletAction(editingWallet.id, { name, type, color, icon, track_from: trackFrom || undefined });
+
+        // Jeśli saldo się zmieniło, zaktualizuj bez tworzenia transakcji
+        const newBalance = parseFloat(balance);
+        if (!isNaN(newBalance) && newBalance !== editingWallet.balance) {
+          await adjustBalanceAction(editingWallet.id, newBalance);
+        }
       } else {
-        await addWalletAction({ name, type, color, icon });
+        await addWalletAction({ name, type, color, icon, track_from: trackFrom || undefined });
       }
       onClose();
     } catch (error) {
@@ -181,6 +194,32 @@ export function WalletModal({ isOpen, onClose, editingWallet }: WalletModalProps
                     );
                   })}
                 </div>
+              </div>
+
+              {editingWallet && (
+                <div>
+                  <label className="block text-sm text-muted-foreground mb-2">Aktualne saldo (PLN)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={balance}
+                    onChange={(e) => setBalance(e.target.value)}
+                    className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
+                    placeholder="0.00"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">Zmiana salda bez tworzenia transakcji</p>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm text-muted-foreground mb-2">Rozliczaj transakcje od</label>
+                <input
+                  type="date"
+                  value={trackFrom}
+                  onChange={(e) => setTrackFrom(e.target.value)}
+                  className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
+                />
+                <p className="text-xs text-muted-foreground mt-1">Automatyczne rozliczenia (np. settle week) uwzgl. eventy od tej daty</p>
               </div>
 
               <div>

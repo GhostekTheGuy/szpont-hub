@@ -1,26 +1,30 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useFinanceStore, type Wallet, type CalendarEvent } from '@/hooks/useFinanceStore';
-import { getCalendarEvents, toggleEventConfirmed } from '@/app/actions';
+import { useFinanceStore, type Wallet, type CalendarEvent, type Habit, type HabitEntry } from '@/hooks/useFinanceStore';
+import { getCalendarEvents, toggleEventConfirmed, getHabits } from '@/app/actions';
 import { WeeklyCalendar } from '@/components/WeeklyCalendar';
 import { CalendarEventModal } from '@/components/CalendarEventModal';
 import { WeeklySummaryModal } from '@/components/WeeklySummaryModal';
 import { ScanTogglModal } from '@/components/ScanTogglModal';
 import { TimerWidget } from '@/components/TimerWidget';
-import { ChevronLeft, ChevronRight, BarChart3, Timer } from 'lucide-react';
+import { HabitTracker } from '@/components/HabitTracker';
+import { ChevronLeft, ChevronRight, BarChart3, Timer, Calendar, Target } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addWeeks, subWeeks, isThisWeek, isSunday } from 'date-fns';
 import { pl } from 'date-fns/locale';
 
 interface Props {
   initialEvents: CalendarEvent[];
   initialWallets: Wallet[];
+  initialHabits?: Habit[];
+  initialHabitEntries?: HabitEntry[];
 }
 
-export function CalendarPageClient({ initialEvents, initialWallets }: Props) {
-  const { calendarEvents, setCalendarEvents, setWallets, wallets } = useFinanceStore();
+export function CalendarPageClient({ initialEvents, initialWallets, initialHabits, initialHabitEntries }: Props) {
+  const { calendarEvents, setCalendarEvents, setWallets, wallets, setHabits, setHabitEntries } = useFinanceStore();
 
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [viewMode, setViewMode] = useState<'calendar' | 'habits'>('calendar');
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
   const [isScanTogglOpen, setIsScanTogglOpen] = useState(false);
@@ -37,7 +41,9 @@ export function CalendarPageClient({ initialEvents, initialWallets }: Props) {
   useEffect(() => {
     setWallets(initialWallets);
     setCalendarEvents(initialEvents);
-  }, [initialWallets, initialEvents, setWallets, setCalendarEvents]);
+    if (initialHabits) setHabits(initialHabits);
+    if (initialHabitEntries) setHabitEntries(initialHabitEntries);
+  }, [initialWallets, initialEvents, initialHabits, initialHabitEntries, setWallets, setCalendarEvents, setHabits, setHabitEntries]);
 
   const loadWeek = useCallback(async (date: Date) => {
     setLoadingWeek(true);
@@ -55,21 +61,40 @@ export function CalendarPageClient({ initialEvents, initialWallets }: Props) {
     }
   }, [setCalendarEvents]);
 
+  const loadHabits = useCallback(async () => {
+    try {
+      const data = await getHabits();
+      if (data) {
+        setHabits(data.habits);
+        setHabitEntries(data.entries);
+      }
+    } catch (error) {
+      console.error('Error loading habits:', error);
+    }
+  }, [setHabits, setHabitEntries]);
+
+  const handleViewModeChange = (mode: 'calendar' | 'habits') => {
+    setViewMode(mode);
+    if (mode === 'habits') {
+      loadHabits();
+    }
+  };
+
   const goToPrevWeek = () => {
     const newDate = subWeeks(currentDate, 1);
     setCurrentDate(newDate);
-    loadWeek(newDate);
+    if (viewMode === 'calendar') loadWeek(newDate);
   };
 
   const goToNextWeek = () => {
     const newDate = addWeeks(currentDate, 1);
     setCurrentDate(newDate);
-    loadWeek(newDate);
+    if (viewMode === 'calendar') loadWeek(newDate);
   };
 
   const goToToday = () => {
     setCurrentDate(new Date());
-    loadWeek(new Date());
+    if (viewMode === 'calendar') loadWeek(new Date());
   };
 
   const handleSlotClick = (date: Date, hour: number) => {
@@ -124,34 +149,66 @@ export function CalendarPageClient({ initialEvents, initialWallets }: Props) {
       {/* Header */}
       <div className="mb-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Kalendarz</h1>
+          <h1 className="text-3xl font-bold text-foreground">
+            {viewMode === 'calendar' ? 'Kalendarz' : 'Nawyki'}
+          </h1>
           <p className="text-sm text-muted-foreground mt-1">
             {format(weekStart, 'd MMM', { locale: pl })} — {format(weekEnd, 'd MMM yyyy', { locale: pl })}
           </p>
         </div>
 
         <div className="flex items-center gap-2">
-          <TimerWidget wallets={wallets} onStop={() => loadWeek(currentDate)} />
+          {/* View mode toggle */}
+          <div className="flex items-center bg-secondary rounded-lg p-0.5">
+            <button
+              onClick={() => handleViewModeChange('calendar')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                viewMode === 'calendar'
+                  ? 'bg-card text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Calendar className="w-4 h-4" />
+              <span className="hidden sm:inline">Praca</span>
+            </button>
+            <button
+              onClick={() => handleViewModeChange('habits')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                viewMode === 'habits'
+                  ? 'bg-card text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Target className="w-4 h-4" />
+              <span className="hidden sm:inline">Nawyki</span>
+            </button>
+          </div>
 
-          <button
-            onClick={() => setIsScanTogglOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-secondary hover:bg-accent text-secondary-foreground rounded-lg transition-all"
-          >
-            <Timer className="w-4 h-4" />
-            <span className="hidden sm:inline">Import</span>
-          </button>
+          {viewMode === 'calendar' && (
+            <>
+              <TimerWidget wallets={wallets} onStop={() => loadWeek(currentDate)} />
 
-          <button
-            onClick={() => setIsSummaryModalOpen(true)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
-              isSundayToday
-                ? 'bg-green-600 hover:bg-green-700 text-white animate-pulse'
-                : 'bg-secondary hover:bg-accent text-secondary-foreground'
-            }`}
-          >
-            <BarChart3 className="w-4 h-4" />
-            <span className="hidden sm:inline">Podsumowanie</span>
-          </button>
+              <button
+                onClick={() => setIsScanTogglOpen(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-secondary hover:bg-accent text-secondary-foreground rounded-lg transition-all"
+              >
+                <Timer className="w-4 h-4" />
+                <span className="hidden sm:inline">Import</span>
+              </button>
+
+              <button
+                onClick={() => setIsSummaryModalOpen(true)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                  isSundayToday
+                    ? 'bg-green-600 hover:bg-green-700 text-white animate-pulse'
+                    : 'bg-secondary hover:bg-accent text-secondary-foreground'
+                }`}
+              >
+                <BarChart3 className="w-4 h-4" />
+                <span className="hidden sm:inline">Podsumowanie</span>
+              </button>
+            </>
+          )}
 
           <div className="flex items-center bg-secondary rounded-lg">
             <button
@@ -181,15 +238,19 @@ export function CalendarPageClient({ initialEvents, initialWallets }: Props) {
         </div>
       </div>
 
-      {/* Calendar */}
+      {/* Content */}
       <div className={loadingWeek ? 'opacity-50 pointer-events-none transition-opacity' : 'transition-opacity'}>
-        <WeeklyCalendar
-          weekStart={weekStart}
-          events={calendarEvents}
-          onSlotClick={handleSlotClick}
-          onEventClick={handleEventClick}
-          onToggleConfirmed={handleToggleConfirmed}
-        />
+        {viewMode === 'calendar' ? (
+          <WeeklyCalendar
+            weekStart={weekStart}
+            events={calendarEvents}
+            onSlotClick={handleSlotClick}
+            onEventClick={handleEventClick}
+            onToggleConfirmed={handleToggleConfirmed}
+          />
+        ) : (
+          <HabitTracker weekStart={weekStart} />
+        )}
       </div>
 
       {/* Modals */}
