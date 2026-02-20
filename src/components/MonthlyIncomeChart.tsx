@@ -72,7 +72,7 @@ export const MonthlyIncomeChart = memo(function MonthlyIncomeChart({ transaction
   };
 
   return (
-    <div className="p-6">
+    <div className="px-4 py-4 lg:px-6 lg:py-6">
       <div className="mb-6">
         <h2 className="text-xl font-bold text-card-foreground mb-1">Miesięczny Cashflow</h2>
         <p className="text-muted-foreground text-sm">Porównanie przychodów i wydatków</p>

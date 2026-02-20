@@ -1,30 +1,26 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useFinanceStore, type Wallet, type CalendarEvent, type Habit, type HabitEntry } from '@/hooks/useFinanceStore';
-import { getCalendarEvents, toggleEventConfirmed, getHabits } from '@/app/actions';
+import { useFinanceStore, type Wallet, type CalendarEvent } from '@/hooks/useFinanceStore';
+import { getCalendarEvents, toggleEventConfirmed } from '@/app/actions';
 import { WeeklyCalendar } from '@/components/WeeklyCalendar';
 import { CalendarEventModal } from '@/components/CalendarEventModal';
 import { WeeklySummaryModal } from '@/components/WeeklySummaryModal';
 import { ScanTogglModal } from '@/components/ScanTogglModal';
 import { TimerWidget } from '@/components/TimerWidget';
-import { HabitTracker } from '@/components/HabitTracker';
-import { ChevronLeft, ChevronRight, BarChart3, Timer, Calendar, Target } from 'lucide-react';
+import { ChevronLeft, ChevronRight, BarChart3, Timer } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addWeeks, subWeeks, isThisWeek, isSunday } from 'date-fns';
 import { pl } from 'date-fns/locale';
 
 interface Props {
   initialEvents: CalendarEvent[];
   initialWallets: Wallet[];
-  initialHabits?: Habit[];
-  initialHabitEntries?: HabitEntry[];
 }
 
-export function CalendarPageClient({ initialEvents, initialWallets, initialHabits, initialHabitEntries }: Props) {
-  const { calendarEvents, setCalendarEvents, setWallets, wallets, setHabits, setHabitEntries } = useFinanceStore();
+export function CalendarPageClient({ initialEvents, initialWallets }: Props) {
+  const { calendarEvents, setCalendarEvents, setWallets, wallets } = useFinanceStore();
 
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [viewMode, setViewMode] = useState<'calendar' | 'habits'>('calendar');
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
   const [isScanTogglOpen, setIsScanTogglOpen] = useState(false);
@@ -41,9 +37,7 @@ export function CalendarPageClient({ initialEvents, initialWallets, initialHabit
   useEffect(() => {
     setWallets(initialWallets);
     setCalendarEvents(initialEvents);
-    if (initialHabits) setHabits(initialHabits);
-    if (initialHabitEntries) setHabitEntries(initialHabitEntries);
-  }, [initialWallets, initialEvents, initialHabits, initialHabitEntries, setWallets, setCalendarEvents, setHabits, setHabitEntries]);
+  }, [initialWallets, initialEvents, setWallets, setCalendarEvents]);
 
   const loadWeek = useCallback(async (date: Date) => {
     setLoadingWeek(true);
@@ -61,40 +55,21 @@ export function CalendarPageClient({ initialEvents, initialWallets, initialHabit
     }
   }, [setCalendarEvents]);
 
-  const loadHabits = useCallback(async () => {
-    try {
-      const data = await getHabits();
-      if (data) {
-        setHabits(data.habits);
-        setHabitEntries(data.entries);
-      }
-    } catch (error) {
-      console.error('Error loading habits:', error);
-    }
-  }, [setHabits, setHabitEntries]);
-
-  const handleViewModeChange = (mode: 'calendar' | 'habits') => {
-    setViewMode(mode);
-    if (mode === 'habits') {
-      loadHabits();
-    }
-  };
-
   const goToPrevWeek = () => {
     const newDate = subWeeks(currentDate, 1);
     setCurrentDate(newDate);
-    if (viewMode === 'calendar') loadWeek(newDate);
+    loadWeek(newDate);
   };
 
   const goToNextWeek = () => {
     const newDate = addWeeks(currentDate, 1);
     setCurrentDate(newDate);
-    if (viewMode === 'calendar') loadWeek(newDate);
+    loadWeek(newDate);
   };
 
   const goToToday = () => {
     setCurrentDate(new Date());
-    if (viewMode === 'calendar') loadWeek(new Date());
+    loadWeek(new Date());
   };
 
   const handleSlotClick = (date: Date, hour: number) => {
@@ -112,7 +87,6 @@ export function CalendarPageClient({ initialEvents, initialWallets, initialHabit
   };
 
   const handleToggleConfirmed = useCallback(async (event: CalendarEvent, confirmed: boolean) => {
-    // Optimistic update — read current state to avoid stale closure
     const current = () => useFinanceStore.getState().calendarEvents;
     setCalendarEvents(
       current().map(e => e.id === event.id ? { ...e, is_confirmed: confirmed } : e)
@@ -120,7 +94,6 @@ export function CalendarPageClient({ initialEvents, initialWallets, initialHabit
     try {
       await toggleEventConfirmed(event.id, confirmed);
     } catch {
-      // Revert on error
       setCalendarEvents(
         current().map(e => e.id === event.id ? { ...e, is_confirmed: !confirmed } : e)
       );
@@ -132,7 +105,6 @@ export function CalendarPageClient({ initialEvents, initialWallets, initialHabit
     setEditingEvent(null);
     setPrefillDate(null);
     setPrefillHour(null);
-    // Reload events for current week
     loadWeek(currentDate);
   };
 
@@ -147,69 +119,38 @@ export function CalendarPageClient({ initialEvents, initialWallets, initialHabit
   return (
     <>
       {/* Header */}
-      <div className="mb-4 space-y-3">
+      <div className="mb-4 space-y-3 px-4 lg:px-0">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">
-              {viewMode === 'calendar' ? 'Kalendarz' : 'Nawyki'}
-            </h1>
+            <h1 className="text-3xl font-bold text-foreground">Praca</h1>
             <p className="text-sm text-muted-foreground mt-1">
               {format(weekStart, 'd MMM', { locale: pl })} — {format(weekEnd, 'd MMM yyyy', { locale: pl })}
             </p>
           </div>
 
-          {/* Desktop-only: view mode toggle inline */}
+          {/* Desktop actions */}
           <div className="hidden md:flex items-center gap-2">
-            <div className="flex items-center bg-secondary rounded-lg p-0.5">
-              <button
-                onClick={() => handleViewModeChange('calendar')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-                  viewMode === 'calendar'
-                    ? 'bg-card text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <Calendar className="w-4 h-4" />
-                Praca
-              </button>
-              <button
-                onClick={() => handleViewModeChange('habits')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-                  viewMode === 'habits'
-                    ? 'bg-card text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <Target className="w-4 h-4" />
-                Nawyki
-              </button>
-            </div>
+            <TimerWidget wallets={wallets} onStop={() => loadWeek(currentDate)} />
 
-            {viewMode === 'calendar' && (
-              <>
-                <TimerWidget wallets={wallets} onStop={() => loadWeek(currentDate)} />
+            <button
+              onClick={() => setIsScanTogglOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-secondary hover:bg-accent text-secondary-foreground rounded-lg transition-all"
+            >
+              <Timer className="w-4 h-4" />
+              Import
+            </button>
 
-                <button
-                  onClick={() => setIsScanTogglOpen(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-secondary hover:bg-accent text-secondary-foreground rounded-lg transition-all"
-                >
-                  <Timer className="w-4 h-4" />
-                  Import
-                </button>
-
-                <button
-                  onClick={() => setIsSummaryModalOpen(true)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
-                    isSundayToday
-                      ? 'bg-green-600 hover:bg-green-700 text-white animate-pulse'
-                      : 'bg-secondary hover:bg-accent text-secondary-foreground'
-                  }`}
-                >
-                  <BarChart3 className="w-4 h-4" />
-                  Podsumowanie
-                </button>
-              </>
-            )}
+            <button
+              onClick={() => setIsSummaryModalOpen(true)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                isSundayToday
+                  ? 'bg-green-600 hover:bg-green-700 text-white animate-pulse'
+                  : 'bg-secondary hover:bg-accent text-secondary-foreground'
+              }`}
+            >
+              <BarChart3 className="w-4 h-4" />
+              Podsumowanie
+            </button>
 
             <div className="flex items-center bg-secondary rounded-lg">
               <button
@@ -239,31 +180,27 @@ export function CalendarPageClient({ initialEvents, initialWallets, initialHabit
           </div>
         </div>
 
-        {/* Mobile: action buttons row */}
+        {/* Mobile action buttons */}
         <div className="flex md:hidden items-center gap-2">
-          {viewMode === 'calendar' && (
-            <>
-              <TimerWidget wallets={wallets} onStop={() => loadWeek(currentDate)} />
+          <TimerWidget wallets={wallets} onStop={() => loadWeek(currentDate)} />
 
-              <button
-                onClick={() => setIsScanTogglOpen(true)}
-                className="flex items-center gap-2 px-3 py-2 bg-secondary hover:bg-accent text-secondary-foreground rounded-lg transition-all"
-              >
-                <Timer className="w-4 h-4" />
-              </button>
+          <button
+            onClick={() => setIsScanTogglOpen(true)}
+            className="flex items-center gap-2 px-3 py-2 bg-secondary hover:bg-accent text-secondary-foreground rounded-lg transition-all"
+          >
+            <Timer className="w-4 h-4" />
+          </button>
 
-              <button
-                onClick={() => setIsSummaryModalOpen(true)}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${
-                  isSundayToday
-                    ? 'bg-green-600 hover:bg-green-700 text-white animate-pulse'
-                    : 'bg-secondary hover:bg-accent text-secondary-foreground'
-                }`}
-              >
-                <BarChart3 className="w-4 h-4" />
-              </button>
-            </>
-          )}
+          <button
+            onClick={() => setIsSummaryModalOpen(true)}
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${
+              isSundayToday
+                ? 'bg-green-600 hover:bg-green-700 text-white animate-pulse'
+                : 'bg-secondary hover:bg-accent text-secondary-foreground'
+            }`}
+          >
+            <BarChart3 className="w-4 h-4" />
+          </button>
 
           <div className="flex-1" />
 
@@ -293,47 +230,17 @@ export function CalendarPageClient({ initialEvents, initialWallets, initialHabit
             </button>
           </div>
         </div>
-
-        {/* Mobile: view mode toggle as full-width row below header */}
-        <div className="flex md:hidden items-center bg-secondary rounded-lg p-0.5">
-          <button
-            onClick={() => handleViewModeChange('calendar')}
-            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-all ${
-              viewMode === 'calendar'
-                ? 'bg-card text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <Calendar className="w-4 h-4" />
-            Praca
-          </button>
-          <button
-            onClick={() => handleViewModeChange('habits')}
-            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-all ${
-              viewMode === 'habits'
-                ? 'bg-card text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <Target className="w-4 h-4" />
-            Nawyki
-          </button>
-        </div>
       </div>
 
       {/* Content */}
       <div className={loadingWeek ? 'opacity-50 pointer-events-none transition-opacity' : 'transition-opacity'}>
-        {viewMode === 'calendar' ? (
-          <WeeklyCalendar
-            weekStart={weekStart}
-            events={calendarEvents}
-            onSlotClick={handleSlotClick}
-            onEventClick={handleEventClick}
-            onToggleConfirmed={handleToggleConfirmed}
-          />
-        ) : (
-          <HabitTracker weekStart={weekStart} />
-        )}
+        <WeeklyCalendar
+          weekStart={weekStart}
+          events={calendarEvents}
+          onSlotClick={handleSlotClick}
+          onEventClick={handleEventClick}
+          onToggleConfirmed={handleToggleConfirmed}
+        />
       </div>
 
       {/* Modals */}

@@ -7,9 +7,9 @@ import Image from 'next/image';
 import {
   LayoutDashboard,
   Wallet,
-  ArrowLeftRight,
   PiggyBank,
   CalendarDays,
+  Target,
   LogOut,
   ChevronsLeft,
   ChevronsRight,
@@ -26,9 +26,9 @@ interface DashboardLayoutProps {
 const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/wallets', label: 'Portfele', icon: Wallet },
-  { href: '/transactions', label: 'Transakcje', icon: ArrowLeftRight },
   { href: '/assets', label: 'Aktywa', icon: PiggyBank },
-  { href: '/calendar', label: 'Kalendarz', icon: CalendarDays },
+  { href: '/calendar', label: 'Praca', icon: CalendarDays },
+  { href: '/habits', label: 'Nawyki', icon: Target },
 ];
 
 export function DashboardLayout({ children, userName }: DashboardLayoutProps) {
@@ -153,7 +153,7 @@ export function DashboardLayout({ children, userName }: DashboardLayoutProps) {
 
       {/* Main content */}
       <main className={`relative min-h-screen pb-20 lg:pb-0 transition-all duration-300 ${collapsed ? 'lg:ml-[72px]' : 'lg:ml-52'}`}>
-        <div className="p-6 pt-20 lg:pt-6">
+        <div className="px-0 pt-20 pb-4 lg:px-6 lg:pt-6 lg:pb-0">
           <PageTransition>
             {children}
           </PageTransition>

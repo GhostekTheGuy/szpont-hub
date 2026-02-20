@@ -75,7 +75,7 @@ export function AssetsPageClient({ initialAssets, initialWallets, initialSales, 
 
   return (
     <>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 px-4 lg:px-0">
         <h1 className="text-3xl font-bold text-foreground">Aktywa</h1>
         <div className="flex items-center gap-2">
           <button
@@ -103,7 +103,7 @@ export function AssetsPageClient({ initialAssets, initialWallets, initialSales, 
         </div>
       </div>
 
-      <div className="bg-card border border-border rounded-xl overflow-hidden">
+      <div className="card-responsive">
         <AssetList
           assets={assets}
           onEdit={handleEdit}

@@ -78,7 +78,7 @@ export const FinancialChart = memo(function FinancialChart({ transactions, range
   }, []);
 
   return (
-    <div className="p-6">
+    <div className="px-4 py-4 lg:px-6 lg:py-6">
       <div className="flex items-center justify-between mb-6">
         <h3 className="text-xl font-bold text-card-foreground">Wartość Portfela</h3>
         <div className="flex gap-1 bg-secondary rounded-lg p-1">

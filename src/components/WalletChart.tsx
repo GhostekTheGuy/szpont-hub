@@ -61,9 +61,9 @@ export function WalletChart({ walletId, walletName, displayCurrency }: WalletCha
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -10 }}
         transition={{ duration: 0.2 }}
-        className="bg-card border border-border rounded-xl overflow-hidden mb-3"
+        className="card-responsive mb-3"
       >
-        <div className="p-6">
+        <div className="px-4 py-4 lg:px-6 lg:py-6">
           <div className="flex items-center justify-between mb-2">
             <div>
               <h3 className="text-xl font-bold text-card-foreground">{walletName}</h3>

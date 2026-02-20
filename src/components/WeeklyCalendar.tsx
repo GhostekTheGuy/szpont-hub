@@ -130,12 +130,15 @@ export function WeeklyCalendar({ weekStart, events, onSlotClick, onEventClick, o
   const scale = usePinchZoom(scrollRef, 1);
   const hourHeight = BASE_HOUR_HEIGHT * scale;
 
-  // Scroll to current hour on mount
+  // Scroll page to current hour on mount
   useEffect(() => {
     if (scrollRef.current) {
       const now = new Date();
-      const scrollTo = (now.getHours() - startHour - 2) * hourHeight;
-      scrollRef.current.scrollTop = Math.max(0, scrollTo);
+      const offset = (now.getHours() - startHour - 2) * hourHeight;
+      if (offset > 0) {
+        const rect = scrollRef.current.getBoundingClientRect();
+        window.scrollTo({ top: window.scrollY + rect.top + offset - 100, behavior: 'smooth' });
+      }
     }
   }, [startHour, hourHeight]);
 
@@ -160,9 +163,9 @@ export function WeeklyCalendar({ weekStart, events, onSlotClick, onEventClick, o
   const showNowLine = nowMinutes >= startHour * 60 && nowMinutes <= endHour * 60;
 
   return (
-    <div className="flex flex-col h-[calc(100vh-12rem)] bg-card border border-border rounded-xl overflow-hidden touch-none md:touch-auto">
+    <div className="flex flex-col lg:bg-card lg:border lg:border-border lg:rounded-xl touch-none md:touch-auto">
       {/* Header with day names */}
-      <div className="flex border-b border-border shrink-0">
+      <div className="flex border-b border-border shrink-0 sticky top-14 lg:top-0 z-20 bg-background lg:bg-card">
         <div className="w-10 shrink-0" />
         {days.map((day, i) => (
           <div
@@ -181,8 +184,8 @@ export function WeeklyCalendar({ weekStart, events, onSlotClick, onEventClick, o
         ))}
       </div>
 
-      {/* Scrollable grid */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden relative">
+      {/* Scrollable grid (mobile only scroll, desktop renders fully) */}
+      <div ref={scrollRef} className="relative">
         <div className="flex" style={{ minHeight: hours.length * hourHeight }}>
           {/* Time labels */}
           <div className="w-10 shrink-0 relative">
@@ -212,7 +215,24 @@ export function WeeklyCalendar({ weekStart, events, onSlotClick, onEventClick, o
                 {hours.map((hour) => (
                   <div
                     key={hour}
-                    className="absolute w-full border-t border-border/50 cursor-pointer hover:bg-accent/30 transition-colors"
+                    className="absolute w-full border-t border-border/50 cursor-pointer hover:bg-accent/30 transition-colors group/slot hidden lg:block"
+                    style={{ top: (hour - startHour) * hourHeight, height: hourHeight }}
+                    onClick={() => onSlotClick(day, hour)}
+                  >
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/slot:opacity-100 transition-opacity">
+                      <div className="w-7 h-7 rounded-full bg-primary/15 flex items-center justify-center">
+                        <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14m-7-7h14" />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {/* Mobile hour slots (no hover effect) */}
+                {hours.map((hour) => (
+                  <div
+                    key={`m-${hour}`}
+                    className="absolute w-full border-t border-border/50 cursor-pointer lg:hidden"
                     style={{ top: (hour - startHour) * hourHeight, height: hourHeight }}
                     onClick={() => onSlotClick(day, hour)}
                   />

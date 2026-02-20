@@ -53,7 +53,7 @@ export function AssetList({ assets, onEdit, onDelete, onSell }: AssetListProps) 
   const totalValue = assets.reduce((sum, asset) => sum + asset.total_value, 0);
 
   return (
-    <div className="p-6">
+    <div className="px-4 py-4 lg:px-6 lg:py-6">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-xl font-bold text-card-foreground mb-1">Aktywa</h2>

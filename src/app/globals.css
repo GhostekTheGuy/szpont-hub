@@ -143,26 +143,38 @@ html {
   scroll-behavior: smooth;
 }
 
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+/* Hide scrollbar on mobile */
+@media (max-width: 1023px) {
+  ::-webkit-scrollbar {
+    display: none;
+  }
+  * {
+    scrollbar-width: none;
+  }
 }
 
-::-webkit-scrollbar-track {
-  background: var(--muted);
-  border-radius: 4px;
-}
+/* Custom scrollbar on desktop */
+@media (min-width: 1024px) {
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
 
-::-webkit-scrollbar-thumb {
-  background: var(--primary);
-  border-radius: 4px;
-  opacity: 0.5;
-}
+  ::-webkit-scrollbar-track {
+    background: var(--muted);
+    border-radius: 4px;
+  }
 
-::-webkit-scrollbar-thumb:hover {
-  background: var(--primary);
-  opacity: 0.8;
+  ::-webkit-scrollbar-thumb {
+    background: var(--primary);
+    border-radius: 4px;
+    opacity: 0.5;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--primary);
+    opacity: 0.8;
+  }
 }
 
 /* Animations */
@@ -179,4 +191,10 @@ html {
 
 .animate-fade-in {
   animation: fadeIn 0.3s ease-out;
+}
+
+@layer components {
+  .card-responsive {
+    @apply lg:bg-card lg:border lg:border-border lg:rounded-xl lg:overflow-hidden;
+  }
 }

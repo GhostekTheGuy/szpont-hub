@@ -91,7 +91,7 @@ export const ProfitChart = memo(function ProfitChart({ transactions, displayCurr
   };
 
   return (
-    <div className="p-6">
+    <div className="px-4 py-4 lg:px-6 lg:py-6">
       <div className="mb-6">
         <h2 className="text-xl font-bold text-card-foreground mb-1">Skumulowany Zysk</h2>
         <p className="text-muted-foreground text-sm">Trend zysków w czasie</p>

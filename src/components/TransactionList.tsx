@@ -75,7 +75,7 @@ export function TransactionList({ transactions, onDelete, onEdit, limit, showSee
         {showSeeMore && visible.length > 0 && (
           <div className="mt-2 pt-2 border-t border-border">
             <Link
-              href="/transactions"
+              href="/wallets"
               className="flex items-center justify-center gap-1 text-xs text-primary hover:underline py-1"
             >
               Wszystkie transakcje <ArrowRight className="w-3 h-3" />
@@ -87,7 +87,7 @@ export function TransactionList({ transactions, onDelete, onEdit, limit, showSee
   }
 
   return (
-    <div className="p-4 sm:p-6">
+    <div className="px-4 py-4 lg:px-6 lg:py-6">
       <h3 className="text-xl font-bold text-card-foreground mb-4">Ostatnie transakcje</h3>
       <div className="space-y-2 sm:space-y-3">
         {visible.length === 0 ? (
@@ -142,7 +142,7 @@ export function TransactionList({ transactions, onDelete, onEdit, limit, showSee
       {showSeeMore && visible.length > 0 && (
         <div className="mt-4">
           <Link
-            href="/transactions"
+            href="/wallets"
             className="flex items-center justify-center gap-1.5 text-sm text-primary hover:underline py-2"
           >
             Zobacz więcej <ArrowRight className="w-4 h-4" />

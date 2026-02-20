@@ -6,8 +6,9 @@ import { TransactionList } from '@/components/TransactionList';
 import { TransactionModal } from '@/components/TransactionModal';
 import { WalletModal } from '@/components/WalletModal';
 import { WalletChart } from '@/components/WalletChart';
+import { ScanReceiptModal } from '@/components/ScanReceiptModal';
 import { useFinanceStore, Transaction, Wallet } from '@/hooks/useFinanceStore';
-import { Plus } from 'lucide-react';
+import { Plus, Camera } from 'lucide-react';
 import { deleteTransactionAction, deleteWalletAction } from '@/app/actions';
 import { type Currency } from '@/lib/exchange-rates';
 
@@ -19,6 +20,7 @@ interface Props {
 export function WalletsPageClient({ initialWallets, initialTransactions }: Props) {
   const [isTransModalOpen, setIsTransModalOpen] = useState(false);
   const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
+  const [isScanModalOpen, setIsScanModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [editingWallet, setEditingWallet] = useState<Wallet | null>(null);
   const [displayCurrency, setDisplayCurrency] = useState<Currency>('PLN');
@@ -52,7 +54,7 @@ export function WalletsPageClient({ initialWallets, initialTransactions }: Props
 
   return (
     <>
-      <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-3 px-4 lg:px-0">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Portfele</h1>
           {activeWalletId && (
@@ -75,6 +77,12 @@ export function WalletsPageClient({ initialWallets, initialTransactions }: Props
             <option value="EUR">EUR</option>
           </select>
           <button
+            onClick={() => setIsScanModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-secondary hover:bg-accent text-secondary-foreground rounded-lg transition-all"
+          >
+            <Camera className="w-4 h-4" /> Skanuj
+          </button>
+          <button
             onClick={() => { setEditingWallet(null); setIsWalletModalOpen(true); }}
             className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg transition-all"
           >
@@ -83,7 +91,7 @@ export function WalletsPageClient({ initialWallets, initialTransactions }: Props
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-6 px-4 lg:px-0">
         {wallets.map((wallet) => (
           <div
             key={wallet.id}
@@ -99,6 +107,35 @@ export function WalletsPageClient({ initialWallets, initialTransactions }: Props
         ))}
       </div>
 
+      {/* Wallet filter chips */}
+      {wallets.length > 0 && (
+        <div className="flex gap-2 mb-4 flex-wrap px-4 lg:px-0">
+          <button
+            onClick={() => setActiveWallet(null)}
+            className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+              !activeWalletId
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-secondary text-secondary-foreground hover:bg-accent'
+            }`}
+          >
+            Wszystkie
+          </button>
+          {wallets.map(w => (
+            <button
+              key={w.id}
+              onClick={() => setActiveWallet(activeWalletId === w.id ? null : w.id)}
+              className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+                activeWalletId === w.id
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-secondary text-secondary-foreground hover:bg-accent'
+              }`}
+            >
+              {w.name}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Wallet Chart */}
       {activeWalletId && activeWallet && (
         <WalletChart
@@ -109,8 +146,8 @@ export function WalletsPageClient({ initialWallets, initialTransactions }: Props
       )}
 
       {/* Transactions for selected wallet */}
-      <div className="bg-card border border-border rounded-xl overflow-hidden">
-        <div className="p-6 pb-0 flex items-center justify-between">
+      <div className="card-responsive">
+        <div className="px-4 py-4 lg:px-6 lg:py-6 pb-0 flex items-center justify-between">
           <h2 className="text-xl font-bold text-card-foreground">
             {activeWalletId
               ? `Transakcje — ${activeWallet?.name}`
@@ -140,6 +177,11 @@ export function WalletsPageClient({ initialWallets, initialTransactions }: Props
         isOpen={isWalletModalOpen}
         onClose={() => setIsWalletModalOpen(false)}
         editingWallet={editingWallet}
+      />
+
+      <ScanReceiptModal
+        isOpen={isScanModalOpen}
+        onClose={() => setIsScanModalOpen(false)}
       />
     </>
   );

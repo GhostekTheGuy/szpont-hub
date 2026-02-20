@@ -102,7 +102,7 @@ export const PLNBTCChart = memo(function PLNBTCChart() {
   };
 
   return (
-    <div className="p-4 sm:p-6">
+    <div className="px-4 py-4 lg:px-6 lg:py-6">
       <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2">

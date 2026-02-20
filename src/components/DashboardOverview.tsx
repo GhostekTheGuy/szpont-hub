@@ -104,13 +104,16 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
   return (
     <>
       {/* Hero header */}
-      <div className="mb-3 flex flex-col md:flex-row md:items-start justify-between gap-3">
+      <div className="mb-3 flex flex-col md:flex-row md:items-start justify-between gap-3 px-4 lg:px-0">
         <div>
+          <span className="text-sm text-muted-foreground md:hidden">
+            {format(new Date(), "EEEE, d MMMM yyyy", { locale: pl })}
+          </span>
           <div className="flex items-baseline gap-2 mb-0.5">
             <h1 className="text-2xl font-bold text-foreground">
               {getGreeting()}, <span className="text-primary">{userName}</span>
             </h1>
-            <span className="text-sm text-muted-foreground">
+            <span className="text-sm text-muted-foreground hidden md:inline">
               {format(new Date(), "EEEE, d MMMM yyyy", { locale: pl })}
             </span>
           </div>
@@ -136,11 +139,11 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
         {/* Left column — main content */}
         <div className="min-w-0 space-y-3">
           {/* Chart + net worth + stats in one card */}
-          <div className="bg-card border border-border rounded-xl overflow-hidden">
+          <div className="card-responsive">
             <div className="flex flex-col lg:flex-row">
               {/* Left: net worth + chart */}
               <div className="flex-1 min-w-0">
-                <div className="p-5 pb-0">
+                <div className="px-4 pt-4 lg:px-5 lg:pt-5 pb-0">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-muted-foreground text-sm">Wartość netto</span>
                     <select
@@ -196,23 +199,23 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
 
           {/* Monthly charts row */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-            <div className="bg-card border border-border rounded-xl overflow-hidden">
+            <div className="card-responsive">
               <MonthlyIncomeChart transactions={transactions} displayCurrency={displayCurrency} exchangeRates={exchangeRates} />
             </div>
-            <div className="bg-card border border-border rounded-xl overflow-hidden">
+            <div className="card-responsive">
               <ProfitChart transactions={transactions} displayCurrency={displayCurrency} exchangeRates={exchangeRates} />
             </div>
           </div>
 
           {/* PLN/BTC chart */}
-          <div className="bg-card border border-border rounded-xl overflow-hidden">
+          <div className="card-responsive">
             <PLNBTCChart />
           </div>
 
           {/* Assets preview */}
-          <div className="bg-card border border-border rounded-xl overflow-hidden">
+          <div className="card-responsive">
             <AssetList assets={assets} />
-            <div className="px-6 pb-4">
+            <div className="px-4 lg:px-6 pb-4">
               <Link href="/assets" className="flex items-center justify-center gap-1 text-sm text-primary hover:underline">
                 Wszystkie aktywa <ArrowRight className="w-4 h-4" />
               </Link>
@@ -221,7 +224,7 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
         </div>
 
         {/* Right column — sidebar */}
-        <div className="space-y-3 lg:sticky lg:top-4 lg:self-start">
+        <div className="space-y-3 lg:sticky lg:top-4 lg:self-start px-4 lg:px-0">
           {/* Wallet cards */}
           <div>
             <div className="flex items-center justify-between mb-2">
@@ -246,7 +249,7 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
           </div>
 
           {/* Recent transactions */}
-          <div className="bg-card border border-border rounded-xl overflow-hidden">
+          <div className="card-responsive">
             <TransactionList
               transactions={transactions}
               limit={5}
