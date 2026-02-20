@@ -285,6 +285,7 @@ export function WeeklyCalendar({
                   onSlotClick={onSlotClick}
                   onEventClick={onEventClick}
                   onSelectDate={onSelectDate}
+                  onToggleConfirmed={onToggleConfirmed}
                 />
               )}
             </div>
@@ -538,6 +539,7 @@ function WeekTimeGrid({
   onSlotClick,
   onEventClick,
   onSelectDate,
+  onToggleConfirmed,
 }: {
   weekDays: Date[];
   eventsByDay: Map<string, CalendarEvent[]>;
@@ -545,6 +547,7 @@ function WeekTimeGrid({
   onSlotClick: (date: Date, hour: number) => void;
   onEventClick: (event: CalendarEvent) => void;
   onSelectDate: (date: Date) => void;
+  onToggleConfirmed?: (event: CalendarEvent, confirmed: boolean) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -660,6 +663,8 @@ function WeekTimeGrid({
                   const endMin = end.getHours() * 60 + end.getMinutes();
                   const top = ((startMin - DAY_START_HOUR * 60) / 60) * HOUR_HEIGHT;
                   const height = Math.max(((endMin - startMin) / 60) * HOUR_HEIGHT, 20);
+                  const eventHours = (endMin - startMin) / 60;
+                  const earnings = eventHours * event.hourly_rate;
                   const color = getIndicatorColor(event.walletColor);
 
                   return (
@@ -676,14 +681,39 @@ function WeekTimeGrid({
                       }}
                       onClick={(e) => { e.stopPropagation(); onEventClick(event); }}
                     >
-                      <div className="text-[11px] font-semibold text-foreground truncate leading-tight">
-                        {event.title}
-                      </div>
-                      {height > 30 && (
-                        <div className="text-[10px] text-muted-foreground truncate">
-                          {format(start, 'HH:mm')} – {format(end, 'HH:mm')}
+                      <div className="flex items-start justify-between gap-0.5">
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[11px] font-semibold text-foreground truncate leading-tight">
+                            {event.title}
+                          </div>
+                          {height > 30 && (
+                            <div className="text-[10px] text-muted-foreground truncate">
+                              {format(start, 'HH:mm')} – {format(end, 'HH:mm')}
+                              <span className="mx-0.5">·</span>
+                              {earnings.toFixed(0)} PLN
+                            </div>
+                          )}
                         </div>
-                      )}
+                        {onToggleConfirmed && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onToggleConfirmed(event, !event.is_confirmed);
+                            }}
+                            className={`w-4 h-4 rounded border-[1.5px] flex items-center justify-center shrink-0 mt-0.5 transition-colors ${
+                              event.is_confirmed
+                                ? 'bg-primary border-primary'
+                                : 'border-border hover:border-primary/50'
+                            }`}
+                          >
+                            {event.is_confirmed && (
+                              <svg className="w-2.5 h-2.5 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                              </svg>
+                            )}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   );
                 })}

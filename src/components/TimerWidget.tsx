@@ -1,15 +1,19 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Play, Square, X } from 'lucide-react';
+import { Play, Pause, Square, X } from 'lucide-react';
 import { addCalendarEvent } from '@/app/actions';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Wallet } from '@/hooks/useFinanceStore';
 
 interface TimerState {
-  startTime: number;
+  originalStartTime: number;
+  resumeTime: number;
+  accumulatedMs: number;
+  isPaused: boolean;
   title: string;
   walletId: string;
+  walletName: string;
   hourlyRate: number;
 }
 
@@ -42,6 +46,12 @@ function formatElapsed(ms: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
+function formatEarnings(ms: number, hourlyRate: number): string {
+  const hours = ms / 3_600_000;
+  const earnings = hours * hourlyRate;
+  return `~${earnings.toFixed(0)} PLN`;
+}
+
 interface TimerWidgetProps {
   wallets: Wallet[];
   onStop: () => void;
@@ -68,11 +78,20 @@ export function TimerWidget({ wallets, onStop }: TimerWidgetProps) {
   }, []);
 
   useEffect(() => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+
     if (timerState) {
-      const tick = () => setElapsed(Date.now() - timerState.startTime);
-      tick();
-      intervalRef.current = setInterval(tick, 1000);
-      return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+      if (timerState.isPaused) {
+        setElapsed(timerState.accumulatedMs);
+      } else {
+        const tick = () =>
+          setElapsed(timerState.accumulatedMs + (Date.now() - timerState.resumeTime));
+        tick();
+        intervalRef.current = setInterval(tick, 1000);
+        return () => {
+          if (intervalRef.current) clearInterval(intervalRef.current);
+        };
+      }
     } else {
       setElapsed(0);
     }
@@ -84,10 +103,8 @@ export function TimerWidget({ wallets, onStop }: TimerWidgetProps) {
     }
   }, [showForm, wallets, walletId]);
 
-  // Focus title input when form appears
   useEffect(() => {
     if (showForm && titleInputRef.current) {
-      // Small delay so the animation has started and the input is visible
       const t = setTimeout(() => titleInputRef.current?.focus(), 80);
       return () => clearTimeout(t);
     }
@@ -95,16 +112,44 @@ export function TimerWidget({ wallets, onStop }: TimerWidgetProps) {
 
   const handleStart = useCallback(() => {
     if (!title.trim() || !walletId || !hourlyRate) return;
+    const wallet = wallets.find(w => w.id === walletId);
+    const now = Date.now();
     const state: TimerState = {
-      startTime: Date.now(),
+      originalStartTime: now,
+      resumeTime: now,
+      accumulatedMs: 0,
+      isPaused: false,
       title: title.trim(),
       walletId,
+      walletName: wallet?.name ?? '',
       hourlyRate: parseFloat(hourlyRate),
     };
     saveTimerState(state);
     setTimerState(state);
     setShowForm(false);
-  }, [title, walletId, hourlyRate]);
+  }, [title, walletId, hourlyRate, wallets]);
+
+  const handlePauseResume = useCallback(() => {
+    if (!timerState) return;
+    if (timerState.isPaused) {
+      const updated: TimerState = {
+        ...timerState,
+        resumeTime: Date.now(),
+        isPaused: false,
+      };
+      saveTimerState(updated);
+      setTimerState(updated);
+    } else {
+      const now = Date.now();
+      const updated: TimerState = {
+        ...timerState,
+        accumulatedMs: timerState.accumulatedMs + (now - timerState.resumeTime),
+        isPaused: true,
+      };
+      saveTimerState(updated);
+      setTimerState(updated);
+    }
+  }, [timerState]);
 
   const handleStop = useCallback(async () => {
     if (!timerState) return;
@@ -114,7 +159,7 @@ export function TimerWidget({ wallets, onStop }: TimerWidgetProps) {
         title: timerState.title,
         wallet_id: timerState.walletId,
         hourly_rate: timerState.hourlyRate,
-        start_time: new Date(timerState.startTime).toISOString(),
+        start_time: new Date(timerState.originalStartTime).toISOString(),
         end_time: new Date().toISOString(),
         is_recurring: false,
         recurrence_rule: null,
@@ -140,6 +185,7 @@ export function TimerWidget({ wallets, onStop }: TimerWidgetProps) {
   }, []);
 
   const view: ViewState = timerState ? 'running' : showForm ? 'form' : 'idle';
+  const isPaused = timerState?.isPaused ?? false;
 
   return (
     <AnimatePresence mode="wait" initial={false}>
@@ -151,30 +197,99 @@ export function TimerWidget({ wallets, onStop }: TimerWidgetProps) {
           animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
           exit={{ opacity: 0, scale: 0.95, filter: 'blur(4px)' }}
           transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
-          className="flex items-center gap-2 bg-green-600/15 border border-green-600/30 rounded-lg px-3 py-1.5"
+          className="relative rounded-xl p-[2px] overflow-hidden"
         >
-          <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-          <span className="text-sm font-medium text-green-400 truncate max-w-[120px]" title={timerState!.title}>
-            {timerState!.title}
-          </span>
-          <span className="text-sm font-mono text-green-300 tabular-nums">
-            {formatElapsed(elapsed)}
-          </span>
-          <button
-            onClick={handleStop}
-            disabled={saving}
-            className="p-1 hover:bg-green-600/30 rounded transition-colors text-green-400 disabled:opacity-50"
-            title="Zatrzymaj i zapisz"
-          >
-            <Square className="w-4 h-4" />
-          </button>
-          <button
-            onClick={handleCancel}
-            className="p-1 hover:bg-red-600/30 rounded transition-colors text-red-400"
-            title="Anuluj"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
+          {/* Snake border – rotating conic gradient */}
+          <div
+            className={`absolute inset-[-50%] transition-colors duration-500 ${
+              isPaused ? 'animate-[snake-spin_4s_linear_infinite]' : 'animate-[snake-spin_2.5s_linear_infinite]'
+            }`}
+            style={{
+              background: isPaused
+                ? 'conic-gradient(from 0deg, transparent 60%, oklch(from var(--primary) l c h / 0.5) 78%, var(--primary) 85%, oklch(from var(--primary) l c h / 0.5) 92%, transparent 100%)'
+                : 'conic-gradient(from 0deg, transparent 60%, oklch(from var(--primary) l c h / 0.7) 78%, var(--primary) 85%, oklch(from var(--primary) l c h / 0.7) 92%, transparent 100%)',
+            }}
+          />
+
+          {/* Card content */}
+          <div className="relative bg-card rounded-[10px] z-10">
+            {/* Header: dot + title + wallet */}
+            <div className="flex items-center justify-between px-4 pt-3 pb-1">
+              <div className="flex items-center gap-2 min-w-0">
+                <div
+                  className={`w-2 h-2 rounded-full shrink-0 ${
+                    isPaused
+                      ? 'bg-amber-500'
+                      : 'bg-green-500 animate-pulse'
+                  }`}
+                />
+                <span
+                  className="text-sm font-medium text-foreground truncate"
+                  title={timerState!.title}
+                >
+                  {timerState!.title}
+                </span>
+              </div>
+              {timerState!.walletName && (
+                <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-full shrink-0 ml-2">
+                  {timerState!.walletName}
+                </span>
+              )}
+            </div>
+
+            {/* Timer + earnings */}
+            <div className="flex flex-col items-center py-3">
+              <span
+                className={`text-3xl font-mono tabular-nums font-semibold ${
+                  isPaused ? 'text-amber-400' : 'text-foreground'
+                }`}
+              >
+                {formatElapsed(elapsed)}
+              </span>
+              <span className="text-sm text-muted-foreground mt-0.5">
+                {formatEarnings(elapsed, timerState!.hourlyRate)}
+              </span>
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex items-center justify-center gap-2 px-4 pb-3">
+              <button
+                onClick={handlePauseResume}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  isPaused
+                    ? 'bg-green-600/15 text-green-400 hover:bg-green-600/25'
+                    : 'bg-amber-600/15 text-amber-400 hover:bg-amber-600/25'
+                }`}
+              >
+                {isPaused ? (
+                  <>
+                    <Play className="w-3.5 h-3.5" />
+                    Wznów
+                  </>
+                ) : (
+                  <>
+                    <Pause className="w-3.5 h-3.5" />
+                    Pauza
+                  </>
+                )}
+              </button>
+              <button
+                onClick={handleStop}
+                disabled={saving}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-primary/15 text-primary hover:bg-primary/25 transition-colors disabled:opacity-50"
+              >
+                <Square className="w-3.5 h-3.5" />
+                Zapisz
+              </button>
+              <button
+                onClick={handleCancel}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-red-600/15 text-red-400 hover:bg-red-600/25 transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+                Anuluj
+              </button>
+            </div>
+          </div>
         </motion.div>
       )}
 
@@ -188,7 +303,7 @@ export function TimerWidget({ wallets, onStop }: TimerWidgetProps) {
           transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
           className="w-full"
         >
-          <div className="bg-secondary border border-border rounded-lg px-3 py-2 space-y-2">
+          <div className="bg-card border border-border rounded-xl px-3 py-3 space-y-2">
             <div className="flex items-center gap-2">
               <input
                 ref={titleInputRef}
@@ -196,21 +311,21 @@ export function TimerWidget({ wallets, onStop }: TimerWidgetProps) {
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="Tytuł..."
-                className="bg-input border border-border rounded px-2 py-1 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-ring flex-1 min-w-0"
+                className="bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-ring flex-1 min-w-0"
                 onKeyDown={(e) => e.key === 'Enter' && handleStart()}
               />
               <button
                 onClick={() => setShowForm(false)}
-                className="p-1 hover:bg-accent rounded transition-colors text-muted-foreground shrink-0"
+                className="p-1.5 hover:bg-secondary rounded-lg transition-colors text-muted-foreground shrink-0"
               >
-                <X className="w-3.5 h-3.5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
             <div className="flex items-center gap-2">
               <select
                 value={walletId}
                 onChange={(e) => setWalletId(e.target.value)}
-                className="bg-input border border-border rounded px-2 py-1 text-sm text-foreground outline-none focus:ring-1 focus:ring-ring flex-1 min-w-0"
+                className="bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-ring flex-1 min-w-0"
               >
                 {wallets.map(w => (
                   <option key={w.id} value={w.id}>{w.name}</option>
@@ -222,16 +337,16 @@ export function TimerWidget({ wallets, onStop }: TimerWidgetProps) {
                 onChange={(e) => setHourlyRate(e.target.value)}
                 placeholder="PLN/h"
                 step="0.01"
-                className="bg-input border border-border rounded px-2 py-1 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-ring w-20 shrink-0"
+                className="bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-ring w-24 shrink-0"
                 onKeyDown={(e) => e.key === 'Enter' && handleStart()}
               />
               <button
                 onClick={handleStart}
                 disabled={!title.trim() || !walletId || !hourlyRate}
-                className="p-1.5 bg-green-600 hover:bg-green-700 text-white rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+                className="p-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
                 title="Rozpocznij"
               >
-                <Play className="w-3.5 h-3.5" />
+                <Play className="w-4 h-4" />
               </button>
             </div>
           </div>

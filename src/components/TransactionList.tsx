@@ -89,7 +89,6 @@ export function TransactionList({ transactions, onDelete, onEdit, limit, showSee
 
   return (
     <div className="px-4 py-4 lg:px-6 lg:py-6">
-      <h3 className="text-xl font-bold text-card-foreground mb-4">Ostatnie transakcje</h3>
       <div className="space-y-2 sm:space-y-3">
         {visible.length === 0 ? (
           <p className="text-muted-foreground text-center py-8">Brak transakcji</p>
@@ -119,7 +118,7 @@ export function TransactionList({ transactions, onDelete, onEdit, limit, showSee
                     <p className="text-[10px] sm:text-xs text-muted-foreground">{transaction.walletName}</p>
                   </div>
 
-                  <div className="flex gap-1 opacity-0 lg:group-hover:opacity-100 transition-opacity">
+                  <div className="hidden lg:flex gap-1 opacity-0 lg:group-hover:opacity-100 transition-opacity">
                     <button
                       onClick={() => onEdit(transaction)}
                       className="p-2 hover:bg-accent text-muted-foreground hover:text-accent-foreground rounded-md transition-colors"

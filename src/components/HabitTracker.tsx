@@ -97,7 +97,7 @@ export function HabitTracker({ weekStart }: Props) {
   return (
     <div className="space-y-4">
       {/* Tabela nawyków */}
-      <div className="card-responsive">
+      <div className="bg-card border border-border rounded-xl overflow-hidden">
 
         {/* ===== DESKTOP: nawyki w wierszach, dni w kolumnach ===== */}
         <div className="hidden md:block">
@@ -220,7 +220,7 @@ export function HabitTracker({ weekStart }: Props) {
           <div style={{ minWidth: habits.length > 3 ? `${80 + habits.length * 52}px` : undefined }}>
             {/* Nagłówek z ikonkami nawyków */}
             <div className="flex border-b border-border">
-              <div className="w-20 shrink-0 p-2 flex items-end sticky left-0 bg-background lg:bg-card z-10">
+              <div className="w-20 shrink-0 p-2 flex items-end sticky left-0 bg-card z-10">
                 <span className="text-xs text-muted-foreground uppercase font-medium">Dzień</span>
               </div>
               {habits.length === 0 ? (
@@ -269,7 +269,7 @@ export function HabitTracker({ weekStart }: Props) {
                   key={dateStr}
                   className={`flex border-b border-border last:border-b-0 ${isToday ? 'bg-primary/5' : ''}`}
                 >
-                  <div className={`w-20 shrink-0 p-2 flex flex-col justify-center gap-0.5 sticky left-0 z-10 ${isToday ? 'bg-primary/5' : 'bg-background lg:bg-card'}`}>
+                  <div className={`w-20 shrink-0 p-2 flex flex-col justify-center gap-0.5 sticky left-0 z-10 bg-card`}>
                     <div className="flex items-center gap-1.5">
                       <span className={`text-sm font-semibold ${isToday ? 'text-primary' : 'text-foreground'}`}>
                         {format(day, 'EEE', { locale: pl })}
@@ -327,7 +327,7 @@ export function HabitTracker({ weekStart }: Props) {
       </div>
 
       {/* Radar chart (collapsible) */}
-      <div className="card-responsive">
+      <div className="bg-card border border-border rounded-xl overflow-hidden">
         <button
           onClick={() => setShowRadar(!showRadar)}
           className="w-full p-3 flex items-center justify-between hover:bg-accent/30 transition-colors"

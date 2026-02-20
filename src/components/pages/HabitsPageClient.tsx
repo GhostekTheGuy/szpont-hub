@@ -90,7 +90,9 @@ export function HabitsPageClient({ initialHabits, initialHabitEntries }: Props) 
       </div>
 
       {/* Content */}
-      <HabitTracker weekStart={weekStart} />
+      <div className="px-4 lg:px-0">
+        <HabitTracker weekStart={weekStart} />
+      </div>
     </>
   );
 }
