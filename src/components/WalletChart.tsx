@@ -7,6 +7,7 @@ import { pl } from 'date-fns/locale';
 import { AnimatePresence, motion } from 'framer-motion';
 import { getWalletChartData } from '@/app/actions';
 import { formatCurrency, type Currency } from '@/lib/exchange-rates';
+import { useFinanceStore } from '@/hooks/useFinanceStore';
 import { Loader2 } from 'lucide-react';
 
 interface WalletChartProps {
@@ -16,6 +17,7 @@ interface WalletChartProps {
 }
 
 export function WalletChart({ walletId, walletName, displayCurrency }: WalletChartProps) {
+  const balanceMasked = useFinanceStore(s => s.balanceMasked);
   const [range, setRange] = useState<'1W' | '1M' | '3M' | '1Y'>('1M');
   const [chartData, setChartData] = useState<{ date: string; value: number }[]>([]);
   const [currentBalance, setCurrentBalance] = useState(0);
@@ -71,7 +73,7 @@ export function WalletChart({ walletId, walletName, displayCurrency }: WalletCha
                 {isPending ? (
                   <span className="text-muted-foreground text-lg">...</span>
                 ) : (
-                  formatCurrency(currentBalance, displayCurrency)
+                  <span className={balanceMasked ? 'blur-md select-none' : ''}>{formatCurrency(currentBalance, displayCurrency)}</span>
                 )}
               </div>
             </div>
@@ -97,6 +99,7 @@ export function WalletChart({ walletId, walletName, displayCurrency }: WalletCha
               <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
             </div>
           ) : (
+            <div className={balanceMasked ? 'blur-lg select-none pointer-events-none' : ''}>
             <ResponsiveContainer width="100%" height={250}>
               <AreaChart data={formattedData}>
                 <defs>
@@ -143,6 +146,7 @@ export function WalletChart({ walletId, walletName, displayCurrency }: WalletCha
                 />
               </AreaChart>
             </ResponsiveContainer>
+            </div>
           )}
         </div>
       </motion.div>

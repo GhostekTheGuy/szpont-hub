@@ -2,7 +2,7 @@
 
 import { useRef, ReactNode } from 'react';
 import Link from 'next/link';
-import { Transaction } from '@/hooks/useFinanceStore';
+import { Transaction, useFinanceStore } from '@/hooks/useFinanceStore';
 import { ArrowUpRight, ArrowDownRight, ArrowLeftRight, Trash2, Edit2, ArrowRight } from 'lucide-react';
 import { format } from 'date-fns';
 import { pl } from 'date-fns/locale';
@@ -34,6 +34,7 @@ interface TransactionListProps {
 }
 
 export function TransactionList({ transactions, onDelete, onEdit, limit, showSeeMore = false, compact = false }: TransactionListProps) {
+  const balanceMasked = useFinanceStore(s => s.balanceMasked);
   const visible = limit ? transactions.slice(0, limit) : transactions;
 
   if (compact) {
@@ -63,7 +64,7 @@ export function TransactionList({ transactions, onDelete, onEdit, limit, showSee
                   </div>
                   <div className="text-right shrink-0">
                     <p className={`font-semibold text-xs ${transaction.type === 'transfer' ? 'text-blue-500' : transaction.type === 'income' ? 'text-green-500' : 'text-card-foreground'}`}>
-                      {transaction.type === 'transfer' ? '↔ ' : transaction.type === 'income' ? '+' : '-'}{formatCurrency(Math.abs(transaction.amount), transaction.currency || 'PLN')}
+                      <span className={balanceMasked ? 'blur-sm select-none' : ''}>{transaction.type === 'transfer' ? '↔ ' : transaction.type === 'income' ? '+' : '-'}{formatCurrency(Math.abs(transaction.amount), transaction.currency || 'PLN')}</span>
                     </p>
                     <p className="text-[10px] text-muted-foreground">{transaction.walletName}</p>
                   </div>
@@ -113,7 +114,7 @@ export function TransactionList({ transactions, onDelete, onEdit, limit, showSee
                 <div className="flex items-center gap-2 sm:gap-4 shrink-0">
                   <div className="text-right">
                     <p className={`font-bold text-sm sm:text-base ${transaction.type === 'transfer' ? 'text-blue-500' : transaction.type === 'income' ? 'text-green-500' : 'text-card-foreground'}`}>
-                      {transaction.type === 'transfer' ? '↔ ' : transaction.type === 'income' ? '+' : '-'}{formatCurrency(Math.abs(transaction.amount), transaction.currency || 'PLN')}
+                      <span className={balanceMasked ? 'blur-sm select-none' : ''}>{transaction.type === 'transfer' ? '↔ ' : transaction.type === 'income' ? '+' : '-'}{formatCurrency(Math.abs(transaction.amount), transaction.currency || 'PLN')}</span>
                     </p>
                     <p className="text-[10px] sm:text-xs text-muted-foreground">{transaction.walletName}</p>
                   </div>

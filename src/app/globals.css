@@ -198,3 +198,23 @@ html {
     @apply lg:bg-card lg:border lg:border-border lg:rounded-xl lg:overflow-hidden;
   }
 }
+
+/* Visible scrollbar for habits on mobile */
+@media (max-width: 1023px) {
+  .habit-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: var(--primary) var(--secondary);
+  }
+  .habit-scroll::-webkit-scrollbar {
+    display: block;
+    height: 4px;
+  }
+  .habit-scroll::-webkit-scrollbar-track {
+    background: var(--secondary);
+    border-radius: 2px;
+  }
+  .habit-scroll::-webkit-scrollbar-thumb {
+    background: var(--primary);
+    border-radius: 2px;
+  }
+}

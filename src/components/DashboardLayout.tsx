@@ -13,10 +13,13 @@ import {
   LogOut,
   ChevronsLeft,
   ChevronsRight,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { signOutAction } from '@/app/actions';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { PageTransition } from '@/components/PageTransition';
+import { useFinanceStore } from '@/hooks/useFinanceStore';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -34,6 +37,7 @@ const navItems = [
 export function DashboardLayout({ children, userName }: DashboardLayoutProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const { balanceMasked, toggleBalanceMask } = useFinanceStore();
 
   const isActive = (href: string) => {
     if (href === '/') return pathname === '/';
@@ -91,32 +95,34 @@ export function DashboardLayout({ children, userName }: DashboardLayoutProps) {
           </nav>
 
           {/* Bottom actions */}
-          <div className={`border-t border-sidebar-border space-y-2 ${collapsed ? 'p-2' : 'p-3'}`}>
-            {collapsed ? (
-              <div className="flex justify-center py-1">
-                <ThemeToggle />
-              </div>
-            ) : (
-              <div className="flex items-center justify-between px-2">
-                <span className="text-sm text-sidebar-foreground/70">Motyw</span>
-                <ThemeToggle />
-              </div>
-            )}
+          <div className={`border-t border-sidebar-border space-y-0.5 ${collapsed ? 'p-2' : 'p-3'}`}>
+            <div className={`flex items-center rounded-lg text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors ${collapsed ? 'justify-center' : 'justify-between pl-4 pr-2'}`}>
+              {!collapsed && <span className="text-sm">Motyw</span>}
+              <ThemeToggle />
+            </div>
+            <button
+              onClick={toggleBalanceMask}
+              title={balanceMasked ? 'Pokaż kwoty' : 'Ukryj kwoty'}
+              className={`flex items-center gap-3 py-2.5 rounded-lg text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors w-full ${
+                collapsed ? 'justify-center px-2' : 'px-4'
+              }`}
+            >
+              {balanceMasked ? <EyeOff className="w-5 h-5 shrink-0" /> : <Eye className="w-5 h-5 shrink-0" />}
+              {!collapsed && <span>{balanceMasked ? 'Pokaż kwoty' : 'Ukryj kwoty'}</span>}
+            </button>
             <button
               onClick={handleSignOut}
               title={collapsed ? 'Wyloguj się' : undefined}
-              className={`flex items-center gap-3 py-3 rounded-lg text-sidebar-foreground/70 hover:bg-destructive/10 hover:text-destructive transition-colors w-full ${
+              className={`flex items-center gap-3 py-2.5 rounded-lg text-sidebar-foreground/70 hover:bg-destructive/10 hover:text-destructive transition-colors w-full ${
                 collapsed ? 'justify-center px-2' : 'px-4'
               }`}
             >
               <LogOut className="w-5 h-5 shrink-0" />
               {!collapsed && <span>Wyloguj się</span>}
             </button>
-
-            {/* Collapse toggle */}
             <button
               onClick={() => setCollapsed(!collapsed)}
-              className={`flex items-center gap-3 py-3 rounded-lg text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors w-full ${
+              className={`flex items-center gap-3 py-2.5 rounded-lg text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors w-full ${
                 collapsed ? 'justify-center px-2' : 'px-4'
               }`}
             >
@@ -140,6 +146,13 @@ export function DashboardLayout({ children, userName }: DashboardLayoutProps) {
             <Image src="/sygnet.svg" alt="SzpontHub" width={32} height={28} className="h-7 w-auto" />
           </Link>
           <div className="flex items-center gap-2">
+            <button
+              onClick={toggleBalanceMask}
+              className="p-2 text-muted-foreground hover:text-foreground transition-colors"
+              title={balanceMasked ? 'Pokaż kwoty' : 'Ukryj kwoty'}
+            >
+              {balanceMasked ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+            </button>
             <ThemeToggle />
             <button
               onClick={handleSignOut}

@@ -216,7 +216,7 @@ export function HabitTracker({ weekStart }: Props) {
         </div>
 
         {/* ===== MOBILE: dni w wierszach, nawyki w kolumnach (scroll poziomy) ===== */}
-        <div className="md:hidden overflow-x-auto">
+        <div className="md:hidden overflow-x-auto habit-scroll">
           <div style={{ minWidth: habits.length > 3 ? `${80 + habits.length * 52}px` : undefined }}>
             {/* Nagłówek z ikonkami nawyków */}
             <div className="flex border-b border-border">

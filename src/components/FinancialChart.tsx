@@ -2,7 +2,7 @@
 
 import { useMemo, useCallback, memo } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Transaction } from '@/hooks/useFinanceStore';
+import { Transaction, useFinanceStore } from '@/hooks/useFinanceStore';
 import { format, subDays } from 'date-fns';
 import { pl } from 'date-fns/locale';
 import { convertAmount, formatCurrency, type Currency, type ExchangeRates, type HistoricalRates } from '@/lib/exchange-rates';
@@ -17,6 +17,7 @@ interface FinancialChartProps {
 }
 
 export const FinancialChart = memo(function FinancialChart({ transactions, range, setRange, displayCurrency, exchangeRates, historicalRates }: FinancialChartProps) {
+  const balanceMasked = useFinanceStore(s => s.balanceMasked);
 
   const chartData = useMemo(() => {
     const days = range === '1W' ? 7 : range === '1M' ? 30 : range === '3M' ? 90 : 365;
@@ -98,6 +99,7 @@ export const FinancialChart = memo(function FinancialChart({ transactions, range
         </div>
       </div>
 
+      <div className={balanceMasked ? 'blur-lg select-none pointer-events-none' : ''}>
       <ResponsiveContainer width="100%" height={300}>
         <AreaChart data={chartData}>
           <defs>
@@ -144,6 +146,7 @@ export const FinancialChart = memo(function FinancialChart({ transactions, range
           />
         </AreaChart>
       </ResponsiveContainer>
+      </div>
     </div>
   );
 });

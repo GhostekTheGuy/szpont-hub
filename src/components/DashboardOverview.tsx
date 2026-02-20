@@ -46,7 +46,7 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
   const [historicalRates, setHistoricalRates] = useState<HistoricalRates | undefined>(undefined);
   const [ratesReady, setRatesReady] = useState(false);
 
-  const { wallets, transactions, assets, setWallets, setTransactions, setAssets } = useFinanceStore();
+  const { wallets, transactions, assets, setWallets, setTransactions, setAssets, balanceMasked } = useFinanceStore();
 
   useEffect(() => {
     setWallets(initialWallets);
@@ -157,7 +157,7 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
                     </select>
                   </div>
                   <div className="text-3xl font-bold text-foreground">
-                    {formatCurrency(stats.totalNetWorth, displayCurrency)}
+                    <span className={balanceMasked ? 'blur-md select-none' : ''}>{formatCurrency(stats.totalNetWorth, displayCurrency)}</span>
                   </div>
                 </div>
                 {ratesReady ? (
@@ -178,19 +178,19 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
                 <div className="flex-1 p-4">
                   <span className="text-muted-foreground text-xs">Przychody ({stats.periodLabel})</span>
                   <div className="text-xl font-bold text-green-500 mt-1">
-                    {formatCurrency(stats.totalIncome, displayCurrency)}
+                    <span className={balanceMasked ? 'blur-md select-none' : ''}>{formatCurrency(stats.totalIncome, displayCurrency)}</span>
                   </div>
                 </div>
                 <div className="flex-1 p-4">
                   <span className="text-muted-foreground text-xs">Wydatki ({stats.periodLabel})</span>
                   <div className="text-xl font-bold text-red-500 mt-1">
-                    {formatCurrency(stats.totalOutcome, displayCurrency)}
+                    <span className={balanceMasked ? 'blur-md select-none' : ''}>{formatCurrency(stats.totalOutcome, displayCurrency)}</span>
                   </div>
                 </div>
                 <div className="flex-1 p-4">
                   <span className="text-muted-foreground text-xs">Bilans ({stats.periodLabel})</span>
                   <div className={`text-xl font-bold mt-1 ${stats.profit >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                    {formatCurrency(stats.profit, displayCurrency)}
+                    <span className={balanceMasked ? 'blur-md select-none' : ''}>{formatCurrency(stats.profit, displayCurrency)}</span>
                   </div>
                 </div>
               </div>
@@ -198,7 +198,7 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
           </div>
 
           {/* Monthly charts row */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <div className={`grid grid-cols-1 lg:grid-cols-2 gap-3 ${balanceMasked ? 'blur-lg select-none pointer-events-none' : ''}`}>
             <div className="card-responsive">
               <MonthlyIncomeChart transactions={transactions} displayCurrency={displayCurrency} exchangeRates={exchangeRates} />
             </div>
@@ -208,7 +208,7 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
           </div>
 
           {/* PLN/BTC chart */}
-          <div className="card-responsive">
+          <div className={`card-responsive ${balanceMasked ? 'blur-lg select-none pointer-events-none' : ''}`}>
             <PLNBTCChart />
           </div>
 

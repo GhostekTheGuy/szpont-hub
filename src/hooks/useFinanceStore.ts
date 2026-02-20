@@ -91,6 +91,7 @@ interface FinanceState {
   habits: Habit[];
   habitEntries: HabitEntry[];
   activeWalletId: string | null;
+  balanceMasked: boolean;
 
   // Tylko settery - żadnej logiki dodawania/usuwania tutaj!
   setWallets: (wallets: Wallet[]) => void;
@@ -101,6 +102,7 @@ interface FinanceState {
   setHabits: (habits: Habit[]) => void;
   setHabitEntries: (entries: HabitEntry[]) => void;
   setActiveWallet: (id: string | null) => void;
+  toggleBalanceMask: () => void;
 }
 
 export const useFinanceStore = create<FinanceState>((set) => ({
@@ -112,6 +114,7 @@ export const useFinanceStore = create<FinanceState>((set) => ({
   habits: [],
   habitEntries: [],
   activeWalletId: null,
+  balanceMasked: false,
 
   setWallets: (wallets) => set({ wallets }),
   setTransactions: (transactions) => set({ transactions }),
@@ -121,4 +124,5 @@ export const useFinanceStore = create<FinanceState>((set) => ({
   setHabits: (habits) => set({ habits }),
   setHabitEntries: (habitEntries) => set({ habitEntries }),
   setActiveWallet: (id) => set({ activeWalletId: id }),
+  toggleBalanceMask: () => set((state) => ({ balanceMasked: !state.balanceMasked })),
 }));

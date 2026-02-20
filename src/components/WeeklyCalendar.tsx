@@ -163,7 +163,7 @@ export function WeeklyCalendar({ weekStart, events, onSlotClick, onEventClick, o
   const showNowLine = nowMinutes >= startHour * 60 && nowMinutes <= endHour * 60;
 
   return (
-    <div className="flex flex-col lg:bg-card lg:border lg:border-border lg:rounded-xl touch-none md:touch-auto">
+    <div className="flex flex-col lg:bg-card lg:border lg:border-border lg:rounded-xl">
       {/* Header with day names */}
       <div className="flex border-b border-border shrink-0 sticky top-14 lg:top-0 z-20 bg-background lg:bg-card">
         <div className="w-10 shrink-0" />

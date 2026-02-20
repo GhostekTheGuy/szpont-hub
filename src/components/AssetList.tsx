@@ -1,4 +1,4 @@
-import { Asset } from '@/hooks/useFinanceStore';
+import { Asset, useFinanceStore } from '@/hooks/useFinanceStore';
 import { TrendingUp, TrendingDown, Coins, Edit2, Trash2, BadgeDollarSign } from 'lucide-react';
 import { formatCurrency } from '@/lib/exchange-rates';
 import {
@@ -50,6 +50,7 @@ interface AssetListProps {
 }
 
 export function AssetList({ assets, onEdit, onDelete, onSell }: AssetListProps) {
+  const balanceMasked = useFinanceStore(s => s.balanceMasked);
   const totalValue = assets.reduce((sum, asset) => sum + asset.total_value, 0);
 
   return (
@@ -62,7 +63,7 @@ export function AssetList({ assets, onEdit, onDelete, onSell }: AssetListProps) 
         <div className="text-right">
           <p className="text-sm text-muted-foreground">Całkowita wartość</p>
           <p className="text-2xl font-bold text-card-foreground">
-            {formatCurrency(totalValue)}
+            <span className={balanceMasked ? 'blur-md select-none' : ''}>{formatCurrency(totalValue)}</span>
           </p>
         </div>
       </div>
@@ -104,10 +105,10 @@ export function AssetList({ assets, onEdit, onDelete, onSell }: AssetListProps) 
                         </span>
                       </div>
                       <p className="text-sm text-muted-foreground mt-0.5">
-                        {asset.quantity} × {formatCurrency(asset.current_price)}
+                        {asset.quantity} × <span className={balanceMasked ? 'blur-md select-none' : ''}>{formatCurrency(asset.current_price)}</span>
                       </p>
                       {asset.cost_basis > 0 && (
-                        <p className="text-xs text-muted-foreground mt-0.5">
+                        <p className={`text-xs text-muted-foreground mt-0.5 ${balanceMasked ? 'blur-md select-none' : ''}`}>
                           Zakup: {formatCurrency(asset.cost_basis)} · P/L:{' '}
                           <span className={plPositive ? 'text-green-500' : 'text-red-500'}>
                             {plPositive ? '+' : ''}{formatCurrency(unrealizedPL)}
@@ -120,7 +121,7 @@ export function AssetList({ assets, onEdit, onDelete, onSell }: AssetListProps) 
                   <div className="flex items-center gap-2">
                     <div className="text-right">
                       <p className="text-lg font-bold text-card-foreground">
-                        {formatCurrency(asset.total_value)}
+                        <span className={balanceMasked ? 'blur-md select-none' : ''}>{formatCurrency(asset.total_value)}</span>
                       </p>
                       <div className={`flex items-center justify-end gap-1 mt-1 ${
                         isPositive ? 'text-green-500' : 'text-red-500'
