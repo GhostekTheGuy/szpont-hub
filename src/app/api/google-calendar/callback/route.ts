@@ -4,8 +4,7 @@ import { nanoid } from 'nanoid';
 import { getUser } from '@/lib/supabase/cached';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { decryptFromCookie, encryptString } from '@/lib/crypto';
-import { exchangeCode, listCalendars } from '@/lib/google-calendar';
-import { google } from 'googleapis';
+import { exchangeCode, listCalendars, getOAuth2Client } from '@/lib/google-calendar';
 
 export async function GET(request: NextRequest) {
   const url = request.nextUrl;
@@ -37,12 +36,19 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL('/calendar?google_error=no_tokens', request.url));
     }
 
-    // Get user's Google email
-    const oauth2Client = new google.auth.OAuth2();
-    oauth2Client.setCredentials({ access_token: tokens.access_token });
-    const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
-    const userInfo = await oauth2.userinfo.get();
-    const googleEmail = userInfo.data.email || 'unknown';
+    // Get user's Google email via tokeninfo
+    let googleEmail = 'unknown';
+    try {
+      const res = await fetch(`https://www.googleapis.com/oauth2/v3/userinfo`, {
+        headers: { Authorization: `Bearer ${tokens.access_token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        googleEmail = data.email || 'unknown';
+      }
+    } catch {
+      // fallback — email stays 'unknown'
+    }
 
     // Encrypt tokens
     const encryptedAccessToken = encryptString(tokens.access_token, dek);
