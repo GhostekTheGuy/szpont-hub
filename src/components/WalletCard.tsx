@@ -134,8 +134,6 @@ export function WalletCard({ wallet, onEdit, onDelete }: WalletCardProps) {
     ? `relative overflow-hidden rounded-2xl bg-gradient-to-br ${parsed.gradient} p-[1px] group`
     : 'relative overflow-hidden rounded-2xl p-[1px] group';
 
-  const needsFallback = parsed.effect === 'plasma' || parsed.effect === 'grainient';
-
   const innerClass = parsed.effect === 'gradient'
     ? `relative rounded-[calc(1rem-1px)] bg-gradient-to-br ${parsed.gradient} p-5 h-full`
     : 'relative rounded-[calc(1rem-1px)] overflow-hidden p-5 h-full';
@@ -161,7 +159,7 @@ export function WalletCard({ wallet, onEdit, onDelete }: WalletCardProps) {
         </div>
       )}
 
-      <div className={innerClass} style={needsFallback ? { backgroundColor: 'var(--background)' } : undefined}>
+      <div className={innerClass}>
         {renderBackground()}
 
         {/* Action buttons */}

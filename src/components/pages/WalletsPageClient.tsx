@@ -91,20 +91,24 @@ export function WalletsPageClient({ initialWallets, initialTransactions }: Props
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-6 px-4 lg:px-0">
-        {wallets.map((wallet) => (
-          <div
-            key={wallet.id}
-            onClick={() => setActiveWallet(activeWalletId === wallet.id ? null : wallet.id)}
-            className={`cursor-pointer ${activeWalletId === wallet.id ? 'ring-2 ring-primary rounded-2xl' : ''}`}
-          >
-            <WalletCard
-              wallet={wallet}
-              onEdit={(w) => { setEditingWallet(w); setIsWalletModalOpen(true); }}
-              onDelete={handleDeleteWallet}
-            />
-          </div>
-        ))}
+      <div className="relative mb-6 px-4 lg:px-0">
+        <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
+          {wallets.map((wallet) => (
+            <div
+              key={wallet.id}
+              onClick={() => setActiveWallet(activeWalletId === wallet.id ? null : wallet.id)}
+              className={`cursor-pointer shrink-0 w-[280px] md:w-[300px] lg:w-[320px] ${activeWalletId === wallet.id ? 'ring-2 ring-primary rounded-2xl' : ''}`}
+            >
+              <WalletCard
+                wallet={wallet}
+                onEdit={(w) => { setEditingWallet(w); setIsWalletModalOpen(true); }}
+                onDelete={handleDeleteWallet}
+              />
+            </div>
+          ))}
+        </div>
+        {/* Right fade gradient */}
+        <div className="absolute top-0 right-0 lg:right-0 w-16 h-full pointer-events-none bg-gradient-to-l from-background to-transparent" />
       </div>
 
       {/* Wallet filter chips */}
