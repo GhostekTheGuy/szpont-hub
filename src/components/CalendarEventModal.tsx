@@ -34,6 +34,7 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
   const [loading, setLoading] = useState(false);
 
   const isGoogleEvent = !!editingEvent?.google_event_id;
+  const isRecurringInstance = !!(editingEvent?.is_recurring && editingEvent?.id.includes('_') && /\d{4}-\d{2}-\d{2}$/.test(editingEvent.id));
   const isPersonal = eventType === 'personal';
 
   useEffect(() => {
@@ -61,7 +62,7 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
       }
       if (prefillHour != null) {
         setStartTime(timeToString(prefillHour, 0));
-        setEndTime(timeToString(Math.min(prefillHour + 1, 23), 0));
+        setEndTime(prefillHour >= 23 ? '23:59' : timeToString(prefillHour + 1, 0));
       } else {
         setStartTime('09:00');
         setEndTime('10:00');
@@ -71,10 +72,12 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
     }
   }, [editingEvent, isOpen, wallets, prefillDate, prefillHour]);
 
+  const timeInvalid = startTime >= endTime;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isPersonal && (!walletId || !hourlyRate)) return;
-    if (!title) return;
+    if (!title || timeInvalid) return;
     setLoading(true);
 
     const startDt = new Date(`${date}T${startTime}:00`);
@@ -209,8 +212,8 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
                   required
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
-                  disabled={isGoogleEvent}
-                  className={`w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring transition-all ${isGoogleEvent ? 'opacity-60 cursor-not-allowed' : ''}`}
+                  disabled={isGoogleEvent || isRecurringInstance}
+                  className={`w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring transition-all ${isGoogleEvent || isRecurringInstance ? 'opacity-60 cursor-not-allowed' : ''}`}
                 />
               </div>
 
@@ -221,8 +224,8 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
                     type="time"
                     value={startTime}
                     onChange={(e) => setStartTime(e.target.value)}
-                    disabled={isGoogleEvent}
-                    className={`w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring transition-all ${isGoogleEvent ? 'opacity-60 cursor-not-allowed' : ''}`}
+                    disabled={isGoogleEvent || isRecurringInstance}
+                    className={`w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring transition-all ${isGoogleEvent || isRecurringInstance ? 'opacity-60 cursor-not-allowed' : ''}`}
                   />
                 </div>
                 <div>
@@ -231,11 +234,15 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
                     type="time"
                     value={endTime}
                     onChange={(e) => setEndTime(e.target.value)}
-                    disabled={isGoogleEvent}
-                    className={`w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring transition-all ${isGoogleEvent ? 'opacity-60 cursor-not-allowed' : ''}`}
+                    disabled={isGoogleEvent || isRecurringInstance}
+                    className={`w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring transition-all ${isGoogleEvent || isRecurringInstance ? 'opacity-60 cursor-not-allowed' : ''}`}
                   />
                 </div>
               </div>
+
+              {timeInvalid && (
+                <p className="text-xs text-destructive">Czas zakończenia musi być po czasie rozpoczęcia</p>
+              )}
 
               {!isPersonal && (
                 <>
@@ -268,7 +275,7 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
                 </>
               )}
 
-              {!isGoogleEvent && (
+              {!isGoogleEvent && !isRecurringInstance && (
                 <div className="flex items-center gap-3">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -297,6 +304,12 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
                 </div>
               )}
 
+              {isRecurringInstance && (
+                <p className="text-xs text-muted-foreground">
+                  To jest instancja cyklicznego wydarzenia. Zmiany tytułu, portfela i stawki dotyczą wszystkich instancji.
+                </p>
+              )}
+
               {isGoogleEvent && (
                 <p className="text-xs text-muted-foreground">
                   Tytuł i czas są synchronizowane z Google Calendar. Możesz edytować portfel, stawkę i typ.
@@ -316,7 +329,7 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
                 )}
                 <button
                   type="submit"
-                  disabled={loading || (!isPersonal && wallets.length === 0)}
+                  disabled={loading || (!isPersonal && wallets.length === 0) || timeInvalid}
                   className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground font-medium py-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loading ? 'Zapisywanie...' : (editingEvent ? 'Zapisz zmiany' : 'Dodaj wydarzenie')}

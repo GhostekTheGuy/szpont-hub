@@ -101,12 +101,14 @@ export function CalendarPageClient({ initialEvents, initialWallets, googleConnec
   const goToPrevMonth = () => {
     const newDate = subMonths(currentMonth, 1);
     setCurrentMonth(newDate);
+    setSelectedDate(startOfMonth(newDate));
     loadMonth(newDate);
   };
 
   const goToNextMonth = () => {
     const newDate = addMonths(currentMonth, 1);
     setCurrentMonth(newDate);
+    setSelectedDate(startOfMonth(newDate));
     loadMonth(newDate);
   };
 

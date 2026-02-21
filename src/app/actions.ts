@@ -1170,7 +1170,8 @@ export async function getWeeklySummary(weekStart: string, weekEnd: string) {
     return { total, totalHours, byWallet: Array.from(byWallet.entries()).map(([id, data]) => ({ id, ...data })) };
   };
 
-  const confirmedEvents = (events || []).filter(e => e.is_confirmed);
+  const workEvents = (events || []).filter(e => (e.event_type || 'work') === 'work');
+  const confirmedEvents = workEvents.filter(e => e.is_confirmed);
   const current = calcEarnings(confirmedEvents);
   const previous = calcEarnings(prevEvents);
   const confirmedCount = confirmedEvents.length;
@@ -1184,7 +1185,7 @@ export async function getWeeklySummary(weekStart: string, weekEnd: string) {
     previousWeekHours: previous.totalHours,
     unsettledCount,
     confirmedCount,
-    eventCount: (events || []).length,
+    eventCount: workEvents.length,
   };
 }
 
@@ -1267,7 +1268,8 @@ export async function getMonthlySummary(monthStart: string, monthEnd: string) {
     };
   };
 
-  const confirmedEvents = (events || []).filter(e => e.is_confirmed);
+  const workMonthEvts = (events || []).filter(e => (e.event_type || 'work') === 'work');
+  const confirmedEvents = workMonthEvts.filter(e => e.is_confirmed);
   const current = calcEarnings(confirmedEvents);
   const previous = calcEarnings(prevEvents);
   const confirmedCount = confirmedEvents.length;
@@ -1282,7 +1284,7 @@ export async function getMonthlySummary(monthStart: string, monthEnd: string) {
     previousPeriodHours: previous.totalHours,
     unsettledCount,
     confirmedCount,
-    eventCount: (events || []).length,
+    eventCount: workMonthEvts.length,
   };
 }
 
