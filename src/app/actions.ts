@@ -672,7 +672,7 @@ export async function getCalendarEvents(weekStart: string, weekEnd: string) {
       .select('*')
       .eq('user_id', userId)
       .eq('is_recurring', true)
-      .lt('start_time', weekStart),
+      .lt('start_time', weekEnd),
     supabaseAdmin
       .from('wallets')
       .select('id, name, color')
