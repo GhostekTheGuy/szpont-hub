@@ -58,6 +58,7 @@ export interface Habit {
   name: string;
   color: string;
   icon: string;
+  frequency: string;
 }
 
 export interface HabitEntry {

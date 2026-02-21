@@ -19,6 +19,15 @@ const ICON_OPTIONS = [
   { name: 'coffee', Icon: Coffee },
 ];
 
+const FREQUENCY_OPTIONS = [
+  { value: 'daily', label: 'Codziennie' },
+  { value: 'weekdays', label: 'Dni robocze (Pon-Pt)' },
+  { value: '5_per_week', label: '5 dni w tygodniu' },
+  { value: '4_per_week', label: '4 dni w tygodniu' },
+  { value: '3_per_week', label: '3 dni w tygodniu' },
+  { value: '2_per_week', label: '2 dni w tygodniu' },
+];
+
 const COLOR_PRESETS = [
   '#6366f1', '#8b5cf6', '#ec4899', '#ef4444',
   '#f97316', '#eab308', '#22c55e', '#06b6d4',
@@ -35,6 +44,7 @@ export function HabitModal({ isOpen, onClose, editingHabit }: Props) {
   const [name, setName] = useState('');
   const [color, setColor] = useState('#6366f1');
   const [icon, setIcon] = useState('star');
+  const [frequency, setFrequency] = useState('daily');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -42,10 +52,12 @@ export function HabitModal({ isOpen, onClose, editingHabit }: Props) {
       setName(editingHabit.name);
       setColor(editingHabit.color);
       setIcon(editingHabit.icon);
+      setFrequency(editingHabit.frequency || 'daily');
     } else {
       setName('');
       setColor('#6366f1');
       setIcon('star');
+      setFrequency('daily');
     }
   }, [editingHabit, isOpen]);
 
@@ -56,9 +68,9 @@ export function HabitModal({ isOpen, onClose, editingHabit }: Props) {
     setLoading(true);
     try {
       if (editingHabit) {
-        await editHabit(editingHabit.id, { name: name.trim(), color, icon });
+        await editHabit(editingHabit.id, { name: name.trim(), color, icon, frequency });
       } else {
-        await addHabit({ name: name.trim(), color, icon });
+        await addHabit({ name: name.trim(), color, icon, frequency });
       }
       onClose();
     } catch (err) {
@@ -135,6 +147,20 @@ export function HabitModal({ isOpen, onClose, editingHabit }: Props) {
                   className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
                   placeholder="np. Medytacja, Ćwiczenia..."
                 />
+              </div>
+
+              {/* Frequency */}
+              <div>
+                <label className="block text-sm text-muted-foreground mb-2">Częstotliwość</label>
+                <select
+                  value={frequency}
+                  onChange={(e) => setFrequency(e.target.value)}
+                  className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
+                >
+                  {FREQUENCY_OPTIONS.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
               </div>
 
               {/* Color */}

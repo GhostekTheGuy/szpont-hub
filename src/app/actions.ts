@@ -1935,6 +1935,7 @@ export async function getHabits() {
     name: decryptString(h.name, dek) || h.name,
     color: h.color,
     icon: h.icon,
+    frequency: h.frequency || 'daily',
   }));
 
   const decryptedEntries = (entries || []).map(e => ({
@@ -1947,7 +1948,7 @@ export async function getHabits() {
   return { habits: decryptedHabits, entries: decryptedEntries };
 }
 
-export async function addHabit(data: { name: string; color: string; icon: string }) {
+export async function addHabit(data: { name: string; color: string; icon: string; frequency?: string }) {
   const userId = await getUserId();
   if (!userId) throw new Error('Unauthorized');
 
@@ -1961,6 +1962,7 @@ export async function addHabit(data: { name: string; color: string; icon: string
       name: encryptString(data.name, dek),
       color: data.color,
       icon: data.icon,
+      frequency: data.frequency || 'daily',
       created_at: new Date().toISOString(),
     });
 
@@ -1972,7 +1974,7 @@ export async function addHabit(data: { name: string; color: string; icon: string
   revalidatePath('/', 'layout');
 }
 
-export async function editHabit(id: string, data: { name: string; color: string; icon: string }) {
+export async function editHabit(id: string, data: { name: string; color: string; icon: string; frequency?: string }) {
   const userId = await getUserId();
   if (!userId) throw new Error('Unauthorized');
 
@@ -1992,6 +1994,7 @@ export async function editHabit(id: string, data: { name: string; color: string;
       name: encryptString(data.name, dek),
       color: data.color,
       icon: data.icon,
+      frequency: data.frequency || 'daily',
     })
     .eq('id', id);
 
