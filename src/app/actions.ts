@@ -659,22 +659,20 @@ export async function getCalendarEvents(weekStart: string, weekEnd: string) {
 
   const dek = await getDEK();
 
-  const [{ data: nonRecurringEvents, error: eventsError }, { data: recurringEvents, error: recurringError }, { data: wallets }] = await Promise.all([
-    // Zwykłe (niecykliczne) eventy w zakresie
+  const [{ data: events, error: eventsError }, { data: recurringEvents, error: recurringError }, { data: wallets }] = await Promise.all([
     supabaseAdmin
       .from('calendar_events')
       .select('*')
       .eq('user_id', userId)
-      .eq('is_recurring', false)
       .gte('start_time', weekStart)
       .lte('end_time', weekEnd)
       .order('start_time', { ascending: true }),
-    // Wszystkie cykliczne eventy (niezależnie od daty startu)
     supabaseAdmin
       .from('calendar_events')
       .select('*')
       .eq('user_id', userId)
-      .eq('is_recurring', true),
+      .eq('is_recurring', true)
+      .lt('start_time', weekStart),
     supabaseAdmin
       .from('wallets')
       .select('id, name, color')
@@ -691,7 +689,7 @@ export async function getCalendarEvents(weekStart: string, weekEnd: string) {
   // Generuj instancje eventów cyklicznych dla tego zakresu
   const wsDate = new Date(weekStart);
   const weDate = new Date(weekEnd);
-  const expandedRecurring: typeof nonRecurringEvents = [];
+  const expandedRecurring: typeof events = [];
 
   for (const event of (recurringEvents || [])) {
     const origStart = new Date(event.start_time);
@@ -705,7 +703,7 @@ export async function getCalendarEvents(weekStart: string, weekEnd: string) {
         const instanceStart = new Date(d);
         instanceStart.setHours(origStart.getHours(), origStart.getMinutes(), origStart.getSeconds(), 0);
         const instanceEnd = new Date(instanceStart.getTime() + durationMs);
-        if (instanceStart >= wsDate && instanceEnd <= weDate && instanceStart >= origStart) {
+        if (instanceStart >= wsDate && instanceEnd <= weDate && instanceStart > origStart) {
           expandedRecurring.push({
             ...event,
             id: `${event.id}_${instanceStart.toISOString().split('T')[0]}`,
@@ -729,7 +727,7 @@ export async function getCalendarEvents(weekStart: string, weekEnd: string) {
         const instanceStart = new Date(d);
         instanceStart.setHours(origStart.getHours(), origStart.getMinutes(), origStart.getSeconds(), 0);
         const instanceEnd = new Date(instanceStart.getTime() + durationMs);
-        if (instanceStart >= wsDate && instanceEnd <= weDate && instanceStart >= origStart) {
+        if (instanceStart >= wsDate && instanceEnd <= weDate && instanceStart > origStart) {
           expandedRecurring.push({
             ...event,
             id: `${event.id}_${instanceStart.toISOString().split('T')[0]}`,
@@ -744,7 +742,7 @@ export async function getCalendarEvents(weekStart: string, weekEnd: string) {
       // Znajdź instancję w tym samym dniu miesiąca
       const origDayOfMonth = origStart.getDate();
       for (let d = new Date(wsDate); d <= weDate; d.setDate(d.getDate() + 1)) {
-        if (d.getDate() === origDayOfMonth && d >= origStart) {
+        if (d.getDate() === origDayOfMonth && d > origStart) {
           const instanceStart = new Date(d);
           instanceStart.setHours(origStart.getHours(), origStart.getMinutes(), origStart.getSeconds(), 0);
           const instanceEnd = new Date(instanceStart.getTime() + durationMs);
@@ -764,10 +762,10 @@ export async function getCalendarEvents(weekStart: string, weekEnd: string) {
     }
   }
 
-  // Połącz niecykliczne eventy z wygenerowanymi instancjami cyklicznych (bez duplikatów)
-  const existingIds = new Set((nonRecurringEvents || []).map(e => e.id));
+  // Połącz zwykłe eventy z wygenerowanymi instancjami (bez duplikatów)
+  const existingIds = new Set((events || []).map(e => e.id));
   const allEvents = [
-    ...(nonRecurringEvents || []),
+    ...(events || []),
     ...expandedRecurring.filter(e => !existingIds.has(e.id)),
   ];
 
