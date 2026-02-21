@@ -20,6 +20,7 @@ import {
   decryptString,
 } from '@/lib/crypto';
 import { getExchangeRates, getHistoricalRates, convertAmount, type Currency, type ExchangeRates, type HistoricalRates } from '@/lib/exchange-rates';
+import { expandRecurringEvents, mergeWithExpanded } from '@/lib/calendar-utils';
 
 async function getUserId() {
   const user = await getUser();
@@ -686,87 +687,9 @@ export async function getCalendarEvents(weekStart: string, weekEnd: string) {
     console.error('Error fetching recurring events:', recurringError);
   }
 
-  // Generuj instancje eventów cyklicznych dla tego zakresu
-  const wsDate = new Date(weekStart);
-  const weDate = new Date(weekEnd);
-  const expandedRecurring: typeof events = [];
-
-  for (const event of (recurringEvents || [])) {
-    const origStart = new Date(event.start_time);
-    const origEnd = new Date(event.end_time);
-    const durationMs = origEnd.getTime() - origStart.getTime();
-    const rule = event.recurrence_rule;
-
-    if (rule === 'daily') {
-      // Generuj instancję na każdy dzień zakresu
-      for (let d = new Date(wsDate); d <= weDate; d.setDate(d.getDate() + 1)) {
-        const instanceStart = new Date(d);
-        instanceStart.setHours(origStart.getHours(), origStart.getMinutes(), origStart.getSeconds(), 0);
-        const instanceEnd = new Date(instanceStart.getTime() + durationMs);
-        if (instanceStart >= wsDate && instanceEnd <= weDate && instanceStart > origStart) {
-          expandedRecurring.push({
-            ...event,
-            id: `${event.id}_${instanceStart.toISOString().split('T')[0]}`,
-            start_time: instanceStart.toISOString(),
-            end_time: instanceEnd.toISOString(),
-            is_settled: false,
-            is_confirmed: false,
-          });
-        }
-      }
-    } else if (rule === 'weekly') {
-      // Znajdź pierwszą instancję na ten sam dzień tygodnia w zakresie, potem co 7 dni
-      const origDay = origStart.getDay(); // 0=Sun, 1=Mon, ...
-      const wsDay = wsDate.getDay();
-      let diff = origDay - wsDay;
-      if (diff < 0) diff += 7;
-      const firstInstance = new Date(wsDate);
-      firstInstance.setDate(firstInstance.getDate() + diff);
-
-      for (let d = new Date(firstInstance); d <= weDate; d.setDate(d.getDate() + 7)) {
-        const instanceStart = new Date(d);
-        instanceStart.setHours(origStart.getHours(), origStart.getMinutes(), origStart.getSeconds(), 0);
-        const instanceEnd = new Date(instanceStart.getTime() + durationMs);
-        if (instanceStart >= wsDate && instanceEnd <= weDate && instanceStart > origStart) {
-          expandedRecurring.push({
-            ...event,
-            id: `${event.id}_${instanceStart.toISOString().split('T')[0]}`,
-            start_time: instanceStart.toISOString(),
-            end_time: instanceEnd.toISOString(),
-            is_settled: false,
-            is_confirmed: false,
-          });
-        }
-      }
-    } else if (rule === 'monthly') {
-      // Znajdź instancje w tym samym dniu miesiąca (może być więcej niż 1 w zakresie)
-      const origDayOfMonth = origStart.getDate();
-      for (let d = new Date(wsDate); d <= weDate; d.setDate(d.getDate() + 1)) {
-        if (d.getDate() === origDayOfMonth && d > origStart) {
-          const instanceStart = new Date(d);
-          instanceStart.setHours(origStart.getHours(), origStart.getMinutes(), origStart.getSeconds(), 0);
-          const instanceEnd = new Date(instanceStart.getTime() + durationMs);
-          if (instanceStart >= wsDate && instanceEnd <= weDate) {
-            expandedRecurring.push({
-              ...event,
-              id: `${event.id}_${instanceStart.toISOString().split('T')[0]}`,
-              start_time: instanceStart.toISOString(),
-              end_time: instanceEnd.toISOString(),
-              is_settled: false,
-              is_confirmed: false,
-            });
-          }
-        }
-      }
-    }
-  }
-
-  // Połącz zwykłe eventy z wygenerowanymi instancjami (bez duplikatów)
-  const existingIds = new Set((events || []).map(e => e.id));
-  const allEvents = [
-    ...(events || []),
-    ...expandedRecurring.filter(e => !existingIds.has(e.id)),
-  ];
+  // Expand recurring events and merge with DB events
+  const expandedRecurring = expandRecurringEvents(recurringEvents || [], weekStart, weekEnd);
+  const allEvents = mergeWithExpanded(events || [], expandedRecurring);
 
   const walletMap = new Map(
     (wallets || []).map(w => [w.id, { name: decryptString(w.name, dek) || w.name, color: w.color }])
@@ -1110,31 +1033,43 @@ export async function getWeeklySummary(weekStart: string, weekEnd: string) {
 
   const dek = await getDEK();
 
-  // Pobierz eventy z bieżącego tygodnia
-  const { data: events } = await supabaseAdmin
-    .from('calendar_events')
-    .select('*')
-    .eq('user_id', userId)
-    .gte('start_time', weekStart)
-    .lte('end_time', weekEnd);
-
-  // Pobierz eventy z poprzedniego tygodnia
   const prevWeekStart = new Date(weekStart);
   prevWeekStart.setDate(prevWeekStart.getDate() - 7);
   const prevWeekEnd = new Date(weekEnd);
   prevWeekEnd.setDate(prevWeekEnd.getDate() - 7);
 
-  const { data: prevEvents } = await supabaseAdmin
-    .from('calendar_events')
-    .select('*')
-    .eq('user_id', userId)
-    .gte('start_time', prevWeekStart.toISOString())
-    .lte('end_time', prevWeekEnd.toISOString());
+  // Fetch current week events, previous week events, recurring events, and wallets in parallel
+  const [{ data: events }, { data: prevEvents }, { data: recurringEvents }, { data: wallets }] = await Promise.all([
+    supabaseAdmin
+      .from('calendar_events')
+      .select('*')
+      .eq('user_id', userId)
+      .gte('start_time', weekStart)
+      .lte('end_time', weekEnd),
+    supabaseAdmin
+      .from('calendar_events')
+      .select('*')
+      .eq('user_id', userId)
+      .gte('start_time', prevWeekStart.toISOString())
+      .lte('end_time', prevWeekEnd.toISOString()),
+    supabaseAdmin
+      .from('calendar_events')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('is_recurring', true)
+      .lt('start_time', weekEnd),
+    supabaseAdmin
+      .from('wallets')
+      .select('id, name, color')
+      .eq('user_id', userId),
+  ]);
 
-  const { data: wallets } = await supabaseAdmin
-    .from('wallets')
-    .select('id, name, color')
-    .eq('user_id', userId);
+  // Expand recurring events for current and previous week
+  const expandedCurrent = expandRecurringEvents(recurringEvents || [], weekStart, weekEnd);
+  const allCurrentEvents = mergeWithExpanded(events || [], expandedCurrent);
+
+  const expandedPrev = expandRecurringEvents(recurringEvents || [], prevWeekStart.toISOString(), prevWeekEnd.toISOString());
+  const allPrevEvents = mergeWithExpanded(prevEvents || [], expandedPrev);
 
   const walletMap = new Map(
     (wallets || []).map(w => [w.id, { name: decryptString(w.name, dek) || w.name, color: w.color }])
@@ -1170,10 +1105,10 @@ export async function getWeeklySummary(weekStart: string, weekEnd: string) {
     return { total, totalHours, byWallet: Array.from(byWallet.entries()).map(([id, data]) => ({ id, ...data })) };
   };
 
-  const workEvents = (events || []).filter(e => (e.event_type || 'work') === 'work');
+  const workEvents = allCurrentEvents.filter(e => (e.event_type || 'work') === 'work');
   const confirmedEvents = workEvents.filter(e => e.is_confirmed);
   const current = calcEarnings(confirmedEvents);
-  const previous = calcEarnings(prevEvents);
+  const previous = calcEarnings(allPrevEvents);
   const confirmedCount = confirmedEvents.length;
   const unsettledCount = confirmedEvents.filter(e => !e.is_settled).length;
 
@@ -1195,31 +1130,43 @@ export async function getMonthlySummary(monthStart: string, monthEnd: string) {
 
   const dek = await getDEK();
 
-  // Pobierz eventy z bieżącego miesiąca
-  const { data: events } = await supabaseAdmin
-    .from('calendar_events')
-    .select('*')
-    .eq('user_id', userId)
-    .gte('start_time', monthStart)
-    .lte('end_time', monthEnd);
-
-  // Pobierz eventy z poprzedniego miesiąca
   const prevMonthStart = new Date(monthStart);
   prevMonthStart.setMonth(prevMonthStart.getMonth() - 1);
   const prevMonthEnd = new Date(monthEnd);
   prevMonthEnd.setMonth(prevMonthEnd.getMonth() - 1);
 
-  const { data: prevEvents } = await supabaseAdmin
-    .from('calendar_events')
-    .select('*')
-    .eq('user_id', userId)
-    .gte('start_time', prevMonthStart.toISOString())
-    .lte('end_time', prevMonthEnd.toISOString());
+  // Fetch current month events, previous month events, recurring events, and wallets in parallel
+  const [{ data: events }, { data: prevEvents }, { data: recurringEvents }, { data: wallets }] = await Promise.all([
+    supabaseAdmin
+      .from('calendar_events')
+      .select('*')
+      .eq('user_id', userId)
+      .gte('start_time', monthStart)
+      .lte('end_time', monthEnd),
+    supabaseAdmin
+      .from('calendar_events')
+      .select('*')
+      .eq('user_id', userId)
+      .gte('start_time', prevMonthStart.toISOString())
+      .lte('end_time', prevMonthEnd.toISOString()),
+    supabaseAdmin
+      .from('calendar_events')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('is_recurring', true)
+      .lt('start_time', monthEnd),
+    supabaseAdmin
+      .from('wallets')
+      .select('id, name, color')
+      .eq('user_id', userId),
+  ]);
 
-  const { data: wallets } = await supabaseAdmin
-    .from('wallets')
-    .select('id, name, color')
-    .eq('user_id', userId);
+  // Expand recurring events for current and previous month
+  const expandedCurrent = expandRecurringEvents(recurringEvents || [], monthStart, monthEnd);
+  const allCurrentEvents = mergeWithExpanded(events || [], expandedCurrent);
+
+  const expandedPrev = expandRecurringEvents(recurringEvents || [], prevMonthStart.toISOString(), prevMonthEnd.toISOString());
+  const allPrevEvents = mergeWithExpanded(prevEvents || [], expandedPrev);
 
   const walletMap = new Map(
     (wallets || []).map(w => [w.id, { name: decryptString(w.name, dek) || w.name, color: w.color }])
@@ -1268,10 +1215,10 @@ export async function getMonthlySummary(monthStart: string, monthEnd: string) {
     };
   };
 
-  const workMonthEvts = (events || []).filter(e => (e.event_type || 'work') === 'work');
+  const workMonthEvts = allCurrentEvents.filter(e => (e.event_type || 'work') === 'work');
   const confirmedEvents = workMonthEvts.filter(e => e.is_confirmed);
   const current = calcEarnings(confirmedEvents);
-  const previous = calcEarnings(prevEvents);
+  const previous = calcEarnings(allPrevEvents);
   const confirmedCount = confirmedEvents.length;
   const unsettledCount = confirmedEvents.filter(e => !e.is_settled).length;
 

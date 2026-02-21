@@ -26,6 +26,90 @@ const HOURS = Array.from({ length: DAY_END_HOUR - DAY_START_HOUR }, (_, i) => DA
 const DAY_LABELS = ['Pon', 'Wt', 'Śr', 'Czw', 'Pt', 'Sob', 'Niedz'];
 const DAY_LABELS_FULL = ['pon.', 'wt.', 'śr.', 'czw.', 'pt.', 'sob.', 'niedz.'];
 
+interface LayoutedEvent {
+  event: CalendarEvent;
+  col: number;
+  totalCols: number;
+}
+
+function layoutEvents(events: CalendarEvent[]): LayoutedEvent[] {
+  if (events.length === 0) return [];
+
+  // Compute startMin/endMin for each event
+  const items = events.map(event => {
+    const start = parseISO(event.start_time);
+    const end = parseISO(event.end_time);
+    const startMin = start.getHours() * 60 + start.getMinutes();
+    const endMin = end.getHours() * 60 + end.getMinutes();
+    return { event, startMin, endMin: Math.max(endMin, startMin + 1) };
+  });
+
+  // Sort by start time, then by duration descending
+  items.sort((a, b) => a.startMin - b.startMin || (b.endMin - b.startMin) - (a.endMin - a.startMin));
+
+  // Group into overlapping clusters
+  const clusters: (typeof items)[] = [];
+  let currentCluster = [items[0]];
+  let clusterEnd = items[0].endMin;
+
+  for (let i = 1; i < items.length; i++) {
+    if (items[i].startMin < clusterEnd) {
+      currentCluster.push(items[i]);
+      clusterEnd = Math.max(clusterEnd, items[i].endMin);
+    } else {
+      clusters.push(currentCluster);
+      currentCluster = [items[i]];
+      clusterEnd = items[i].endMin;
+    }
+  }
+  clusters.push(currentCluster);
+
+  // Assign columns within each cluster
+  const result: LayoutedEvent[] = [];
+  for (const cluster of clusters) {
+    const columns: number[][] = []; // columns[col] = list of endMin values
+    const assignments: { item: typeof items[0]; col: number }[] = [];
+
+    for (const item of cluster) {
+      let placed = false;
+      for (let c = 0; c < columns.length; c++) {
+        if (columns[c].every(end => item.startMin >= end)) {
+          columns[c].push(item.endMin);
+          assignments.push({ item, col: c });
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        columns.push([item.endMin]);
+        assignments.push({ item, col: columns.length - 1 });
+      }
+    }
+
+    const totalCols = columns.length;
+    for (const { item, col } of assignments) {
+      result.push({ event: item.event, col, totalCols });
+    }
+  }
+
+  return result;
+}
+
+function useNowMinutes(): number {
+  const [nowMinutes, setNowMinutes] = useState(() => {
+    const n = new Date();
+    return n.getHours() * 60 + n.getMinutes();
+  });
+  useEffect(() => {
+    const id = setInterval(() => {
+      const n = new Date();
+      setNowMinutes(n.getHours() * 60 + n.getMinutes());
+    }, 60_000);
+    return () => clearInterval(id);
+  }, []);
+  return nowMinutes;
+}
+
 type DesktopViewMode = 'day' | 'week';
 
 interface WeeklyCalendarProps {
@@ -436,10 +520,9 @@ function DayTimeGrid({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate]);
 
-  // Current time indicator
-  const now = new Date();
+  // Current time indicator (updates every minute)
+  const nowMinutes = useNowMinutes();
   const showNowLine = isToday(selectedDate);
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
   const nowTop = ((nowMinutes - DAY_START_HOUR * 60) / 60) * HOUR_HEIGHT;
 
   return (
@@ -475,7 +558,7 @@ function DayTimeGrid({
           ))}
 
           {/* Events */}
-          {events.map((event) => {
+          {layoutEvents(events).map(({ event, col, totalCols }) => {
             const start = parseISO(event.start_time);
             const end = parseISO(event.end_time);
             const startMin = start.getHours() * 60 + start.getMinutes();
@@ -489,12 +572,14 @@ function DayTimeGrid({
             return (
               <div
                 key={event.id}
-                className={`absolute left-1 right-2 px-3 py-1.5 cursor-pointer overflow-hidden transition-opacity hover:opacity-90 z-10 ${
+                className={`absolute px-3 py-1.5 cursor-pointer overflow-hidden transition-opacity hover:opacity-90 z-10 ${
                   event.is_settled ? 'opacity-60' : ''
                 }`}
                 style={{
                   top,
                   height,
+                  left: `calc(${(col / totalCols) * 100}% + 4px)`,
+                  width: `calc(${(1 / totalCols) * 100}% - 6px)`,
                   backgroundColor: color + '22',
                   borderLeft: `3px solid ${color}`,
                 }}
@@ -609,8 +694,7 @@ function WeekTimeGrid({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weekDays]);
 
-  const now = new Date();
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const nowMinutes = useNowMinutes();
   const nowTop = ((nowMinutes - DAY_START_HOUR * 60) / 60) * HOUR_HEIGHT;
 
   return (
@@ -688,7 +772,7 @@ function WeekTimeGrid({
                 ))}
 
                 {/* Events */}
-                {dayEvents.map((event) => {
+                {layoutEvents(dayEvents).map(({ event, col, totalCols }) => {
                   const start = parseISO(event.start_time);
                   const end = parseISO(event.end_time);
                   const startMin = start.getHours() * 60 + start.getMinutes();
@@ -702,12 +786,14 @@ function WeekTimeGrid({
                   return (
                     <div
                       key={event.id}
-                      className={`absolute left-0.5 right-0.5 rounded px-1.5 py-0.5 cursor-pointer overflow-hidden transition-opacity hover:opacity-90 z-10 ${
+                      className={`absolute rounded px-1.5 py-0.5 cursor-pointer overflow-hidden transition-opacity hover:opacity-90 z-10 ${
                         event.is_settled ? 'opacity-60' : ''
                       }`}
                       style={{
                         top,
                         height,
+                        left: `calc(${(col / totalCols) * 100}% + 2px)`,
+                        width: `calc(${(1 / totalCols) * 100}% - 4px)`,
                         backgroundColor: color + '33',
                         borderLeft: `3px solid ${color}`,
                       }}
