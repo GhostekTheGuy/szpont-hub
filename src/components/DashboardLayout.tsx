@@ -12,7 +12,6 @@ import {
   Target,
   ChevronsLeft,
   ChevronsRight,
-  Settings,
 } from 'lucide-react';
 import { PageTransition } from '@/components/PageTransition';
 import { Spotlight } from '@/components/Spotlight';
@@ -196,15 +195,6 @@ export function DashboardLayout({ children, userName, avatarUrl }: DashboardLayo
               </Link>
             );
           })}
-          <Link
-            href="/settings"
-            className={`flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition-colors ${
-              settingsActive ? 'text-primary' : 'text-muted-foreground'
-            }`}
-          >
-            <Settings className="w-5 h-5" />
-            <span className="text-xs font-medium">Ustawienia</span>
-          </Link>
         </div>
       </nav>
     </div>
