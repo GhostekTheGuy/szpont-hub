@@ -366,7 +366,7 @@ export function WeeklyCalendar({
                             )}
                           </div>
                         </div>
-                        {onToggleConfirmed && event.is_recurring && (
+                        {onToggleConfirmed && event.is_recurring && event.event_type !== 'personal' && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -518,7 +518,7 @@ function DayTimeGrid({
                       </div>
                     )}
                   </div>
-                  {onToggleConfirmed && event.is_recurring && (
+                  {onToggleConfirmed && event.is_recurring && event.event_type !== 'personal' && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -731,7 +731,7 @@ function WeekTimeGrid({
                             </div>
                           )}
                         </div>
-                        {onToggleConfirmed && event.is_recurring && (
+                        {onToggleConfirmed && event.is_recurring && event.event_type !== 'personal' && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();

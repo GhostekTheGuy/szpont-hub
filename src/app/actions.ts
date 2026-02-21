@@ -739,7 +739,7 @@ export async function getCalendarEvents(weekStart: string, weekEnd: string) {
         }
       }
     } else if (rule === 'monthly') {
-      // Znajdź instancję w tym samym dniu miesiąca
+      // Znajdź instancje w tym samym dniu miesiąca (może być więcej niż 1 w zakresie)
       const origDayOfMonth = origStart.getDate();
       for (let d = new Date(wsDate); d <= weDate; d.setDate(d.getDate() + 1)) {
         if (d.getDate() === origDayOfMonth && d > origStart) {
@@ -756,7 +756,6 @@ export async function getCalendarEvents(weekStart: string, weekEnd: string) {
               is_confirmed: false,
             });
           }
-          break;
         }
       }
     }
