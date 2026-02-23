@@ -1,23 +1,48 @@
 'use client';
 
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useEffect } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { useFinanceStore } from '@/hooks/useFinanceStore';
+import { useFinanceStore, Transaction } from '@/hooks/useFinanceStore';
 import { formatCurrency } from '@/lib/exchange-rates';
-import { TrendingUp, Coins, PiggyBank } from 'lucide-react';
+import { TrendingUp, Coins, PiggyBank, Sparkles } from 'lucide-react';
 
 interface CompoundInterestChartProps {
   initialCapital: number;
+  transactions: Transaction[];
 }
 
 const YEAR_OPTIONS = [5, 10, 15, 20, 30] as const;
 
-export function CompoundInterestChart({ initialCapital }: CompoundInterestChartProps) {
+export function CompoundInterestChart({ initialCapital, transactions }: CompoundInterestChartProps) {
   const balanceMasked = useFinanceStore(s => s.balanceMasked);
+
+  const avgMonthlyIncome = useMemo(() => {
+    const incomes = transactions.filter(t => t.type === 'income');
+    if (incomes.length === 0) return 0;
+
+    // Group by month
+    const byMonth = new Map<string, number>();
+    for (const t of incomes) {
+      const key = t.date.slice(0, 7); // yyyy-MM
+      byMonth.set(key, (byMonth.get(key) || 0) + t.amount);
+    }
+
+    if (byMonth.size === 0) return 0;
+    const total = Array.from(byMonth.values()).reduce((a, b) => a + b, 0);
+    return Math.round(total / byMonth.size);
+  }, [transactions]);
 
   const [annualRate, setAnnualRate] = useState(10);
   const [years, setYears] = useState(10);
   const [monthlyContribution, setMonthlyContribution] = useState(0);
+  const [initialized, setInitialized] = useState(false);
+
+  useEffect(() => {
+    if (!initialized && avgMonthlyIncome > 0) {
+      setMonthlyContribution(avgMonthlyIncome);
+      setInitialized(true);
+    }
+  }, [avgMonthlyIncome, initialized]);
 
   const chartData = useMemo(() => {
     const monthlyRate = annualRate / 100 / 12;
@@ -120,7 +145,20 @@ export function CompoundInterestChart({ initialCapital }: CompoundInterestChartP
           </div>
         </div>
         <div>
-          <label className="text-xs text-muted-foreground mb-1 block">Miesięczna dopłata (PLN)</label>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-xs text-muted-foreground">Miesięczna dopłata (PLN)</label>
+            {avgMonthlyIncome > 0 && (
+              <button
+                type="button"
+                onClick={() => setMonthlyContribution(avgMonthlyIncome)}
+                className="flex items-center gap-1 text-[10px] text-primary hover:text-primary/80 transition-colors"
+              >
+                <Sparkles className="w-3 h-3" />
+                <span className="hidden sm:inline">Śr. przychód: {formatCurrency(avgMonthlyIncome)}</span>
+                <span className="sm:hidden">Śr. przychód</span>
+              </button>
+            )}
+          </div>
           <input
             type="number"
             value={monthlyContribution}

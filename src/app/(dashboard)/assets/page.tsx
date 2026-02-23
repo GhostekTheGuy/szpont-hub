@@ -21,6 +21,7 @@ export default async function AssetsPage() {
     <AssetsPageClient
       initialAssets={assetsResult.assets}
       initialWallets={walletsResult?.wallets ?? []}
+      initialTransactions={walletsResult?.transactions ?? []}
       initialSales={sales}
       initialTaxSummary={taxSummary}
     />

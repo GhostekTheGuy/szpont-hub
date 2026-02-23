@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { AssetList } from '@/components/AssetList';
 import { AssetModal } from '@/components/AssetModal';
 import { SellAssetModal } from '@/components/SellAssetModal';
-import { useFinanceStore, Asset, AssetSale, Wallet } from '@/hooks/useFinanceStore';
+import { useFinanceStore, Asset, AssetSale, Wallet, Transaction } from '@/hooks/useFinanceStore';
 import { deleteAssetAction, refreshAssetPricesAction } from '@/app/actions';
 import { formatCurrency } from '@/lib/exchange-rates';
 import { useRouter } from 'next/navigation';
@@ -22,11 +22,12 @@ interface TaxSummary {
 interface Props {
   initialAssets: Asset[];
   initialWallets: Wallet[];
+  initialTransactions: Transaction[];
   initialSales: AssetSale[];
   initialTaxSummary: TaxSummary | null;
 }
 
-export function AssetsPageClient({ initialAssets, initialWallets, initialSales, initialTaxSummary }: Props) {
+export function AssetsPageClient({ initialAssets, initialWallets, initialTransactions, initialSales, initialTaxSummary }: Props) {
   const { assets, setAssets, wallets, setWallets, assetSales, setAssetSales } = useFinanceStore();
   const router = useRouter();
 
@@ -104,17 +105,19 @@ export function AssetsPageClient({ initialAssets, initialWallets, initialSales, 
         </div>
       </div>
 
-      <div className="card-responsive">
-        <AssetList
-          assets={assets}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-          onSell={handleSell}
-        />
+      <div className="px-4 lg:px-0">
+        <div className="bg-card border border-border rounded-xl">
+          <AssetList
+            assets={assets}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+            onSell={handleSell}
+          />
+        </div>
       </div>
 
       <div className="px-4 lg:px-0">
-        <CompoundInterestChart initialCapital={assets.reduce((sum, a) => sum + a.total_value, 0)} />
+        <CompoundInterestChart initialCapital={assets.reduce((sum, a) => sum + a.total_value, 0)} transactions={initialTransactions} />
       </div>
 
       {/* Podsumowanie podatkowe */}

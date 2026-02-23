@@ -70,7 +70,10 @@ export function AssetList({ assets, onEdit, onDelete, onSell }: AssetListProps) 
 
       <div className="space-y-3">
         {assets.length === 0 ? (
-          <p className="text-muted-foreground text-center py-8">Brak aktywów</p>
+          <div className="flex flex-col items-center py-8 gap-3">
+            <img src="/Home element.gif" alt="" className="w-24 h-24 opacity-70" />
+            <p className="text-muted-foreground text-sm">Brak aktywów</p>
+          </div>
         ) : (
           assets.map((asset) => {
             const isPositive = asset.change_24h >= 0;
