@@ -9,6 +9,7 @@ import { deleteAssetAction, refreshAssetPricesAction } from '@/app/actions';
 import { formatCurrency } from '@/lib/exchange-rates';
 import { useRouter } from 'next/navigation';
 import { Plus, RefreshCw, Receipt, TrendingUp, TrendingDown, Landmark, Calculator, BadgeDollarSign } from 'lucide-react';
+import { CompoundInterestChart } from '@/components/CompoundInterestChart';
 
 interface TaxSummary {
   totalProceeds: number;
@@ -110,6 +111,10 @@ export function AssetsPageClient({ initialAssets, initialWallets, initialSales, 
           onDelete={handleDelete}
           onSell={handleSell}
         />
+      </div>
+
+      <div className="px-4 lg:px-0">
+        <CompoundInterestChart initialCapital={assets.reduce((sum, a) => sum + a.total_value, 0)} />
       </div>
 
       {/* Podsumowanie podatkowe */}
