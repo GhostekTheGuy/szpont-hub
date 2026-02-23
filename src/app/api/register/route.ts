@@ -11,13 +11,29 @@ export async function POST(request: Request) {
       return new NextResponse("Brakujące dane", { status: 400 });
     }
 
+    // Walidacja formatu email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (typeof email !== 'string' || !emailRegex.test(email) || email.length > 254) {
+      return new NextResponse("Nieprawidłowy format email", { status: 400 });
+    }
+
+    // Walidacja hasła
+    if (typeof password !== 'string' || password.length < 8) {
+      return new NextResponse("Hasło musi mieć co najmniej 8 znaków", { status: 400 });
+    }
+
+    // Walidacja nazwy
+    if (typeof name !== 'string' || name.trim().length === 0 || name.length > 100) {
+      return new NextResponse("Nieprawidłowa nazwa użytkownika", { status: 400 });
+    }
+
     // Utwórz użytkownika przez Supabase Auth
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email,
+      email: email.trim().toLowerCase(),
       password,
       email_confirm: true, // Automatycznie potwierdź email
       user_metadata: {
-        name,
+        name: name.trim(),
       },
     });
 
@@ -26,7 +42,7 @@ export async function POST(request: Request) {
       if (authError.message.includes("already")) {
         return new NextResponse("Email już istnieje", { status: 400 });
       }
-      return new NextResponse(authError.message, { status: 400 });
+      return new NextResponse("Nie udało się utworzyć konta", { status: 400 });
     }
 
     // Generuj klucze szyfrowania E2E
@@ -59,8 +75,8 @@ export async function POST(request: Request) {
       message: "Konto utworzone pomyślnie",
       user: { id: authData.user.id, email, name }
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Registration error:", error);
-    return new NextResponse(error.message || "Błąd serwera", { status: 500 });
+    return new NextResponse("Błąd serwera", { status: 500 });
   }
 }

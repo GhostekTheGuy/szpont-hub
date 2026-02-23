@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
+import { getUser } from "@/lib/supabase/cached";
 
 export async function POST(request: Request) {
   try {
+    const user = await getUser();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
@@ -13,11 +19,26 @@ export async function POST(request: Request) {
     const data = await request.json();
     const { totalEarnings, totalHours, byWallet, previousWeekEarnings, previousWeekHours, eventCount, confirmedCount, period } = data;
 
-    const periodName = period || 'tydzień';
+    // Walidacja typów numerycznych
+    if (typeof totalEarnings !== 'number' || typeof totalHours !== 'number' ||
+        typeof previousWeekEarnings !== 'number' || typeof previousWeekHours !== 'number' ||
+        typeof eventCount !== 'number') {
+      return NextResponse.json({ error: "Nieprawidłowe dane" }, { status: 400 });
+    }
+
+    const allowedPeriods = ['tydzień', 'miesiąc'];
+    const periodName = allowedPeriods.includes(period) ? period : 'tydzień';
     const prevPeriodName = periodName === 'miesiąc' ? 'poprzedni miesiąc' : 'poprzedni tydzień';
 
-    const walletBreakdown = (byWallet || [])
-      .map((w: { name: string; earnings: number; hours: number }) => `- ${w.name}: ${w.earnings.toFixed(2)} PLN (${w.hours.toFixed(1)}h)`)
+    // Sanityzacja nazw portfeli — ogranicz do 50 znaków, usuń znaki kontrolne
+    const sanitizeName = (name: string) =>
+      String(name).replace(/[\x00-\x1f]/g, '').slice(0, 50);
+
+    const walletBreakdown = (Array.isArray(byWallet) ? byWallet : [])
+      .slice(0, 20) // max 20 portfeli
+      .filter((w): w is { name: string; earnings: number; hours: number } =>
+        typeof w?.name === 'string' && typeof w?.earnings === 'number' && typeof w?.hours === 'number')
+      .map((w) => `- ${sanitizeName(w.name)}: ${w.earnings.toFixed(2)} PLN (${w.hours.toFixed(1)}h)`)
       .join('\n');
 
     const confirmed = confirmedCount ?? eventCount;

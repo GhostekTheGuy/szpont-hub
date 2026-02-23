@@ -9,6 +9,7 @@ import { exchangeCode, listCalendars, getOAuth2Client } from '@/lib/google-calen
 export async function GET(request: NextRequest) {
   const url = request.nextUrl;
   const code = url.searchParams.get('code');
+  const state = url.searchParams.get('state');
   const error = url.searchParams.get('error');
 
   if (error || !code) {
@@ -21,6 +22,14 @@ export async function GET(request: NextRequest) {
   }
 
   const cookieStore = await cookies();
+
+  // Verify OAuth state nonce to prevent CSRF
+  const savedState = cookieStore.get('oauth_state')?.value;
+  cookieStore.delete('oauth_state');
+  if (!state || !savedState || state !== savedState) {
+    return NextResponse.redirect(new URL('/calendar?google_error=invalid_state', request.url));
+  }
+
   const encryptedCookie = cookieStore.get('encryption_dek')?.value;
   if (!encryptedCookie) {
     return NextResponse.redirect(new URL('/login', request.url));

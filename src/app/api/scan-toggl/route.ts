@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getUser } from "@/lib/supabase/cached";
 
 async function extractPdfText(buffer: ArrayBuffer): Promise<string> {
   // Import internal module directly to avoid pdf-parse's top-level fs.readFileSync in index.js
@@ -33,6 +34,11 @@ Zasady:
 
 export async function POST(request: Request) {
   try {
+    const user = await getUser();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
@@ -47,6 +53,14 @@ export async function POST(request: Request) {
     if (!file) {
       return NextResponse.json(
         { error: "Brak pliku" },
+        { status: 400 }
+      );
+    }
+
+    // Max 10MB
+    if (file.size > 10 * 1024 * 1024) {
+      return NextResponse.json(
+        { error: "Plik za duży (max 10MB)" },
         { status: 400 }
       );
     }

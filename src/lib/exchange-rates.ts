@@ -22,15 +22,21 @@ export async function getExchangeRates(): Promise<ExchangeRates> {
   try {
     const res = await fetch('https://api.frankfurter.app/latest?from=PLN&to=USD,EUR', {
       next: { revalidate: 3600 },
+      signal: AbortSignal.timeout(5000),
     });
 
     if (!res.ok) throw new Error('Failed to fetch rates');
 
     const data = await res.json();
+    const usd = Number(data.rates?.USD);
+    const eur = Number(data.rates?.EUR);
+    if (!isFinite(usd) || !isFinite(eur) || usd <= 0 || eur <= 0) {
+      throw new Error('Invalid rate values from API');
+    }
     cachedRates = {
       PLN: 1,
-      USD: data.rates.USD,
-      EUR: data.rates.EUR,
+      USD: usd,
+      EUR: eur,
     };
     cacheTimestamp = now;
     return cachedRates;
@@ -81,7 +87,7 @@ export async function getHistoricalRates(
   try {
     const res = await fetch(
       `https://api.frankfurter.app/${startDate}..${endDate}?from=PLN&to=USD,EUR`,
-      { next: { revalidate: 900 } }
+      { next: { revalidate: 900 }, signal: AbortSignal.timeout(10000) }
     );
 
     if (!res.ok) throw new Error('Failed to fetch historical rates');

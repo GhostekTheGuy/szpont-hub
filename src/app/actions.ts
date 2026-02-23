@@ -85,7 +85,7 @@ export async function initEncryptionSession(password: string) {
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     path: '/',
-    maxAge: 60 * 60 * 24 * 7, // 7 dni
+    maxAge: 60 * 60 * 24, // 24h
   });
 }
 
@@ -173,13 +173,6 @@ export async function getDashboardData() {
 }
 
 export async function getWalletsWithTransactions() {
-  const userId = await getUserId();
-  if (!userId) return null;
-
-  return fetchWalletsAndTransactions(userId);
-}
-
-export async function getTransactionsData() {
   const userId = await getUserId();
   if (!userId) return null;
 
@@ -290,8 +283,16 @@ export async function addTransactionAction(data: any) {
   const userId = await getUserId();
   if (!userId) throw new Error("Unauthorized");
 
+  // Walidacja danych wejściowych
+  if (typeof data?.amount !== 'number' || !isFinite(data.amount)) throw new Error("Invalid amount");
+  if (typeof data?.wallet !== 'string' || !data.wallet) throw new Error("Invalid wallet");
+  if (typeof data?.type !== 'string' || !['income', 'outcome'].includes(data.type)) throw new Error("Invalid type");
+  if (typeof data?.category !== 'string' || data.category.length > 100) throw new Error("Invalid category");
+  if (data.description && (typeof data.description !== 'string' || data.description.length > 500)) throw new Error("Invalid description");
+  if (data.date && !/^\d{4}-\d{2}-\d{2}$/.test(data.date)) throw new Error("Invalid date");
+
   const dek = await getDEK();
-  const currency: Currency = data.currency || 'PLN';
+  const currency: Currency = ['PLN', 'USD', 'EUR'].includes(data.currency) ? data.currency : 'PLN';
 
   // 1. Pobierz portfel
   const { data: wallet, error: walletError } = await supabaseAdmin
@@ -451,6 +452,14 @@ export async function editTransactionAction(id: string, data: any) {
   const userId = await getUserId();
   if (!userId) throw new Error("Unauthorized");
 
+  // Walidacja
+  if (typeof id !== 'string' || !id) throw new Error("Invalid id");
+  if (typeof data?.amount !== 'number' || !isFinite(data.amount)) throw new Error("Invalid amount");
+  if (typeof data?.wallet !== 'string' || !data.wallet) throw new Error("Invalid wallet");
+  if (typeof data?.type !== 'string' || !['income', 'outcome'].includes(data.type)) throw new Error("Invalid type");
+  if (typeof data?.category !== 'string' || data.category.length > 100) throw new Error("Invalid category");
+  if (data.date && !/^\d{4}-\d{2}-\d{2}$/.test(data.date)) throw new Error("Invalid date");
+
   const dek = await getDEK();
   const rates = await getExchangeRates();
 
@@ -517,6 +526,11 @@ export async function addWalletAction(data: any) {
   const userId = await getUserId();
   if (!userId) throw new Error("Unauthorized");
 
+  // Walidacja
+  if (typeof data?.name !== 'string' || data.name.trim().length === 0 || data.name.length > 100) throw new Error("Invalid name");
+  if (typeof data?.type !== 'string') throw new Error("Invalid type");
+  if (data.track_from && !/^\d{4}-\d{2}-\d{2}$/.test(data.track_from)) throw new Error("Invalid date");
+
   const dek = await getDEK();
 
   const trackFrom = data.track_from || new Date().toISOString().split('T')[0];
@@ -547,6 +561,11 @@ export async function addWalletAction(data: any) {
 export async function editWalletAction(id: string, data: any) {
   const userId = await getUserId();
   if (!userId) throw new Error("Unauthorized");
+
+  // Walidacja
+  if (typeof id !== 'string' || !id) throw new Error("Invalid id");
+  if (typeof data?.name !== 'string' || data.name.trim().length === 0 || data.name.length > 100) throw new Error("Invalid name");
+  if (typeof data?.type !== 'string') throw new Error("Invalid type");
 
   // Sprawdź czy portfel należy do użytkownika
   const { data: wallet } = await supabaseAdmin
@@ -1349,9 +1368,14 @@ export async function settleMonthAction(monthStart: string, monthEnd: string) {
 // --- YAHOO FINANCE ---
 
 export async function searchYahooFinance(query: string): Promise<{ symbol: string; name: string; exchange: string; type: string }[]> {
+  // Limit długości query
+  if (typeof query !== 'string' || query.length > 100) return [];
+  const sanitizedQuery = query.trim().slice(0, 100);
+  if (!sanitizedQuery) return [];
+
   try {
     const res = await fetch(
-      `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=8&newsCount=0&listsCount=0`,
+      `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(sanitizedQuery)}&quotesCount=8&newsCount=0&listsCount=0`,
       { headers: { 'User-Agent': 'Mozilla/5.0' } }
     );
     if (!res.ok) return [];
@@ -1371,7 +1395,9 @@ export async function searchYahooFinance(query: string): Promise<{ symbol: strin
 
 export async function fetchYahooQuotes(symbols: string[]): Promise<{ symbol: string; price: number; change: number; currency: string }[]> {
   const results: { symbol: string; price: number; change: number; currency: string }[] = [];
-  for (const symbol of symbols) {
+  // Limit do 20 symboli na raz
+  const limitedSymbols = symbols.slice(0, 20);
+  for (const symbol of limitedSymbols) {
     try {
       const res = await fetch(
         `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=2d`,
@@ -1411,10 +1437,14 @@ export async function addAssetAction(data: {
   let currentPrice = 0;
   let change24h = 0;
 
+  // Sanityzacja identyfikatorów zewnętrznych API
+  const safeCoingeckoId = (data.coingecko_id || '').replace(/[^a-z0-9\-]/gi, '').slice(0, 100);
+  const safeSymbol = (data.symbol || '').replace(/[^a-zA-Z0-9.\-^=]/g, '').slice(0, 20);
+
   if (assetType === 'stock') {
     // Yahoo Finance — price in original currency, convert to PLN
     try {
-      const quotes = await fetchYahooQuotes([data.symbol]);
+      const quotes = await fetchYahooQuotes([safeSymbol]);
       if (quotes.length > 0) {
         const q = quotes[0];
         change24h = q.change;
@@ -1439,7 +1469,7 @@ export async function addAssetAction(data: {
     // CoinGecko — price already in PLN
     try {
       const res = await fetch(
-        `https://api.coingecko.com/api/v3/coins/markets?vs_currency=pln&ids=${data.coingecko_id}&sparkline=false&price_change_percentage=24h`
+        `https://api.coingecko.com/api/v3/coins/markets?vs_currency=pln&ids=${safeCoingeckoId}&sparkline=false&price_change_percentage=24h`
       );
       if (res.ok) {
         const coins = await res.json();
@@ -1462,8 +1492,8 @@ export async function addAssetAction(data: {
       id: nanoid(),
       user_id: userId,
       name: encryptString(data.name, dek),
-      symbol: encryptString(data.symbol, dek),
-      coingecko_id: encryptString(data.coingecko_id || '', dek),
+      symbol: encryptString(safeSymbol, dek),
+      coingecko_id: encryptString(safeCoingeckoId, dek),
       quantity: encryptNumber(data.quantity, dek),
       current_price: encryptNumber(currentPrice, dek),
       total_value: encryptNumber(totalValue, dek),
@@ -2181,91 +2211,4 @@ export async function disconnectGoogleCalendar() {
     .eq('user_id', userId);
 
   revalidatePath('/', 'layout');
-}
-
-// --- MIGRACJA DANYCH ---
-
-export async function migrateUserDataToEncryption() {
-  const userId = await getUserId();
-  if (!userId) throw new Error("Unauthorized");
-
-  const dek = await getDEK();
-
-  // Migruj portfele
-  const { data: wallets } = await supabaseAdmin
-    .from('wallets')
-    .select('id, balance, name')
-    .eq('user_id', userId);
-
-  for (const w of wallets || []) {
-    const updates: Record<string, string> = {};
-    // Saldo
-    if (typeof w.balance === 'string' && !w.balance.includes(':')) {
-      updates.balance = encryptNumber(parseFloat(w.balance), dek);
-    } else if (typeof w.balance === 'number') {
-      updates.balance = encryptNumber(w.balance, dek);
-    }
-    // Nazwa
-    if (w.name && typeof w.name === 'string' && w.name.split(':').length !== 3) {
-      updates.name = encryptString(w.name, dek);
-    }
-    if (Object.keys(updates).length > 0) {
-      await supabaseAdmin
-        .from('wallets')
-        .update(updates)
-        .eq('id', w.id);
-    }
-  }
-
-  // Migruj transakcje
-  const { data: transactions } = await supabaseAdmin
-    .from('transactions')
-    .select('id, amount, category, description, wallet_id')
-    .in('wallet_id', (wallets || []).map(w => w.id));
-
-  for (const t of transactions || []) {
-    const updates: Record<string, string | null> = {};
-    // Amount
-    if (typeof t.amount === 'string' && !t.amount.includes(':')) {
-      updates.amount = encryptNumber(parseFloat(t.amount), dek);
-    } else if (typeof t.amount === 'number') {
-      updates.amount = encryptNumber(t.amount, dek);
-    }
-    // Category
-    if (t.category && typeof t.category === 'string' && t.category.split(':').length !== 3) {
-      updates.category = encryptString(t.category, dek);
-    }
-    // Description
-    if (t.description && typeof t.description === 'string' && t.description.split(':').length !== 3) {
-      updates.description = encryptString(t.description, dek);
-    }
-    if (Object.keys(updates).length > 0) {
-      await supabaseAdmin
-        .from('transactions')
-        .update(updates)
-        .eq('id', t.id);
-    }
-  }
-
-  // Migruj aktywa
-  const { data: assets } = await supabaseAdmin
-    .from('assets')
-    .select('id, quantity, current_price, total_value')
-    .eq('user_id', userId);
-
-  for (const a of assets || []) {
-    const updates: Record<string, string> = {};
-    for (const field of ['quantity', 'current_price', 'total_value'] as const) {
-      const val = a[field];
-      if (typeof val === 'string' && val.includes(':')) continue;
-      const num = typeof val === 'number' ? val : parseFloat(val);
-      updates[field] = encryptNumber(num, dek);
-    }
-    if (Object.keys(updates).length > 0) {
-      await supabaseAdmin
-        .from('assets')
-        .update(updates)
-        .eq('id', a.id);
-    }
-  }
 }

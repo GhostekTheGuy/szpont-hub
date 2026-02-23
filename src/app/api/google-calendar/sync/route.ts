@@ -65,7 +65,7 @@ export async function POST() {
     .eq('user_id', user.id)
     .eq('is_enabled', true);
 
-  console.log(`[Google Sync] Found ${mappings?.length || 0} enabled mappings for user ${user.id}`);
+  console.log(`[Google Sync] Found ${mappings?.length || 0} enabled mappings`);
 
   if (!mappings || mappings.length === 0) {
     return NextResponse.json({ synced: 0, message: 'No enabled calendars' });
@@ -74,7 +74,7 @@ export async function POST() {
   let totalSynced = 0;
 
   for (const mapping of mappings) {
-    console.log(`[Google Sync] Syncing calendar: ${mapping.google_calendar_id}, syncToken: ${mapping.sync_token ? 'yes' : 'no'}`);
+    console.log(`[Google Sync] Syncing calendar, syncToken: ${mapping.sync_token ? 'yes' : 'no'}`);
     try {
       // Use syncToken for incremental sync, or time range for full sync
       const now = new Date();
@@ -94,7 +94,7 @@ export async function POST() {
         ? encryptNumber(0, dek) // placeholder - we keep existing rate on upsert
         : encryptNumber(0, dek);
 
-      console.log(`[Google Sync] Fetched ${result.events.length} events from ${mapping.google_calendar_id}`);
+      console.log(`[Google Sync] Fetched ${result.events.length} events`);
 
       for (const event of result.events) {
         if (event.status === 'cancelled') {
@@ -160,7 +160,7 @@ export async function POST() {
         .eq('id', mapping.id);
 
     } catch (err) {
-      console.error(`Sync failed for calendar ${mapping.google_calendar_id}:`, err);
+      console.error('[Google Sync] Sync failed for calendar:', err);
     }
   }
 
