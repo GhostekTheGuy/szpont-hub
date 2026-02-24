@@ -1,6 +1,6 @@
 /**
  * Demo account seed script
- * Creates demo@szpont.pl / demo1234 with rich data for screenshots
+ * Creates demo@szpont.pl / demo1234 with rich, realistic data
  *
  * Usage: npm run seed:demo
  */
@@ -33,52 +33,19 @@ function encrypt(plaintext: string, key: Buffer): string {
   return `${iv.toString('base64')}:${authTag.toString('base64')}:${encrypted.toString('base64')}`;
 }
 
-function generateDEK(): Buffer {
-  return crypto.randomBytes(KEY_LENGTH);
-}
-
-function generateSalt(): Buffer {
-  return crypto.randomBytes(KEY_LENGTH);
-}
-
-function encryptDEK(dek: Buffer, kek: Buffer): string {
-  return encrypt(dek.toString('base64'), kek);
-}
-
-function encryptNumber(value: number, dek: Buffer): string {
-  return encrypt(value.toString(), dek);
-}
-
-function encryptString(value: string, dek: Buffer): string {
-  if (!value) return value;
-  return encrypt(value, dek);
-}
+function generateDEK(): Buffer { return crypto.randomBytes(KEY_LENGTH); }
+function generateSalt(): Buffer { return crypto.randomBytes(KEY_LENGTH); }
+function encryptDEK(dek: Buffer, kek: Buffer): string { return encrypt(dek.toString('base64'), kek); }
+function encryptNumber(value: number, dek: Buffer): string { return encrypt(value.toString(), dek); }
+function encryptString(value: string, dek: Buffer): string { if (!value) return value; return encrypt(value, dek); }
 
 // ─── Helpers ───
 
-function nanoid(size = 21): string {
-  return crypto.randomBytes(size).toString('base64url').slice(0, size);
-}
-
-function randomInt(min: number, max: number): number {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
-function randomFloat(min: number, max: number, decimals = 2): number {
-  return parseFloat((Math.random() * (max - min) + min).toFixed(decimals));
-}
-
-function randomPick<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)];
-}
-
-function dateStr(d: Date): string {
-  return d.toISOString().split('T')[0];
-}
-
-function isoStr(d: Date): string {
-  return d.toISOString();
-}
+function nanoid(size = 21): string { return crypto.randomBytes(size).toString('base64url').slice(0, size); }
+function randomInt(min: number, max: number): number { return Math.floor(Math.random() * (max - min + 1)) + min; }
+function randomPick<T>(arr: T[]): T { return arr[Math.floor(Math.random() * arr.length)]; }
+function dateStr(d: Date): string { return d.toISOString().split('T')[0]; }
+function isoStr(d: Date): string { return d.toISOString(); }
 
 // ─── Config ───
 
@@ -112,7 +79,6 @@ async function main() {
 
   if (existingUser && FORCE) {
     console.log('Removing existing demo user...');
-    // Delete data first (order matters for FK)
     const uid = existingUser.id;
     await supabase.from('habit_entries').delete().in(
       'habit_id',
@@ -132,7 +98,13 @@ async function main() {
     console.log('Existing demo user removed.');
   }
 
-  // ── Step 1: Create user + encryption keys ──
+  // ══════════════════════════════════════════════
+  //  Kacper Szpont — freelance fullstack dev, 24
+  //  Main gig: kontrakt B2B w software house
+  //  Side: własne projekty, trochę crypto
+  // ══════════════════════════════════════════════
+
+  // ── Step 1: Create user ──
   console.log('\n1. Creating user...');
   const salt = generateSalt();
   const dek = generateDEK();
@@ -143,7 +115,7 @@ async function main() {
     email: EMAIL,
     password: PASSWORD,
     email_confirm: true,
-    user_metadata: { name: 'Demo User' },
+    user_metadata: { name: 'Kacper Szpont' },
   });
 
   if (authError || !authData.user) {
@@ -157,7 +129,7 @@ async function main() {
   const { error: dbError } = await supabase.from('users').insert({
     id: userId,
     email: EMAIL,
-    name: 'Demo User',
+    name: 'Kacper Szpont',
     encryption_salt: salt.toString('base64'),
     encrypted_dek: encryptedDek,
     created_at: new Date().toISOString(),
@@ -174,45 +146,65 @@ async function main() {
   // ── Step 2: Wallets ──
   console.log('\n2. Creating wallets...');
   const wallets = [
-    { id: nanoid(), name: 'Konto główne', type: 'fiat', balance: 15420, color: '#6366f1', icon: 'wallet', currency: 'PLN' },
-    { id: nanoid(), name: 'Oszczędności', type: 'fiat', balance: 47800, color: '#22c55e', icon: 'piggy-bank', currency: 'PLN' },
-    { id: nanoid(), name: 'Binance', type: 'crypto', balance: 12350, color: '#f59e0b', icon: 'bitcoin', currency: 'PLN' },
+    { id: nanoid(), name: 'mBank',        type: 'fiat',   balance: 8740,   color: '#6366f1', icon: 'wallet',     currency: 'PLN' },
+    { id: nanoid(), name: 'Oszczędności',  type: 'fiat',   balance: 34200,  color: '#22c55e', icon: 'piggy-bank', currency: 'PLN' },
+    { id: nanoid(), name: 'Revolut',       type: 'fiat',   balance: 2150,   color: '#0ea5e9', icon: 'credit-card', currency: 'PLN' },
+    { id: nanoid(), name: 'Binance',       type: 'crypto', balance: 18900,  color: '#f59e0b', icon: 'bitcoin',    currency: 'PLN' },
+    { id: nanoid(), name: 'Gotówka',       type: 'fiat',   balance: 420,    color: '#a3a3a3', icon: 'banknote',   currency: 'PLN' },
   ];
 
   for (const w of wallets) {
-    const { error } = await supabase.from('wallets').insert({
-      id: w.id,
-      user_id: userId,
+    await supabase.from('wallets').insert({
+      id: w.id, user_id: userId,
       name: encryptString(w.name, dek),
       balance: encryptNumber(w.balance, dek),
-      icon: w.icon,
-      color: w.color,
-      type: w.type,
-      currency: w.currency,
+      icon: w.icon, color: w.color, type: w.type, currency: w.currency,
       created_at: new Date().toISOString(),
     });
-    if (error) console.error(`   Wallet "${w.name}" error:`, error);
-    else console.log(`   ${w.name} (${w.type}) — ${w.balance} PLN`);
+    console.log(`   ${w.name} — ${w.balance} PLN`);
   }
 
-  const kontoId = wallets[0].id;
-  const oszczId = wallets[1].id;
-  const binanceId = wallets[2].id;
+  const [mbankId, oszczId, revolutId, binanceId, gotowkaId] = wallets.map(w => w.id);
 
-  // ── Step 3: Transactions (~120, last 12 months) ──
+  // ── Step 3: Transactions (~200, last 12 months) ──
   console.log('\n3. Creating transactions...');
   const now = new Date();
   let txCount = 0;
 
-  const incomeCategories = ['Praca', 'Freelance'];
-  const outcomeCategories = [
-    { name: 'Jedzenie', min: 800, max: 1200 },
-    { name: 'Transport', min: 200, max: 400 },
-    { name: 'Rachunki', min: 1500, max: 2000 },
-    { name: 'Rozrywka', min: 300, max: 600 },
-    { name: 'Zakupy', min: 400, max: 900 },
-    { name: 'Subskrypcje', min: 150, max: 250 },
+  const monthlyFixed = [
+    { cat: 'Wynagrodzenie B2B', amount: 14500, wallet: mbankId, type: 'income' as const, desc: 'Faktura — NovaSoft sp. z o.o.' },
+    { cat: 'Rachunki',          amount: -850,  wallet: mbankId, type: 'outcome' as const, desc: 'Czynsz + media' },
+    { cat: 'Rachunki',          amount: -89,   wallet: mbankId, type: 'outcome' as const, desc: 'Internet Netia' },
+    { cat: 'Rachunki',          amount: -65,   wallet: mbankId, type: 'outcome' as const, desc: 'Telefon Play' },
+    { cat: 'Subskrypcje',       amount: -49,   wallet: revolutId, type: 'outcome' as const, desc: 'Spotify Family' },
+    { cat: 'Subskrypcje',       amount: -45,   wallet: revolutId, type: 'outcome' as const, desc: 'ChatGPT Plus' },
+    { cat: 'Subskrypcje',       amount: -39,   wallet: revolutId, type: 'outcome' as const, desc: 'GitHub Copilot' },
+    { cat: 'Subskrypcje',       amount: -55,   wallet: revolutId, type: 'outcome' as const, desc: 'Netflix' },
+    { cat: 'Ubezpieczenia',     amount: -320,  wallet: mbankId, type: 'outcome' as const, desc: 'Składka ZUS' },
   ];
+
+  const variableOutcome = [
+    { cat: 'Jedzenie',    descs: ['Biedronka', 'Lidl', 'Żabka', 'Uber Eats', 'Pyszne.pl', 'Starbucks', 'Kebab u Alego', 'Sushi Kushi'], min: 25, max: 180 },
+    { cat: 'Transport',   descs: ['Bolt', 'Uber', 'Orlen tankowanie', 'Bilety PKP', 'Parking'], min: 15, max: 250 },
+    { cat: 'Rozrywka',    descs: ['Cinema City', 'Steam', 'PS Store', 'Bilety na koncert', 'Escape room'], min: 30, max: 200 },
+    { cat: 'Zakupy',      descs: ['Amazon', 'Allegro', 'Media Expert', 'IKEA', 'Decathlon', 'Zalando'], min: 50, max: 600 },
+    { cat: 'Zdrowie',     descs: ['Apteka', 'Wizyta lekarz', 'Suplementy'], min: 30, max: 200 },
+    { cat: 'Jedzenie',    descs: ['Makro', 'Auchan', 'Carrefour'], min: 150, max: 400 },
+    { cat: 'Edukacja',    descs: ['Udemy kurs', 'Książka tech', 'Konferencja'], min: 40, max: 300 },
+  ];
+
+  const freelanceGigs = [
+    { desc: 'Landing page — FitLife', amount: 2500 },
+    { desc: 'Redesign UI — Booksy clone', amount: 4000 },
+    { desc: 'API integration — klient DE', amount: 3200 },
+    { desc: 'Konsultacja tech — startup', amount: 800 },
+    { desc: 'Fix bugs — e-commerce', amount: 1200 },
+    { desc: 'Dashboard analytics — SaaS', amount: 5500 },
+    { desc: 'Mobile app prototype', amount: 3800 },
+    { desc: 'Automatyzacja CI/CD', amount: 2000 },
+  ];
+
+  let freelanceIdx = 0;
 
   for (let monthsAgo = 11; monthsAgo >= 0; monthsAgo--) {
     const monthDate = new Date(now.getFullYear(), now.getMonth() - monthsAgo, 1);
@@ -220,82 +212,92 @@ async function main() {
     const month = monthDate.getMonth();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-    // Income: 2-3 per month
-    const incomeCount = randomInt(2, 3);
-    for (let i = 0; i < incomeCount; i++) {
-      const cat = i === 0 ? 'Praca' : randomPick(incomeCategories);
-      const amount = cat === 'Praca' ? randomInt(7000, 9000) : randomInt(1000, 3000);
-      const day = randomInt(1, Math.min(28, daysInMonth));
-      const txDate = new Date(year, month, day);
-      const currency = Math.random() < 0.85 ? 'PLN' : randomPick(['EUR', 'USD']);
-
+    // Monthly fixed
+    for (const f of monthlyFixed) {
+      const day = f.type === 'income' ? randomInt(1, 5) : randomInt(1, 10);
+      const txDate = new Date(year, month, Math.min(day, daysInMonth));
       await supabase.from('transactions').insert({
-        id: nanoid(),
-        wallet_id: kontoId,
-        amount: encryptNumber(amount, dek),
-        category: encryptString(cat, dek),
-        description: encryptString(cat === 'Praca' ? 'Wypłata' : 'Projekt', dek),
-        type: 'income',
-        date: dateStr(txDate),
-        currency,
-        created_at: isoStr(txDate),
+        id: nanoid(), wallet_id: f.wallet,
+        amount: encryptNumber(Math.abs(f.amount), dek),
+        category: encryptString(f.cat, dek),
+        description: encryptString(f.desc, dek),
+        type: f.type, date: dateStr(txDate),
+        currency: 'PLN', created_at: isoStr(txDate),
       });
       txCount++;
     }
 
-    // Outcome: 6-10 per month
-    const outcomeCount = randomInt(6, 10);
-    const usedCategories = new Set<string>();
-    for (let i = 0; i < outcomeCount; i++) {
-      let cat: typeof outcomeCategories[number];
-      if (usedCategories.size < outcomeCategories.length && i < outcomeCategories.length) {
-        // Ensure variety first
-        do {
-          cat = randomPick(outcomeCategories);
-        } while (usedCategories.has(cat.name) && usedCategories.size < outcomeCategories.length);
-      } else {
-        cat = randomPick(outcomeCategories);
-      }
-      usedCategories.add(cat.name);
-
+    // Variable spending: 8-14 per month
+    const varCount = randomInt(8, 14);
+    for (let i = 0; i < varCount; i++) {
+      const cat = randomPick(variableOutcome);
       const amount = randomInt(cat.min, cat.max);
       const day = randomInt(1, Math.min(28, daysInMonth));
       const txDate = new Date(year, month, day);
-      const walletId = Math.random() < 0.7 ? kontoId : Math.random() < 0.5 ? oszczId : binanceId;
-      const currency = Math.random() < 0.9 ? 'PLN' : randomPick(['EUR', 'USD']);
+      const walletId = Math.random() < 0.5 ? mbankId : Math.random() < 0.6 ? revolutId : gotowkaId;
 
       await supabase.from('transactions').insert({
-        id: nanoid(),
-        wallet_id: walletId,
+        id: nanoid(), wallet_id: walletId,
         amount: encryptNumber(-amount, dek),
-        category: encryptString(cat.name, dek),
-        description: null,
-        type: 'outcome',
-        date: dateStr(txDate),
-        currency,
+        category: encryptString(cat.cat, dek),
+        description: encryptString(randomPick(cat.descs), dek),
+        type: 'outcome', date: dateStr(txDate),
+        currency: walletId === revolutId && Math.random() < 0.2 ? 'EUR' : 'PLN',
         created_at: isoStr(txDate),
       });
       txCount++;
     }
 
-    // Transfer: 1-2 per month (Konto główne → Oszczędności)
+    // Freelance income: 0-2 per month
+    const freelanceCount = randomInt(0, 2);
+    for (let i = 0; i < freelanceCount; i++) {
+      const gig = freelanceGigs[freelanceIdx % freelanceGigs.length];
+      freelanceIdx++;
+      const day = randomInt(10, 28);
+      const txDate = new Date(year, month, Math.min(day, daysInMonth));
+      const currency = Math.random() < 0.7 ? 'PLN' : randomPick(['EUR', 'USD']);
+
+      await supabase.from('transactions').insert({
+        id: nanoid(), wallet_id: Math.random() < 0.6 ? mbankId : revolutId,
+        amount: encryptNumber(gig.amount, dek),
+        category: encryptString('Freelance', dek),
+        description: encryptString(gig.desc, dek),
+        type: 'income', date: dateStr(txDate),
+        currency, created_at: isoStr(txDate),
+      });
+      txCount++;
+    }
+
+    // Transfers: 1-2 per month
     const transferCount = randomInt(1, 2);
     for (let i = 0; i < transferCount; i++) {
-      const amount = randomInt(1000, 3000);
-      const day = randomInt(1, Math.min(28, daysInMonth));
-      const txDate = new Date(year, month, day);
+      const amount = randomPick([1000, 1500, 2000, 2500, 3000]);
+      const day = randomInt(5, 15);
+      const txDate = new Date(year, month, Math.min(day, daysInMonth));
 
-      // Outgoing from Konto główne
       await supabase.from('transactions').insert({
-        id: nanoid(),
-        wallet_id: kontoId,
+        id: nanoid(), wallet_id: mbankId,
         amount: encryptNumber(amount, dek),
         category: encryptString('Transfer', dek),
         description: encryptString('Oszczędności', dek),
-        type: 'transfer',
-        date: dateStr(txDate),
-        currency: 'PLN',
-        created_at: isoStr(txDate),
+        type: 'transfer', date: dateStr(txDate),
+        currency: 'PLN', created_at: isoStr(txDate),
+      });
+      txCount++;
+    }
+
+    // Occasional crypto buy
+    if (Math.random() < 0.3) {
+      const amount = randomPick([500, 1000, 1500, 2000]);
+      const day = randomInt(1, 28);
+      const txDate = new Date(year, month, Math.min(day, daysInMonth));
+      await supabase.from('transactions').insert({
+        id: nanoid(), wallet_id: binanceId,
+        amount: encryptNumber(amount, dek),
+        category: encryptString('Crypto DCA', dek),
+        description: encryptString(randomPick(['Zakup BTC', 'Zakup ETH', 'Zakup SOL']), dek),
+        type: 'income', date: dateStr(txDate),
+        currency: 'PLN', created_at: isoStr(txDate),
       });
       txCount++;
     }
@@ -305,19 +307,19 @@ async function main() {
   // ── Step 4: Assets ──
   console.log('\n4. Creating assets...');
   const assets = [
-    { symbol: 'BTC', name: 'Bitcoin', coingecko_id: 'bitcoin', quantity: 0.15, current_price: 410000, cost_basis: 380000, change_24h: 2.4, asset_type: 'crypto' },
-    { symbol: 'ETH', name: 'Ethereum', coingecko_id: 'ethereum', quantity: 2.5, current_price: 16500, cost_basis: 14200, change_24h: 1.8, asset_type: 'crypto' },
-    { symbol: 'SOL', name: 'Solana', coingecko_id: 'solana', quantity: 45, current_price: 780, cost_basis: 620, change_24h: 5.1, asset_type: 'crypto' },
-    { symbol: 'ADA', name: 'Cardano', coingecko_id: 'cardano', quantity: 3000, current_price: 2.80, cost_basis: 2.10, change_24h: -1.2, asset_type: 'crypto' },
-    { symbol: 'LINK', name: 'Chainlink', coingecko_id: 'chainlink', quantity: 120, current_price: 85, cost_basis: 65, change_24h: 3.3, asset_type: 'crypto' },
-    { symbol: 'XRP', name: 'XRP', coingecko_id: 'ripple', quantity: 2000, current_price: 4.20, cost_basis: 3.50, change_24h: 0.8, asset_type: 'crypto' },
+    { symbol: 'BTC',  name: 'Bitcoin',   coingecko_id: 'bitcoin',   quantity: 0.085, current_price: 395000, cost_basis: 352000, change_24h: 1.9,  asset_type: 'crypto' },
+    { symbol: 'ETH',  name: 'Ethereum',  coingecko_id: 'ethereum',  quantity: 1.8,   current_price: 14200,  cost_basis: 11800,  change_24h: 2.4,  asset_type: 'crypto' },
+    { symbol: 'SOL',  name: 'Solana',    coingecko_id: 'solana',    quantity: 32,    current_price: 720,    cost_basis: 540,    change_24h: 4.7,  asset_type: 'crypto' },
+    { symbol: 'LINK', name: 'Chainlink', coingecko_id: 'chainlink', quantity: 85,    current_price: 78,     cost_basis: 58,     change_24h: 1.2,  asset_type: 'crypto' },
+    { symbol: 'AVAX', name: 'Avalanche', coingecko_id: 'avalanche-2', quantity: 50,  current_price: 145,    cost_basis: 120,    change_24h: -0.8, asset_type: 'crypto' },
+    { symbol: 'AAPL', name: 'Apple',     coingecko_id: '',          quantity: 5,     current_price: 920,    cost_basis: 780,    change_24h: 0.4,  asset_type: 'stock' },
+    { symbol: 'NVDA', name: 'NVIDIA',    coingecko_id: '',          quantity: 3,     current_price: 4850,   cost_basis: 3200,   change_24h: 1.1,  asset_type: 'stock' },
   ];
 
   for (const a of assets) {
     const totalValue = a.quantity * a.current_price;
-    const { error } = await supabase.from('assets').insert({
-      id: nanoid(),
-      user_id: userId,
+    await supabase.from('assets').insert({
+      id: nanoid(), user_id: userId,
       name: encryptString(a.name, dek),
       symbol: encryptString(a.symbol, dek),
       coingecko_id: encryptString(a.coingecko_id, dek),
@@ -329,33 +331,21 @@ async function main() {
       asset_type: a.asset_type,
       created_at: new Date().toISOString(),
     });
-    if (error) console.error(`   Asset "${a.symbol}" error:`, error);
-    else console.log(`   ${a.symbol} — ${a.quantity} × ${a.current_price} PLN`);
+    console.log(`   ${a.symbol} — ${a.quantity} × ${a.current_price} PLN`);
   }
 
   // ── Step 5: Asset Sales ──
   console.log('\n5. Creating asset sales...');
   const sales = [
-    {
-      asset_name: 'Dogecoin', asset_symbol: 'DOGE',
-      quantity_sold: 5000, sale_price_per_unit: 1.20, cost_basis_per_unit: 0.80,
-      total_proceeds: 6000, total_cost: 4000, profit: 2000, tax_amount: 380,
-      sale_date: dateStr(new Date(now.getFullYear(), now.getMonth() - 2, 15)),
-    },
-    {
-      asset_name: 'Polkadot', asset_symbol: 'DOT',
-      quantity_sold: 100, sale_price_per_unit: 32, cost_basis_per_unit: 45,
-      total_proceeds: 3200, total_cost: 4500, profit: -1300, tax_amount: 0,
-      sale_date: dateStr(new Date(now.getFullYear(), now.getMonth() - 1, 8)),
-    },
+    { asset_name: 'Dogecoin', asset_symbol: 'DOGE', quantity_sold: 8000, sale_price_per_unit: 1.45, cost_basis_per_unit: 0.90, total_proceeds: 11600, total_cost: 7200, profit: 4400, tax_amount: 836, sale_date: dateStr(new Date(now.getFullYear(), now.getMonth() - 3, 22)) },
+    { asset_name: 'Polkadot', asset_symbol: 'DOT', quantity_sold: 150, sale_price_per_unit: 28, cost_basis_per_unit: 38, total_proceeds: 4200, total_cost: 5700, profit: -1500, tax_amount: 0, sale_date: dateStr(new Date(now.getFullYear(), now.getMonth() - 2, 8)) },
+    { asset_name: 'Cardano', asset_symbol: 'ADA', quantity_sold: 5000, sale_price_per_unit: 2.85, cost_basis_per_unit: 1.60, total_proceeds: 14250, total_cost: 8000, profit: 6250, tax_amount: 1187, sale_date: dateStr(new Date(now.getFullYear(), now.getMonth() - 1, 14)) },
   ];
 
   for (const s of sales) {
-    const { error } = await supabase.from('asset_sales').insert({
-      id: nanoid(),
-      user_id: userId,
-      asset_name: encryptString(s.asset_name, dek),
-      asset_symbol: encryptString(s.asset_symbol, dek),
+    await supabase.from('asset_sales').insert({
+      id: nanoid(), user_id: userId,
+      asset_name: encryptString(s.asset_name, dek), asset_symbol: encryptString(s.asset_symbol, dek),
       quantity_sold: encryptNumber(s.quantity_sold, dek),
       sale_price_per_unit: encryptNumber(s.sale_price_per_unit, dek),
       cost_basis_per_unit: encryptNumber(s.cost_basis_per_unit, dek),
@@ -363,213 +353,262 @@ async function main() {
       total_cost: encryptNumber(s.total_cost, dek),
       profit: encryptNumber(s.profit, dek),
       tax_amount: encryptNumber(s.tax_amount, dek),
-      wallet_id: binanceId,
-      sale_date: s.sale_date,
-      created_at: new Date().toISOString(),
+      wallet_id: binanceId, sale_date: s.sale_date, created_at: new Date().toISOString(),
     });
-    if (error) console.error(`   Sale "${s.asset_symbol}" error:`, error);
-    else console.log(`   ${s.asset_symbol} — profit: ${s.profit} PLN`);
+    console.log(`   ${s.asset_symbol} — profit: ${s.profit} PLN`);
   }
 
-  // ── Step 6: Calendar Events (3 months) ──
+  // ── Step 6: Calendar Events (6 months, dense) ──
   console.log('\n6. Creating calendar events...');
   let eventCount = 0;
 
-  const workTitles = ['Praca zdalna', 'Biuro', 'Projekt klienta', 'Spotkanie z zespołem', 'Deploy produkcyjny', 'Sprint planning', 'Refactoring API', 'Konsultacja techniczna'];
-  const personalTitles = ['Siłownia', 'Spotkanie', 'Lekarz', 'Zakupy', 'Fryzjer', 'Dentysta', 'Kino', 'Kolacja', 'Spacer', 'Basen'];
-  const meetingTitles = ['1:1 z managerem', 'Retro', 'Demo klienta', 'Sync z designem', 'Onboarding nowego', 'Planowanie Q2', 'Rozmowa z inwestorem'];
+  // Kacper works B2B for NovaSoft, has clients, and personal life
+  // Typical week: Mon-Fri work blocks at NovaSoft + meetings + freelance evenings + personal
 
-  for (let weeksAgo = 12; weeksAgo >= -1; weeksAgo--) {
+  for (let weeksAgo = 24; weeksAgo >= -2; weeksAgo--) {
     const weekStart = new Date(now);
     weekStart.setDate(weekStart.getDate() - weeksAgo * 7);
     weekStart.setHours(0, 0, 0, 0);
-    // Find Monday of this week
     const dayOfWeek = weekStart.getDay();
     const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
     weekStart.setDate(weekStart.getDate() + mondayOffset);
 
-    // Work events: 4-5 per week, Mon-Fri (main work blocks)
-    const workDays = [0, 1, 2, 3, 4]; // Mon-Fri offsets
-    const workCount = randomInt(4, 5);
-    const selectedWorkDays = workDays.sort(() => Math.random() - 0.5).slice(0, workCount);
+    const isSettled = weeksAgo > 2;
+    const isConfirmed = weeksAgo > 0 || Math.random() < 0.7;
 
-    for (const dayOffset of selectedWorkDays) {
-      const eventDate = new Date(weekStart);
-      eventDate.setDate(eventDate.getDate() + dayOffset);
+    // ── Main work blocks: NovaSoft (Mon-Fri, 4-5 days) ──
+    const workDaysCount = randomInt(4, 5);
+    const allWorkDays = [0, 1, 2, 3, 4];
+    const selectedWorkDays = allWorkDays.sort(() => Math.random() - 0.5).slice(0, workDaysCount);
 
-      const isLong = Math.random() < 0.6;
-      const startHour = isLong ? 9 : 10;
-      const endHour = isLong ? 17 : 14;
-      const hourlyRate = randomInt(80, 150);
+    for (const dayOff of selectedWorkDays) {
+      const d = new Date(weekStart);
+      d.setDate(d.getDate() + dayOff);
 
-      const start = new Date(eventDate);
-      start.setHours(startHour, 0, 0, 0);
-      const end = new Date(eventDate);
-      end.setHours(endHour, 0, 0, 0);
+      const startH = randomPick([8, 9]);
+      const endH = randomPick([16, 17]);
+      const rate = 120;
 
-      const isSettled = weeksAgo > 1;
-      const isConfirmed = weeksAgo > 0 || Math.random() < 0.7;
+      const start = new Date(d); start.setHours(startH, 0, 0, 0);
+      const end = new Date(d); end.setHours(endH, 0, 0, 0);
+
+      const titles = ['Praca — NovaSoft', 'NovaSoft dev', 'NovaSoft — sprint', 'NovaSoft — feature work'];
 
       await supabase.from('calendar_events').insert({
-        id: nanoid(),
-        user_id: userId,
-        title: encryptString(randomPick(workTitles), dek),
-        wallet_id: kontoId,
-        hourly_rate: encryptNumber(hourlyRate, dek),
-        start_time: isoStr(start),
-        end_time: isoStr(end),
-        is_recurring: false,
-        recurrence_rule: null,
-        is_settled: isSettled,
-        is_confirmed: isConfirmed,
-        event_type: 'work',
-        created_at: isoStr(start),
+        id: nanoid(), user_id: userId,
+        title: encryptString(randomPick(titles), dek),
+        wallet_id: mbankId,
+        hourly_rate: encryptNumber(rate, dek),
+        start_time: isoStr(start), end_time: isoStr(end),
+        is_recurring: false, recurrence_rule: null,
+        is_settled: isSettled, is_confirmed: isConfirmed,
+        event_type: 'work', created_at: isoStr(start),
       });
       eventCount++;
     }
 
-    // Short meetings/calls: 2-4 per week, Mon-Fri (30min-1.5h slots)
-    const meetingCount = randomInt(2, 4);
-    for (let i = 0; i < meetingCount; i++) {
-      const dayOffset = randomInt(0, 4);
-      const eventDate = new Date(weekStart);
-      eventDate.setDate(eventDate.getDate() + dayOffset);
-
-      const startHour = randomInt(9, 16);
-      const startMin = randomPick([0, 30]);
-      const durationMin = randomPick([30, 45, 60, 90]);
-
-      const start = new Date(eventDate);
-      start.setHours(startHour, startMin, 0, 0);
-      const end = new Date(start.getTime() + durationMin * 60_000);
-
-      const isWork = Math.random() < 0.7;
-      const hourlyRate = isWork ? randomInt(100, 150) : 0;
+    // ── Recurring meetings ──
+    // Daily standup Mon-Fri 9:00-9:15
+    for (let d = 0; d < 5; d++) {
+      const day = new Date(weekStart);
+      day.setDate(day.getDate() + d);
+      const start = new Date(day); start.setHours(9, 0, 0, 0);
+      const end = new Date(day); end.setHours(9, 15, 0, 0);
 
       await supabase.from('calendar_events').insert({
-        id: nanoid(),
-        user_id: userId,
-        title: encryptString(randomPick(meetingTitles), dek),
-        wallet_id: isWork ? kontoId : null,
-        hourly_rate: encryptNumber(hourlyRate, dek),
-        start_time: isoStr(start),
-        end_time: isoStr(end),
-        is_recurring: false,
-        recurrence_rule: null,
-        is_settled: weeksAgo > 1,
-        is_confirmed: Math.random() < 0.85,
-        event_type: isWork ? 'work' : 'personal',
-        created_at: isoStr(start),
-      });
-      eventCount++;
-    }
-
-    // Personal events: 3-5 per week
-    const personalCount = randomInt(3, 5);
-    for (let i = 0; i < personalCount; i++) {
-      const dayOffset = randomInt(0, 6);
-      const eventDate = new Date(weekStart);
-      eventDate.setDate(eventDate.getDate() + dayOffset);
-
-      const startHour = randomInt(7, 20);
-      const startMin = randomPick([0, 15, 30, 45]);
-      const durationMin = randomPick([30, 45, 60, 90, 120]);
-
-      const start = new Date(eventDate);
-      start.setHours(startHour, startMin, 0, 0);
-      const end = new Date(start.getTime() + durationMin * 60_000);
-
-      await supabase.from('calendar_events').insert({
-        id: nanoid(),
-        user_id: userId,
-        title: encryptString(randomPick(personalTitles), dek),
-        wallet_id: null,
-        hourly_rate: encryptNumber(0, dek),
-        start_time: isoStr(start),
-        end_time: isoStr(end),
-        is_recurring: false,
-        recurrence_rule: null,
-        is_settled: false,
-        is_confirmed: Math.random() < 0.8,
-        event_type: 'personal',
-        created_at: isoStr(start),
-      });
-      eventCount++;
-    }
-
-    // Recurring weekly: Standup (Mon 9:00-9:30), Code review (Wed 14:00-15:00), Piątkowy sync (Fri 10:00-10:30)
-    if (weeksAgo >= 0) {
-      // Standup — Monday
-      const mon = new Date(weekStart);
-      const monStart = new Date(mon);
-      monStart.setHours(9, 0, 0, 0);
-      const monEnd = new Date(mon);
-      monEnd.setHours(9, 30, 0, 0);
-
-      await supabase.from('calendar_events').insert({
-        id: nanoid(),
-        user_id: userId,
-        title: encryptString('Standup', dek),
-        wallet_id: kontoId,
-        hourly_rate: encryptNumber(100, dek),
-        start_time: isoStr(monStart),
-        end_time: isoStr(monEnd),
-        is_recurring: true,
-        recurrence_rule: 'RRULE:FREQ=WEEKLY;BYDAY=MO',
-        is_settled: weeksAgo > 1,
-        is_confirmed: true,
-        event_type: 'work',
-        created_at: isoStr(monStart),
-      });
-      eventCount++;
-
-      // Code review — Wednesday
-      const wed = new Date(weekStart);
-      wed.setDate(wed.getDate() + 2);
-      const wedStart = new Date(wed);
-      wedStart.setHours(14, 0, 0, 0);
-      const wedEnd = new Date(wed);
-      wedEnd.setHours(15, 0, 0, 0);
-
-      await supabase.from('calendar_events').insert({
-        id: nanoid(),
-        user_id: userId,
-        title: encryptString('Code review', dek),
-        wallet_id: kontoId,
+        id: nanoid(), user_id: userId,
+        title: encryptString('Daily standup', dek),
+        wallet_id: mbankId,
         hourly_rate: encryptNumber(120, dek),
-        start_time: isoStr(wedStart),
-        end_time: isoStr(wedEnd),
-        is_recurring: true,
-        recurrence_rule: 'RRULE:FREQ=WEEKLY;BYDAY=WE',
-        is_settled: weeksAgo > 1,
-        is_confirmed: true,
-        event_type: 'work',
-        created_at: isoStr(wedStart),
+        start_time: isoStr(start), end_time: isoStr(end),
+        is_recurring: true, recurrence_rule: 'RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR',
+        is_settled: isSettled, is_confirmed: true,
+        event_type: 'work', created_at: isoStr(start),
       });
       eventCount++;
+    }
 
-      // Piątkowy sync — Friday
-      const fri = new Date(weekStart);
-      fri.setDate(fri.getDate() + 4);
-      const friStart = new Date(fri);
-      friStart.setHours(10, 0, 0, 0);
-      const friEnd = new Date(fri);
-      friEnd.setHours(10, 30, 0, 0);
+    // Sprint planning — Monday 10:00-11:30 (co 2 tygodnie)
+    if (weeksAgo % 2 === 0) {
+      const mon = new Date(weekStart);
+      const start = new Date(mon); start.setHours(10, 0, 0, 0);
+      const end = new Date(mon); end.setHours(11, 30, 0, 0);
 
       await supabase.from('calendar_events').insert({
-        id: nanoid(),
-        user_id: userId,
-        title: encryptString('Weekly sync', dek),
-        wallet_id: kontoId,
-        hourly_rate: encryptNumber(100, dek),
-        start_time: isoStr(friStart),
-        end_time: isoStr(friEnd),
-        is_recurring: true,
-        recurrence_rule: 'RRULE:FREQ=WEEKLY;BYDAY=FR',
-        is_settled: weeksAgo > 1,
-        is_confirmed: true,
-        event_type: 'work',
-        created_at: isoStr(friStart),
+        id: nanoid(), user_id: userId,
+        title: encryptString('Sprint planning', dek),
+        wallet_id: mbankId, hourly_rate: encryptNumber(120, dek),
+        start_time: isoStr(start), end_time: isoStr(end),
+        is_recurring: true, recurrence_rule: 'RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=MO',
+        is_settled: isSettled, is_confirmed: true,
+        event_type: 'work', created_at: isoStr(start),
+      });
+      eventCount++;
+    }
+
+    // Retro — Friday 15:00-16:00 (co 2 tygodnie)
+    if (weeksAgo % 2 === 1) {
+      const fri = new Date(weekStart); fri.setDate(fri.getDate() + 4);
+      const start = new Date(fri); start.setHours(15, 0, 0, 0);
+      const end = new Date(fri); end.setHours(16, 0, 0, 0);
+
+      await supabase.from('calendar_events').insert({
+        id: nanoid(), user_id: userId,
+        title: encryptString('Retro', dek),
+        wallet_id: mbankId, hourly_rate: encryptNumber(120, dek),
+        start_time: isoStr(start), end_time: isoStr(end),
+        is_recurring: true, recurrence_rule: 'RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=FR',
+        is_settled: isSettled, is_confirmed: true,
+        event_type: 'work', created_at: isoStr(start),
+      });
+      eventCount++;
+    }
+
+    // 1:1 z CTO — Wednesday 13:00-13:30
+    const wed = new Date(weekStart); wed.setDate(wed.getDate() + 2);
+    const w1Start = new Date(wed); w1Start.setHours(13, 0, 0, 0);
+    const w1End = new Date(wed); w1End.setHours(13, 30, 0, 0);
+
+    await supabase.from('calendar_events').insert({
+      id: nanoid(), user_id: userId,
+      title: encryptString('1:1 z Marcinem (CTO)', dek),
+      wallet_id: mbankId, hourly_rate: encryptNumber(120, dek),
+      start_time: isoStr(w1Start), end_time: isoStr(w1End),
+      is_recurring: true, recurrence_rule: 'RRULE:FREQ=WEEKLY;BYDAY=WE',
+      is_settled: isSettled, is_confirmed: true,
+      event_type: 'work', created_at: isoStr(w1Start),
+    });
+    eventCount++;
+
+    // Code review — Thursday 14:00-15:00
+    const thu = new Date(weekStart); thu.setDate(thu.getDate() + 3);
+    const crStart = new Date(thu); crStart.setHours(14, 0, 0, 0);
+    const crEnd = new Date(thu); crEnd.setHours(15, 0, 0, 0);
+
+    await supabase.from('calendar_events').insert({
+      id: nanoid(), user_id: userId,
+      title: encryptString('Code review', dek),
+      wallet_id: mbankId, hourly_rate: encryptNumber(120, dek),
+      start_time: isoStr(crStart), end_time: isoStr(crEnd),
+      is_recurring: true, recurrence_rule: 'RRULE:FREQ=WEEKLY;BYDAY=TH',
+      is_settled: isSettled, is_confirmed: true,
+      event_type: 'work', created_at: isoStr(crStart),
+    });
+    eventCount++;
+
+    // ── Ad-hoc meetings (2-4 per week) ──
+    const adHocMeetings = [
+      'Demo klienta', 'Sync z designem', 'Rozmowa z PM', 'Prezentacja architektury',
+      'Pair programming', 'Planowanie migracji DB', 'Sync z QA', 'Refinement backlogu',
+      'Interview kandydat', 'Tech debt review', 'Onboarding nowego dev',
+    ];
+
+    const meetCount = randomInt(2, 4);
+    for (let i = 0; i < meetCount; i++) {
+      const dayOff = randomInt(0, 4);
+      const d = new Date(weekStart); d.setDate(d.getDate() + dayOff);
+      const h = randomPick([10, 11, 12, 14, 15, 16]);
+      const dur = randomPick([30, 45, 60]);
+
+      const start = new Date(d); start.setHours(h, randomPick([0, 30]), 0, 0);
+      const end = new Date(start.getTime() + dur * 60_000);
+
+      await supabase.from('calendar_events').insert({
+        id: nanoid(), user_id: userId,
+        title: encryptString(randomPick(adHocMeetings), dek),
+        wallet_id: mbankId, hourly_rate: encryptNumber(120, dek),
+        start_time: isoStr(start), end_time: isoStr(end),
+        is_recurring: false, recurrence_rule: null,
+        is_settled: isSettled, is_confirmed: Math.random() < 0.85,
+        event_type: 'work', created_at: isoStr(start),
+      });
+      eventCount++;
+    }
+
+    // ── Freelance sessions (0-2 per week, evenings/weekends) ──
+    const freelanceEvents = [
+      'Freelance — landing page', 'Freelance — API', 'Freelance — UI redesign',
+      'Freelance — bug fixing', 'Freelance — konsultacja', 'Freelance — prototyp',
+      'Praca nad side project',
+    ];
+
+    const flCount = randomInt(0, 2);
+    for (let i = 0; i < flCount; i++) {
+      const dayOff = Math.random() < 0.4 ? randomInt(5, 6) : randomInt(0, 4); // weekend or evening
+      const d = new Date(weekStart); d.setDate(d.getDate() + dayOff);
+      const h = dayOff >= 5 ? randomInt(10, 15) : randomInt(18, 20);
+      const dur = randomPick([60, 90, 120, 180]);
+
+      const start = new Date(d); start.setHours(h, 0, 0, 0);
+      const end = new Date(start.getTime() + dur * 60_000);
+
+      await supabase.from('calendar_events').insert({
+        id: nanoid(), user_id: userId,
+        title: encryptString(randomPick(freelanceEvents), dek),
+        wallet_id: revolutId, hourly_rate: encryptNumber(randomPick([100, 120, 150]), dek),
+        start_time: isoStr(start), end_time: isoStr(end),
+        is_recurring: false, recurrence_rule: null,
+        is_settled: isSettled, is_confirmed: isConfirmed,
+        event_type: 'work', created_at: isoStr(start),
+      });
+      eventCount++;
+    }
+
+    // ── Personal events (3-6 per week) ──
+    const personalEvents = [
+      { title: 'Siłownia',            dur: 75,  days: [0, 2, 4],    h: 7 },
+      { title: 'Bieganie',            dur: 45,  days: [1, 3],       h: 6 },
+      { title: 'Zakupy spożywcze',    dur: 45,  days: [5],          h: 11 },
+    ];
+
+    // Recurring personal
+    for (const pe of personalEvents) {
+      for (const dayOff of pe.days) {
+        if (Math.random() < 0.75) { // skip sometimes
+          const d = new Date(weekStart); d.setDate(d.getDate() + dayOff);
+          const start = new Date(d); start.setHours(pe.h, 0, 0, 0);
+          const end = new Date(start.getTime() + pe.dur * 60_000);
+
+          await supabase.from('calendar_events').insert({
+            id: nanoid(), user_id: userId,
+            title: encryptString(pe.title, dek),
+            wallet_id: null, hourly_rate: encryptNumber(0, dek),
+            start_time: isoStr(start), end_time: isoStr(end),
+            is_recurring: false, recurrence_rule: null,
+            is_settled: false, is_confirmed: true,
+            event_type: 'personal', created_at: isoStr(start),
+          });
+          eventCount++;
+        }
+      }
+    }
+
+    // Random personal events
+    const randomPersonal = [
+      'Kolacja z Olą', 'Kino z ziomkami', 'Wizyta u rodziców', 'Fryzjer',
+      'Dentysta', 'Spotkanie z Kubą', 'Piwo z ekipą', 'Spacer z psem',
+      'Gotowanie', 'Nauka japońskiego', 'Grill u Adama', 'Mecz piłki',
+      'Escape room', 'Basen', 'Masaż', 'Spotkanie z księgową',
+    ];
+
+    const rpCount = randomInt(1, 3);
+    for (let i = 0; i < rpCount; i++) {
+      const dayOff = randomInt(0, 6);
+      const d = new Date(weekStart); d.setDate(d.getDate() + dayOff);
+      const h = randomInt(10, 20);
+      const dur = randomPick([30, 60, 90, 120]);
+
+      const start = new Date(d); start.setHours(h, randomPick([0, 15, 30]), 0, 0);
+      const end = new Date(start.getTime() + dur * 60_000);
+
+      await supabase.from('calendar_events').insert({
+        id: nanoid(), user_id: userId,
+        title: encryptString(randomPick(randomPersonal), dek),
+        wallet_id: null, hourly_rate: encryptNumber(0, dek),
+        start_time: isoStr(start), end_time: isoStr(end),
+        is_recurring: false, recurrence_rule: null,
+        is_settled: false, is_confirmed: Math.random() < 0.9,
+        event_type: 'personal', created_at: isoStr(start),
       });
       eventCount++;
     }
@@ -579,11 +618,13 @@ async function main() {
   // ── Step 7: Habits + Entries ──
   console.log('\n7. Creating habits and entries...');
   const habitsData = [
-    { name: 'Ćwiczenia', color: '#ef4444', icon: 'dumbbell', frequency: 'daily' },
-    { name: 'Czytanie', color: '#3b82f6', icon: 'book-open', frequency: 'daily' },
-    { name: 'Medytacja', color: '#8b5cf6', icon: 'brain', frequency: 'daily' },
-    { name: 'Kodowanie', color: '#22c55e', icon: 'code', frequency: 'weekdays' },
-    { name: 'Woda 2L', color: '#06b6d4', icon: 'droplets', frequency: 'daily' },
+    { name: 'Ćwiczenia',     color: '#ef4444', icon: 'dumbbell',   frequency: '5_per_week' },
+    { name: 'Czytanie',      color: '#3b82f6', icon: 'book-open',  frequency: 'daily' },
+    { name: 'Medytacja',     color: '#8b5cf6', icon: 'star',       frequency: 'daily' },
+    { name: 'Kodowanie',     color: '#22c55e', icon: 'code',       frequency: 'weekdays' },
+    { name: 'Woda 2L',       color: '#06b6d4', icon: 'droplets',   frequency: 'daily' },
+    { name: 'Bez social media', color: '#f97316', icon: 'shield', frequency: 'daily' },
+    { name: 'Journaling',    color: '#ec4899', icon: 'pencil',     frequency: '3_per_week' },
   ];
 
   const habitIds: string[] = [];
@@ -591,52 +632,48 @@ async function main() {
   for (const h of habitsData) {
     const hid = nanoid();
     habitIds.push(hid);
-    const { error } = await supabase.from('habits').insert({
-      id: hid,
-      user_id: userId,
+    await supabase.from('habits').insert({
+      id: hid, user_id: userId,
       name: encryptString(h.name, dek),
-      color: h.color,
-      icon: h.icon,
-      frequency: h.frequency,
+      color: h.color, icon: h.icon, frequency: h.frequency,
       created_at: new Date().toISOString(),
     });
-    if (error) console.error(`   Habit "${h.name}" error:`, error);
-    else console.log(`   ${h.name} (${h.frequency})`);
+    console.log(`   ${h.name} (${h.frequency})`);
   }
 
-  // Entries: 60 days back, ~70-85% completion
+  // Entries: 90 days back, realistic completion rates per habit
   let entryCount = 0;
   const entries: Array<{ id: string; habit_id: string; date: string; completed: boolean; created_at: string }> = [];
 
-  for (let daysAgo = 60; daysAgo >= 0; daysAgo--) {
+  // Per-habit completion rates (more realistic — some habits harder than others)
+  const completionRates = [0.78, 0.65, 0.72, 0.88, 0.82, 0.45, 0.55];
+
+  for (let daysAgo = 90; daysAgo >= 0; daysAgo--) {
     const entryDate = new Date(now);
     entryDate.setDate(entryDate.getDate() - daysAgo);
-    const dayOfWeek = entryDate.getDay(); // 0=Sun, 6=Sat
-    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    const dow = entryDate.getDay(); // 0=Sun, 6=Sat
+    const isWeekend = dow === 0 || dow === 6;
     const ds = dateStr(entryDate);
 
     for (let hi = 0; hi < habitsData.length; hi++) {
       const habit = habitsData[hi];
       const habitId = habitIds[hi];
 
-      // Skip weekends for "Kodowanie"
       if (habit.name === 'Kodowanie' && isWeekend) continue;
 
-      // 70-85% completion rate
-      const completed = Math.random() < randomFloat(0.70, 0.85);
+      // Streak boost: if completed yesterday, higher chance today
+      const baseRate = completionRates[hi];
+      const rate = daysAgo < 14 ? Math.min(baseRate + 0.1, 0.95) : baseRate; // recent = more motivated
+
+      const completed = Math.random() < rate;
 
       entries.push({
-        id: nanoid(),
-        habit_id: habitId,
-        date: ds,
-        completed,
-        created_at: isoStr(entryDate),
+        id: nanoid(), habit_id: habitId, date: ds, completed, created_at: isoStr(entryDate),
       });
       entryCount++;
     }
   }
 
-  // Batch insert entries (50 at a time)
   for (let i = 0; i < entries.length; i += 50) {
     const batch = entries.slice(i, i + 50);
     const { error } = await supabase.from('habit_entries').insert(batch);
@@ -644,11 +681,12 @@ async function main() {
   }
   console.log(`   Created ${entryCount} habit entries.`);
 
-  // ── Step 8: Summary ──
+  // ── Summary ──
   console.log('\n════════════════════════════════════');
   console.log('  Demo seed complete!');
   console.log('════════════════════════════════════');
   console.log(`  User:          ${EMAIL} / ${PASSWORD}`);
+  console.log(`  Persona:       Kacper Szpont, 24, fullstack dev`);
   console.log(`  User ID:       ${userId}`);
   console.log(`  Wallets:       ${wallets.length}`);
   console.log(`  Transactions:  ${txCount}`);
