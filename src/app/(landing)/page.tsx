@@ -212,7 +212,8 @@ export default function LandingPage() {
 
           <BlurFade delay={0.2} inView>
             <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight leading-[1.12]">
-              Kontroluj swoje finanse{' '}
+              Kontroluj swoje finanse
+              <br />
               <span className="text-primary">w jednym miejscu</span>
             </h1>
           </BlurFade>
