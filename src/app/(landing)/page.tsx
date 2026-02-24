@@ -255,7 +255,7 @@ export default function LandingPage() {
       </section>
 
       {/* Cross-device section wrapper */}
-      <div className="relative -mt-[180px] sm:-mt-[290px] z-20">
+      <div className="relative -mt-[140px] sm:-mt-[290px] z-20">
       {/* Arc divider — desktop only */}
       <div className="hidden sm:block h-20 pointer-events-none">
         <svg viewBox="0 0 1440 80" preserveAspectRatio="none" className="w-full h-full block">
