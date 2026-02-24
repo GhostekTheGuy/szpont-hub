@@ -54,6 +54,7 @@ export async function POST(req: NextRequest) {
       success_url: `${origin}/dashboard?checkout=success`,
       cancel_url: `${origin}/dashboard?checkout=cancel`,
       metadata: { user_id: user.id },
+      allow_promotion_codes: true,
       consent_collection: {
         terms_of_service: 'required',
       },
