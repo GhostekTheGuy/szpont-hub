@@ -14,6 +14,7 @@ function AuthPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialMode = searchParams.get('mode') === 'register' ? 'register' : 'login';
+  const planIntent = searchParams.get('plan');
 
   const [mode, setMode] = useState<Mode>(initialMode);
   const [loginData, setLoginData] = useState({ email: '', password: '' });
@@ -50,17 +51,22 @@ function AuthPageContent() {
       });
 
       if (error) {
-        setError(error.message === 'Invalid login credentials'
-          ? 'Nieprawidłowy email lub hasło.'
-          : error.message);
-        setShowReset(true);
-        setResetEmail(loginData.email);
+        if (error.message.includes('Email not confirmed')) {
+          setError('Email nie został potwierdzony. Sprawdź skrzynkę pocztową i kliknij link weryfikacyjny.');
+        } else {
+          setError(error.message === 'Invalid login credentials'
+            ? 'Nieprawidłowy email lub hasło.'
+            : error.message);
+          setShowReset(true);
+          setResetEmail(loginData.email);
+        }
         setLoading(false);
       } else {
         await initEncryptionSession(loginData.password);
         setTransitioning(true);
+        const redirectUrl = planIntent === 'pro' ? '/dashboard?checkout=pro' : '/dashboard';
         setTimeout(() => {
-          router.push('/dashboard');
+          router.push(redirectUrl);
           router.refresh();
         }, 1200);
       }
@@ -89,10 +95,6 @@ function AuthPageContent() {
 
       setRegisterSuccess(true);
       setLoginData({ email: registerData.email, password: '' });
-      setTimeout(() => {
-        switchMode('login');
-        setRegisterSuccess(false);
-      }, 1500);
     } catch {
       setError('Wystąpił błąd. Spróbuj użyć innego adresu email.');
     } finally {
@@ -184,15 +186,28 @@ function AuthPageContent() {
             key={mode}
             className="text-muted-foreground text-sm animate-fade-in"
           >
-            {mode === 'login' ? 'Zaloguj się, aby zarządzać finansami' : 'Utwórz konto i dołącz'}
+            {planIntent === 'pro'
+              ? (mode === 'login' ? 'Zaloguj się, aby aktywować Plan Pro' : 'Utwórz konto, aby aktywować Plan Pro')
+              : (mode === 'login' ? 'Zaloguj się, aby zarządzać finansami' : 'Utwórz konto i dołącz')}
           </p>
         </div>
 
         {/* Success message after registration */}
         {registerSuccess && (
-          <div className="mb-4 p-3 bg-green-500/10 border border-green-500/20 rounded-lg flex items-center gap-2 text-green-500 text-sm animate-fade-in">
-            <Check className="w-4 h-4 shrink-0" />
-            Konto utworzone! Możesz się zalogować.
+          <div className="mb-4 p-4 bg-green-500/10 border border-green-500/20 rounded-lg text-green-500 text-sm animate-fade-in">
+            <div className="flex items-center gap-2 font-medium mb-1">
+              <Mail className="w-4 h-4 shrink-0" />
+              Sprawdź swoją skrzynkę email
+            </div>
+            <p className="text-green-500/80 text-xs">
+              Wysłaliśmy link weryfikacyjny na <strong>{registerData.email}</strong>. Kliknij go, aby aktywować konto, a następnie się zaloguj.
+            </p>
+            <button
+              onClick={() => { setRegisterSuccess(false); switchMode('login'); }}
+              className="mt-3 text-xs text-primary hover:text-primary/80 font-medium transition-colors"
+            >
+              Przejdź do logowania
+            </button>
           </div>
         )}
 

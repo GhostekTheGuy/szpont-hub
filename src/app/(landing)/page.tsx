@@ -41,7 +41,7 @@ export default function LandingPage() {
       });
 
       if (res.status === 401) {
-        navigateTo('/login?mode=register');
+        navigateTo('/login?mode=register&plan=pro');
         return;
       }
 

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { generateSalt, generateDEK, deriveKEK, encryptDEK } from "@/lib/crypto";
 
@@ -27,13 +28,15 @@ export async function POST(request: Request) {
       return new NextResponse("Nieprawidłowa nazwa użytkownika", { status: 400 });
     }
 
-    // Utwórz użytkownika przez Supabase Auth
-    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email: email.trim().toLowerCase(),
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // Utwórz użytkownika przez signUp — wysyła email weryfikacyjny automatycznie
+    const supabase = await createClient();
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email: normalizedEmail,
       password,
-      email_confirm: true, // Automatycznie potwierdź email
-      user_metadata: {
-        name: name.trim(),
+      options: {
+        data: { name: name.trim() },
       },
     });
 
@@ -45,19 +48,24 @@ export async function POST(request: Request) {
       return new NextResponse("Nie udało się utworzyć konta", { status: 400 });
     }
 
+    // signUp zwraca user z pustymi identities jeśli email już istnieje
+    if (!authData.user || authData.user.identities?.length === 0) {
+      return new NextResponse("Email już istnieje", { status: 400 });
+    }
+
     // Generuj klucze szyfrowania E2E
     const salt = generateSalt();
     const dek = generateDEK();
     const kek = await deriveKEK(password, salt);
     const encryptedDek = encryptDEK(dek, kek);
 
-    // Dodaj użytkownika do tabeli users
+    // Dodaj użytkownika do tabeli users (via admin, bo user nie jest jeszcze zalogowany)
     const { error: dbError } = await supabaseAdmin
       .from("users")
       .insert({
         id: authData.user.id,
-        email,
-        name,
+        email: normalizedEmail,
+        name: name.trim(),
         encryption_salt: salt.toString('base64'),
         encrypted_dek: encryptedDek,
         created_at: new Date().toISOString(),
@@ -66,14 +74,13 @@ export async function POST(request: Request) {
 
     if (dbError) {
       console.error("Database error:", dbError);
-      // Usuń użytkownika z auth jeśli nie udało się dodać do bazy
       await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
       return new NextResponse("Błąd bazy danych", { status: 500 });
     }
 
     return NextResponse.json({
-      message: "Konto utworzone pomyślnie",
-      user: { id: authData.user.id, email, name }
+      message: "Sprawdź swoją skrzynkę email, aby potwierdzić konto.",
+      requiresConfirmation: true,
     });
   } catch (error: unknown) {
     console.error("Registration error:", error);

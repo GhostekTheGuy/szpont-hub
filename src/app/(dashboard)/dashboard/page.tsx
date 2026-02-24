@@ -1,5 +1,7 @@
+import { Suspense } from "react";
 import { getDashboardData } from "@/app/actions";
 import { DashboardOverview } from "@/components/DashboardOverview";
+import { AutoCheckout } from "@/components/AutoCheckout";
 import { getUser } from "@/lib/supabase/cached";
 
 export default async function Home() {
@@ -19,12 +21,15 @@ export default async function Home() {
   }
 
   return (
-    <DashboardOverview
-      initialWallets={data.wallets}
-      initialTransactions={data.transactions}
-      initialAssets={data.assets}
-      exchangeRates={data.exchangeRates}
-      userName={userName}
-    />
+    <>
+      <Suspense><AutoCheckout /></Suspense>
+      <DashboardOverview
+        initialWallets={data.wallets}
+        initialTransactions={data.transactions}
+        initialAssets={data.assets}
+        exchangeRates={data.exchangeRates}
+        userName={userName}
+      />
+    </>
   );
 }
