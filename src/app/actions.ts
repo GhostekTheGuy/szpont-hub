@@ -660,13 +660,18 @@ export async function resetPasswordAction() {
 }
 
 export async function resetPasswordByEmailAction(email: string) {
+  // Walidacja formatu email
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (typeof email !== 'string' || !emailRegex.test(email) || email.length > 254) {
+    throw new Error('Nieprawidłowy format email');
+  }
+
   const supabase = await createClient();
 
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+  // Zawsze zwracaj sukces — nie ujawniaj czy email istnieje
+  await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
     redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/auth/callback?next=/update-password`,
   });
-
-  if (error) throw new Error(error.message);
 }
 
 // --- PREFERENCJE UŻYTKOWNIKA ---

@@ -202,7 +202,7 @@ export default function LandingPage() {
         </div>
 
         {/* Content */}
-        <div className="relative z-10 max-w-4xl mx-auto px-6 text-center flex flex-col items-center gap-6 pt-12 pb-16">
+        <div className="relative z-10 max-w-4xl mx-auto px-6 text-center flex flex-col items-center gap-6 pt-28 pb-16">
           <BlurFade delay={0.1} inView>
             <Badge variant="secondary" className="gap-1.5 rounded-full px-3 py-1 text-xs font-medium border-primary/20 bg-primary/10 text-primary">
               <Sparkles className="w-3 h-3" />
@@ -211,7 +211,7 @@ export default function LandingPage() {
           </BlurFade>
 
           <BlurFade delay={0.2} inView>
-            <h1 className="text-5xl sm:text-6xl md:text-7xl font-extrabold tracking-tight leading-[1.08]">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight leading-[1.12]">
               Kontroluj swoje finanse{' '}
               <span className="text-primary">w jednym miejscu</span>
             </h1>

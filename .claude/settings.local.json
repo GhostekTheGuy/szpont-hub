@@ -19,7 +19,8 @@
       "Bash(cd \"G:/Obrazy/2k26/2/9szpont/szpont-hub\" && pnpm dlx shadcn@latest add \"https://www.reactbits.dev/r/DarkVeil-TS-TW\" 2>&1)",
       "Bash(cd \"G:/Obrazy/2k26/2/9szpont/szpont-hub\" && pnpm dlx shadcn@latest add \"https://www.reactbits.dev/r/LightRays-TS-TW\" 2>&1)",
       "Bash(cd \"G:/Obrazy/2k26/2/9szpont/szpont-hub\" && pnpm dlx shadcn@latest add \"https://magicui.design/r/blur-fade\" 2>&1)",
-      "Bash(cd G:\\\\Obrazy\\\\2k26\\\\2\\\\9szpont\\\\szpont-hub:*)"
+      "Bash(cd G:\\\\Obrazy\\\\2k26\\\\2\\\\9szpont\\\\szpont-hub:*)",
+      "Bash(grep:*)"
     ]
   }
 }

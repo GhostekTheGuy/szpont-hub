@@ -19,9 +19,22 @@ export async function POST(req: NextRequest) {
       process.env.STRIPE_WEBHOOK_SECRET!
     );
   } catch (err) {
-    console.error('Webhook signature verification failed:', err);
+    console.error('Webhook signature verification failed:', err instanceof Error ? err.message : 'Unknown error');
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
   }
+
+  // Idempotencja — sprawdź czy event był już przetworzony
+  const { data: existing } = await supabaseAdmin
+    .from('stripe_events')
+    .select('id')
+    .eq('event_id', event.id)
+    .single();
+
+  if (existing) {
+    return NextResponse.json({ received: true, duplicate: true });
+  }
+
+  await supabaseAdmin.from('stripe_events').insert({ event_id: event.id });
 
   try {
     switch (event.type) {
@@ -95,7 +108,7 @@ export async function POST(req: NextRequest) {
       }
     }
   } catch (error) {
-    console.error('Webhook handler error:', error);
+    console.error('Webhook handler error:', error instanceof Error ? error.message : 'Unknown error');
     return NextResponse.json(
       { error: 'Webhook handler failed' },
       { status: 500 }

@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const origin = req.headers.get('origin') || 'http://localhost:3000';
+    const origin = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ url: session.url });
   } catch (error) {
-    console.error('Stripe checkout error:', error);
+    console.error('Stripe checkout error:', error instanceof Error ? error.message : 'Unknown error');
     return NextResponse.json(
       { error: 'Failed to create checkout session' },
       { status: 500 }

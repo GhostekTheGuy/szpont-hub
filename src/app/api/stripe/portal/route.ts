@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const origin = req.headers.get('origin') || 'http://localhost:3000';
+    const origin = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
     const session = await stripe.billingPortal.sessions.create({
       customer: subscription.stripe_customer_id,
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ url: session.url });
   } catch (error) {
-    console.error('Stripe portal error:', error);
+    console.error('Stripe portal error:', error instanceof Error ? error.message : 'Unknown error');
     return NextResponse.json(
       { error: 'Failed to create portal session' },
       { status: 500 }

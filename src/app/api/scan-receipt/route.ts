@@ -90,7 +90,7 @@ export async function POST(request: Request) {
     let messages;
 
     if (isPdf) {
-      const pdfText = await extractPdfText(bytes);
+      let pdfText = await extractPdfText(bytes);
 
       if (!pdfText.trim()) {
         return NextResponse.json(
@@ -99,10 +99,18 @@ export async function POST(request: Request) {
         );
       }
 
+      // Sanityzacja — usuń potencjalne prompt injection z treści PDF
+      pdfText = pdfText
+        .replace(/ignore\s+(previous|above|all)\s+instructions?/gi, '[filtered]')
+        .replace(/you\s+are\s+(now|a)\b/gi, '[filtered]')
+        .replace(/system\s*:\s*/gi, '[filtered]')
+        .replace(/\bASSISTANT\s*:\s*/gi, '[filtered]')
+        .slice(0, 50000);
+
       messages = [
         {
           role: "user" as const,
-          content: `${RECEIPT_PROMPT}\n\nOto treść dokumentu:\n\n${pdfText}`,
+          content: `${RECEIPT_PROMPT}\n\n---BEGIN DOCUMENT---\n${pdfText}\n---END DOCUMENT---`,
         },
       ];
     } else {
