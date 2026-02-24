@@ -659,6 +659,16 @@ export async function resetPasswordAction() {
   if (error) throw new Error(error.message);
 }
 
+export async function resetPasswordByEmailAction(email: string) {
+  const supabase = await createClient();
+
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/auth/callback?next=/update-password`,
+  });
+
+  if (error) throw new Error(error.message);
+}
+
 // --- PREFERENCJE UŻYTKOWNIKA ---
 
 export async function getBalanceMasked(): Promise<boolean> {

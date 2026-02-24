@@ -12,7 +12,7 @@ import {
   Camera,
   User,
 } from 'lucide-react';
-import { signOutAction, resetPasswordAction } from '@/app/actions';
+import { signOutAction, resetPasswordAction, setBalanceMasked } from '@/app/actions';
 import { useFinanceStore } from '@/hooks/useFinanceStore';
 
 interface UserPanelProps {
@@ -149,7 +149,11 @@ export function UserPanel({ userName, userEmail, avatarUrl }: UserPanelProps) {
             </button>
 
             <button
-              onClick={toggleBalanceMask}
+              onClick={() => {
+                const newValue = !balanceMasked;
+                toggleBalanceMask();
+                setBalanceMasked(newValue).catch(console.error);
+              }}
               className="flex items-center justify-between w-full px-3 py-3 rounded-lg hover:bg-accent transition-colors"
             >
               <span className="flex items-center gap-3">

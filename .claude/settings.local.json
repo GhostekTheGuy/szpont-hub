@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(ls:*)",
-      "Bash(tail:*)"
+      "Bash(tail:*)",
+      "Bash(cd \"G:\\\\Obrazy\\\\2k26\\\\2\\\\9szpont\\\\szpont-hub\" && npx tsc --noEmit --pretty 2>&11)"
     ]
   }
 }

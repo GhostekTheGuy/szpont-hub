@@ -132,12 +132,7 @@ export const useFinanceStore = create<FinanceState>()(
     setActiveWallet: (id) => set({ activeWalletId: id }),
     setBalanceMasked: (masked) => set({ balanceMasked: masked }),
     toggleBalanceMask: () => {
-      const newValue = !useFinanceStore.getState().balanceMasked;
-      set({ balanceMasked: newValue });
-      // Fire-and-forget save to Supabase
-      import('@/app/actions').then(({ setBalanceMasked }) => {
-        setBalanceMasked(newValue).catch(console.error);
-      });
+      set((state) => ({ balanceMasked: !state.balanceMasked }));
     },
   })
 );
