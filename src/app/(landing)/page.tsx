@@ -23,6 +23,34 @@ export default function LandingPage() {
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
   const [legalModal, setLegalModal] = useState<'privacy' | 'terms' | null>(null);
   const [mobileMenu, setMobileMenu] = useState(false);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+
+  const handleCheckout = async () => {
+    setCheckoutLoading(true);
+    try {
+      const priceId = billingCycle === 'monthly'
+        ? process.env.NEXT_PUBLIC_STRIPE_PRO_MONTHLY_PRICE_ID
+        : process.env.NEXT_PUBLIC_STRIPE_PRO_YEARLY_PRICE_ID;
+
+      const res = await fetch('/api/stripe/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ priceId }),
+      });
+
+      if (res.status === 401) {
+        navigateTo('/login?mode=register');
+        return;
+      }
+
+      const { url } = await res.json();
+      if (url) window.location.href = url;
+    } catch {
+      // silently fail
+    } finally {
+      setCheckoutLoading(false);
+    }
+  };
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 16);
@@ -1047,10 +1075,17 @@ export default function LandingPage() {
 
                 <Button
                   className="rounded-full w-full mb-8"
-                  onClick={() => navigateTo('/login?mode=register')}
+                  onClick={handleCheckout}
+                  disabled={checkoutLoading}
                 >
-                  Rozpocznij z Pro
-                  <ArrowRight className="w-4 h-4" />
+                  {checkoutLoading ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      Rozpocznij z Pro
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
                 </Button>
 
                 <div className="flex flex-col gap-3">

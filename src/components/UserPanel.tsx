@@ -11,23 +11,49 @@ import {
   LogOut,
   Camera,
   User,
+  Crown,
+  ExternalLink,
 } from 'lucide-react';
 import { signOutAction, resetPasswordAction, setBalanceMasked } from '@/app/actions';
 import { useFinanceStore } from '@/hooks/useFinanceStore';
+
+interface Subscription {
+  status: string;
+  price_id: string | null;
+  current_period_end: string | null;
+  cancel_at_period_end: boolean;
+}
 
 interface UserPanelProps {
   userName: string;
   userEmail: string;
   avatarUrl: string | null;
+  subscription?: Subscription | null;
 }
 
-export function UserPanel({ userName, userEmail, avatarUrl }: UserPanelProps) {
+export function UserPanel({ userName, userEmail, avatarUrl, subscription }: UserPanelProps) {
   const { theme, setTheme } = useTheme();
   const { balanceMasked, toggleBalanceMask } = useFinanceStore();
   const [uploading, setUploading] = useState(false);
   const [resetSent, setResetSent] = useState(false);
   const [currentAvatar, setCurrentAvatar] = useState(avatarUrl);
+  const [portalLoading, setPortalLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const isPro = subscription?.status === 'active' || subscription?.status === 'trialing';
+
+  const handleManageSubscription = async () => {
+    setPortalLoading(true);
+    try {
+      const res = await fetch('/api/stripe/portal', { method: 'POST' });
+      const { url } = await res.json();
+      if (url) window.location.href = url;
+    } catch {
+      // silently fail
+    } finally {
+      setPortalLoading(false);
+    }
+  };
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -169,6 +195,50 @@ export function UserPanel({ userName, userEmail, avatarUrl }: UserPanelProps) {
               </div>
             </button>
           </div>
+        </div>
+
+        {/* Plan */}
+        <div className="rounded-xl border border-border bg-card p-5">
+          <h2 className="text-sm font-medium text-muted-foreground mb-4 flex items-center gap-2">
+            <Crown className="w-4 h-4" />
+            Plan
+          </h2>
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="font-medium flex items-center gap-2">
+                {isPro ? 'Pro' : 'Darmowy'}
+                {isPro && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-500/15 text-violet-400">
+                    Aktywny
+                  </span>
+                )}
+              </p>
+              {isPro && subscription?.current_period_end && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  {subscription.cancel_at_period_end ? 'Wygasa' : 'Odnawia się'}:{' '}
+                  {new Date(subscription.current_period_end).toLocaleDateString('pl-PL')}
+                </p>
+              )}
+            </div>
+          </div>
+          {isPro ? (
+            <button
+              onClick={handleManageSubscription}
+              disabled={portalLoading}
+              className="flex items-center gap-2 text-sm text-primary hover:underline disabled:opacity-50"
+            >
+              {portalLoading ? (
+                <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <ExternalLink className="w-4 h-4" />
+              )}
+              Zarządzaj subskrypcją
+            </button>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Ulepsz do Pro, aby odblokować funkcje AI.
+            </p>
+          )}
         </div>
 
         {/* Konto */}

@@ -2247,3 +2247,23 @@ export async function disconnectGoogleCalendar() {
 
   revalidatePath('/', 'layout');
 }
+
+// --- SUBSCRIPTIONS ---
+
+export async function getSubscription() {
+  const userId = await getUserId();
+  if (!userId) return null;
+
+  const { data } = await supabaseAdmin
+    .from('subscriptions')
+    .select('status, price_id, current_period_end, cancel_at_period_end')
+    .eq('user_id', userId)
+    .single();
+
+  return data;
+}
+
+export async function isProUser() {
+  const sub = await getSubscription();
+  return sub?.status === 'active' || sub?.status === 'trialing';
+}
