@@ -22,9 +22,11 @@ export default async function DashboardGroupLayout({
   ];
 
   return (
-    <DashboardLayout userName={userName} avatarUrl={avatarUrl}>
+    <>
       <BalanceMaskInit value={balanceMasked} />
-      {children}
-    </DashboardLayout>
+      <DashboardLayout userName={userName} avatarUrl={avatarUrl}>
+        {children}
+      </DashboardLayout>
+    </>
   );
 }
