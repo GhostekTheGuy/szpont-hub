@@ -1373,7 +1373,6 @@ export default function LandingPage() {
             {/* Bottom bar */}
             <div className="mt-10 pt-6 border-t border-border/30 flex flex-col items-center justify-center gap-1">
               <p className="text-xs text-muted-foreground">&copy; {new Date().getFullYear()} $zpont Hub. Wszelkie prawa zastrzeżone.</p>
-              <p className="text-xs text-muted-foreground">Hubert Kolejko &middot; kontakt@szponthub.pl &middot; ul. Stanisława Leszczyńskiego 25/403, 20&#8209;400 Lublin</p>
             </div>
           </div>
         </div>
