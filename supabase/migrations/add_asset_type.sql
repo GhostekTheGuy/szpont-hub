@@ -1,1 +1,0 @@
-ALTER TABLE assets ADD COLUMN asset_type TEXT NOT NULL DEFAULT 'crypto';
