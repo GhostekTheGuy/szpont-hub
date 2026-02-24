@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 import type { Currency } from '@/lib/exchange-rates';
 
 // Typy zgodne z bazą danych
@@ -107,35 +106,38 @@ interface FinanceState {
   setHabits: (habits: Habit[]) => void;
   setHabitEntries: (entries: HabitEntry[]) => void;
   setActiveWallet: (id: string | null) => void;
+  setBalanceMasked: (masked: boolean) => void;
   toggleBalanceMask: () => void;
 }
 
 export const useFinanceStore = create<FinanceState>()(
-  persist(
-    (set) => ({
-      wallets: [],
-      transactions: [],
-      assets: [],
-      assetSales: [],
-      calendarEvents: [],
-      habits: [],
-      habitEntries: [],
-      activeWalletId: null,
-      balanceMasked: false,
+  (set) => ({
+    wallets: [],
+    transactions: [],
+    assets: [],
+    assetSales: [],
+    calendarEvents: [],
+    habits: [],
+    habitEntries: [],
+    activeWalletId: null,
+    balanceMasked: false,
 
-      setWallets: (wallets) => set({ wallets }),
-      setTransactions: (transactions) => set({ transactions }),
-      setAssets: (assets) => set({ assets }),
-      setAssetSales: (assetSales) => set({ assetSales }),
-      setCalendarEvents: (calendarEvents) => set({ calendarEvents }),
-      setHabits: (habits) => set({ habits }),
-      setHabitEntries: (habitEntries) => set({ habitEntries }),
-      setActiveWallet: (id) => set({ activeWalletId: id }),
-      toggleBalanceMask: () => set((state) => ({ balanceMasked: !state.balanceMasked })),
-    }),
-    {
-      name: 'finance-preferences',
-      partialize: (state) => ({ balanceMasked: state.balanceMasked }),
-    }
-  )
+    setWallets: (wallets) => set({ wallets }),
+    setTransactions: (transactions) => set({ transactions }),
+    setAssets: (assets) => set({ assets }),
+    setAssetSales: (assetSales) => set({ assetSales }),
+    setCalendarEvents: (calendarEvents) => set({ calendarEvents }),
+    setHabits: (habits) => set({ habits }),
+    setHabitEntries: (habitEntries) => set({ habitEntries }),
+    setActiveWallet: (id) => set({ activeWalletId: id }),
+    setBalanceMasked: (masked) => set({ balanceMasked: masked }),
+    toggleBalanceMask: () => {
+      const newValue = !useFinanceStore.getState().balanceMasked;
+      set({ balanceMasked: newValue });
+      // Fire-and-forget save to Supabase
+      import('@/app/actions').then(({ setBalanceMasked }) => {
+        setBalanceMasked(newValue).catch(console.error);
+      });
+    },
+  })
 );

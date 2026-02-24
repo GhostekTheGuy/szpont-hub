@@ -659,6 +659,31 @@ export async function resetPasswordAction() {
   if (error) throw new Error(error.message);
 }
 
+// --- PREFERENCJE UŻYTKOWNIKA ---
+
+export async function getBalanceMasked(): Promise<boolean> {
+  const userId = await getUserId();
+  if (!userId) return false;
+
+  const { data } = await supabaseAdmin
+    .from('users')
+    .select('balance_masked')
+    .eq('id', userId)
+    .single();
+
+  return data?.balance_masked ?? false;
+}
+
+export async function setBalanceMasked(masked: boolean) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  await supabaseAdmin
+    .from('users')
+    .update({ balance_masked: masked })
+    .eq('id', userId);
+}
+
 // --- WYLOGOWANIE ---
 export async function signOutAction() {
   const supabase = await createClient();

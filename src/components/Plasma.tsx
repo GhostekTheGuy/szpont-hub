@@ -156,7 +156,8 @@ export const Plasma: React.FC<PlasmaProps> = ({
     }
 
     const setSize = () => {
-      const rect = containerRef.current!.getBoundingClientRect();
+      if (!containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
       const width = Math.max(1, Math.floor(rect.width));
       const height = Math.max(1, Math.floor(rect.height));
       renderer.setSize(width, height);

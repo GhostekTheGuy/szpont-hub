@@ -156,24 +156,23 @@ html {
 /* Custom scrollbar on desktop */
 @media (min-width: 1024px) {
   ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 6px;
+    height: 6px;
   }
 
   ::-webkit-scrollbar-track {
-    background: var(--muted);
-    border-radius: 4px;
+    background: transparent;
   }
 
   ::-webkit-scrollbar-thumb {
-    background: var(--primary);
-    border-radius: 4px;
-    opacity: 0.5;
+    background: var(--muted-foreground);
+    border-radius: 3px;
+    opacity: 0.3;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: var(--primary);
-    opacity: 0.8;
+    background: var(--muted-foreground);
+    opacity: 0.5;
   }
 }
 
@@ -221,7 +220,7 @@ html {
 @media (max-width: 1023px) {
   .habit-scroll {
     scrollbar-width: thin;
-    scrollbar-color: var(--primary) var(--secondary);
+    scrollbar-color: var(--muted-foreground) var(--secondary);
   }
   .habit-scroll::-webkit-scrollbar {
     display: block;
@@ -232,7 +231,7 @@ html {
     border-radius: 2px;
   }
   .habit-scroll::-webkit-scrollbar-thumb {
-    background: var(--primary);
+    background: var(--muted-foreground);
     border-radius: 2px;
   }
 }

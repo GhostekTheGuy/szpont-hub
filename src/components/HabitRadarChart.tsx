@@ -32,7 +32,7 @@ export function HabitRadarChart({ habits, entries }: Props) {
     };
   });
 
-  const size = 280;
+  const size = 336;
   const cx = size / 2;
   const cy = size / 2;
   const maxRadius = size * 0.38;

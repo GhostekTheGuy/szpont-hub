@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { useFinanceStore, type Habit, type HabitEntry } from '@/hooks/useFinanceStore';
 import { getHabits } from '@/app/actions';
 import { HabitTracker } from '@/components/HabitTracker';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, isThisWeek } from 'date-fns';
 import { pl } from 'date-fns/locale';
 
@@ -55,43 +54,22 @@ export function HabitsPageClient({ initialHabits, initialHabitEntries }: Props) 
   return (
     <>
       {/* Header */}
-      <div className="mb-4 space-y-3 px-4 lg:px-0">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground">Nawyki</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              {format(weekStart, 'd MMM', { locale: pl })} — {format(weekEnd, 'd MMM yyyy', { locale: pl })}
-            </p>
-          </div>
-
-          <div className="flex items-center bg-secondary rounded-lg">
-            <button
-              onClick={goToPrevWeek}
-              className="p-2 hover:bg-accent rounded-l-lg transition-colors"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <button
-              onClick={goToToday}
-              className={`px-3 py-2 text-sm font-medium transition-colors ${
-                isCurrent ? 'text-primary' : 'text-foreground hover:text-primary'
-              }`}
-            >
-              Dziś
-            </button>
-            <button
-              onClick={goToNextWeek}
-              className="p-2 hover:bg-accent rounded-r-lg transition-colors"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
+      <div className="mb-4 px-4 lg:px-0">
+        <h1 className="text-3xl font-bold text-foreground">Nawyki</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          {format(weekStart, 'd MMM', { locale: pl })} — {format(weekEnd, 'd MMM yyyy', { locale: pl })}
+        </p>
       </div>
 
       {/* Content */}
       <div className="px-4 lg:px-0">
-        <HabitTracker weekStart={weekStart} />
+        <HabitTracker
+          weekStart={weekStart}
+          onPrevWeek={goToPrevWeek}
+          onNextWeek={goToNextWeek}
+          onToday={goToToday}
+          isCurrentWeek={isCurrent}
+        />
       </div>
     </>
   );

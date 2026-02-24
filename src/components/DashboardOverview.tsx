@@ -161,7 +161,7 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
                   </div>
                 </div>
                 {ratesReady ? (
-                  <FinancialChart transactions={transactions} range={range} setRange={setRange} displayCurrency={displayCurrency} exchangeRates={exchangeRates} historicalRates={historicalRates} />
+                  <FinancialChart transactions={transactions} range={range} setRange={setRange} displayCurrency={displayCurrency} exchangeRates={exchangeRates} historicalRates={historicalRates} currentNetWorth={stats.totalNetWorth} />
                 ) : (
                   <div className="p-6">
                     <div className="flex items-center justify-between mb-6">

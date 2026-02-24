@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { getUser } from "@/lib/supabase/cached";
+import { getBalanceMasked } from "@/app/actions";
+import { BalanceMaskInit } from "@/components/BalanceMaskInit";
 
 export default async function DashboardGroupLayout({
   children,
@@ -13,11 +15,15 @@ export default async function DashboardGroupLayout({
     redirect("/login");
   }
 
-  const userName = user.user_metadata?.name || user.email?.split('@')[0] || 'Użytkownik';
-  const avatarUrl = user.user_metadata?.avatar_url || null;
+  const [userName, avatarUrl, balanceMasked] = [
+    user.user_metadata?.name || user.email?.split('@')[0] || 'Użytkownik',
+    user.user_metadata?.avatar_url || null,
+    await getBalanceMasked(),
+  ];
 
   return (
     <DashboardLayout userName={userName} avatarUrl={avatarUrl}>
+      <BalanceMaskInit value={balanceMasked} />
       {children}
     </DashboardLayout>
   );

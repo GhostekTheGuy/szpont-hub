@@ -14,32 +14,46 @@ interface FinancialChartProps {
   displayCurrency: Currency;
   exchangeRates: ExchangeRates;
   historicalRates?: HistoricalRates;
+  currentNetWorth: number;
 }
 
-export const FinancialChart = memo(function FinancialChart({ transactions, range, setRange, displayCurrency, exchangeRates, historicalRates }: FinancialChartProps) {
+export const FinancialChart = memo(function FinancialChart({ transactions, range, setRange, displayCurrency, exchangeRates, historicalRates, currentNetWorth }: FinancialChartProps) {
   const balanceMasked = useFinanceStore(s => s.balanceMasked);
 
   const chartData = useMemo(() => {
     const days = range === '1W' ? 7 : range === '1M' ? 30 : range === '3M' ? 90 : 365;
     const today = new Date();
     const startDate = subDays(today, days);
-
-    // Sort transactions by date once, then accumulate — O(n log n + n + days) instead of O(n * days)
-    const sorted = [...transactions].sort((a, b) => a.date.localeCompare(b.date));
-
-    // Pre-compute balance from all transactions BEFORE the range start
-    let runningBalance = 0;
-    let txIndex = 0;
     const startDateStr = format(startDate, 'yyyy-MM-dd');
 
-    for (; txIndex < sorted.length; txIndex++) {
-      const t = sorted[txIndex];
-      if (t.date > startDateStr) break;
-      const ratesForDay = historicalRates?.[t.date.slice(0, 10)] || exchangeRates;
-      runningBalance += convertAmount(t.amount, t.currency || 'PLN', displayCurrency, ratesForDay);
+    // Only count income & outcome (transfers are internal movements)
+    // Note: income amounts are positive, outcome amounts are already negative
+    const relevant = transactions.filter(t => t.type === 'income' || t.type === 'outcome');
+    const sorted = [...relevant].sort((a, b) => a.date.localeCompare(b.date));
+
+    function txDelta(t: Transaction, rates: ExchangeRates) {
+      return convertAmount(t.amount, t.currency || 'PLN', displayCurrency, rates);
     }
 
-    // Walk day-by-day, only adding transactions for that day
+    // Compute total net cash flow for ALL transactions in the range to anchor to currentNetWorth
+    let totalNetFlow = 0;
+    for (const t of sorted) {
+      if (t.date.slice(0, 10) > startDateStr) {
+        const ratesForDay = historicalRates?.[t.date.slice(0, 10)] || exchangeRates;
+        totalNetFlow += txDelta(t, ratesForDay);
+      }
+    }
+
+    // Starting value = current net worth minus all net flow in the range
+    let runningBalance = currentNetWorth - totalNetFlow;
+    let txIndex = 0;
+
+    // Skip transactions before the range
+    for (; txIndex < sorted.length; txIndex++) {
+      if (sorted[txIndex].date > startDateStr) break;
+    }
+
+    // Walk day-by-day
     const data = [];
     for (let i = days; i >= 0; i--) {
       const date = subDays(today, i);
@@ -49,7 +63,7 @@ export const FinancialChart = memo(function FinancialChart({ transactions, range
         const t = sorted[txIndex];
         if (t.date.slice(0, 10) > dateStr) break;
         const ratesForDay = historicalRates?.[t.date.slice(0, 10)] || exchangeRates;
-        runningBalance += convertAmount(t.amount, t.currency || 'PLN', displayCurrency, ratesForDay);
+        runningBalance += txDelta(t, ratesForDay);
       }
 
       data.push({
@@ -60,7 +74,7 @@ export const FinancialChart = memo(function FinancialChart({ transactions, range
     }
 
     return data;
-  }, [transactions, range, displayCurrency, exchangeRates, historicalRates]);
+  }, [transactions, range, displayCurrency, exchangeRates, historicalRates, currentNetWorth]);
 
   const yDomain = useMemo(() => {
     if (chartData.length === 0) return [0, 100];
