@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getUser } from "@/lib/supabase/cached";
+import { isProUser } from "@/app/actions";
 
 async function extractPdfText(buffer: ArrayBuffer): Promise<string> {
   // Import internal module directly to avoid pdf-parse's top-level fs.readFileSync in index.js
@@ -38,6 +39,10 @@ export async function POST(request: Request) {
     const user = await getUser();
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (!(await isProUser())) {
+      return NextResponse.json({ error: "Wymagany Plan Pro" }, { status: 403 });
     }
 
     const apiKey = process.env.GROQ_API_KEY;

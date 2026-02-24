@@ -11,8 +11,13 @@ export async function POST(req: NextRequest) {
     }
 
     const { priceId } = await req.json();
-    if (!priceId || typeof priceId !== 'string') {
-      return NextResponse.json({ error: 'Missing priceId' }, { status: 400 });
+    const validPriceIds = [
+      process.env.STRIPE_PRO_MONTHLY_PRICE_ID,
+      process.env.STRIPE_PRO_YEARLY_PRICE_ID,
+    ].filter(Boolean);
+
+    if (!priceId || typeof priceId !== 'string' || !validPriceIds.includes(priceId)) {
+      return NextResponse.json({ error: 'Invalid priceId' }, { status: 400 });
     }
 
     // Check if user already has a stripe customer
@@ -49,6 +54,14 @@ export async function POST(req: NextRequest) {
       success_url: `${origin}/dashboard?checkout=success`,
       cancel_url: `${origin}/dashboard?checkout=cancel`,
       metadata: { user_id: user.id },
+      consent_collection: {
+        terms_of_service: 'required',
+      },
+      custom_text: {
+        terms_of_service_acceptance: {
+          message: `Akceptuję [Regulamin](${origin}/regulamin) oraz [Politykę prywatności](${origin}/polityka-prywatnosci). Płatność jest obsługiwana przez Stripe. Subskrypcja odnawia się automatycznie — możesz ją anulować w dowolnym momencie.`,
+        },
+      },
     });
 
     return NextResponse.json({ url: session.url });

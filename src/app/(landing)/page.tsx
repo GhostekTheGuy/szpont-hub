@@ -1353,8 +1353,8 @@ export default function LandingPage() {
                 <div>
                   <h4 className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground mb-4">Informacje</h4>
                   <ul className="flex flex-col gap-3">
-                    <li><button onClick={() => setLegalModal('privacy')} className="text-sm text-foreground/70 hover:text-violet-400 transition-colors duration-300">Polityka prywatności</button></li>
-                    <li><button onClick={() => setLegalModal('terms')} className="text-sm text-foreground/70 hover:text-violet-400 transition-colors duration-300">Regulamin</button></li>
+                    <li><Link href="/polityka-prywatnosci" className="text-sm text-foreground/70 hover:text-violet-400 transition-colors duration-300">Polityka prywatności</Link></li>
+                    <li><Link href="/regulamin" className="text-sm text-foreground/70 hover:text-violet-400 transition-colors duration-300">Regulamin</Link></li>
                     <li><a href="mailto:kontakt@szponthub.pl" className="text-sm text-foreground/70 hover:text-violet-400 transition-colors duration-300">Kontakt</a></li>
                   </ul>
                 </div>
@@ -1362,8 +1362,9 @@ export default function LandingPage() {
             </div>
 
             {/* Bottom bar */}
-            <div className="mt-10 pt-6 border-t border-border/30 flex items-center justify-center">
+            <div className="mt-10 pt-6 border-t border-border/30 flex flex-col items-center justify-center gap-1">
               <p className="text-xs text-muted-foreground">&copy; {new Date().getFullYear()} $zpont Hub. Wszelkie prawa zastrzeżone.</p>
+              <p className="text-xs text-muted-foreground">Hubert Kolejko &middot; kontakt@szponthub.pl &middot; ul. Stanisława Leszczyńskiego 25/403, 20&#8209;400 Lublin</p>
             </div>
           </div>
         </div>
@@ -1396,7 +1397,7 @@ export default function LandingPage() {
               <div className="flex flex-col gap-4 text-sm text-muted-foreground leading-relaxed">
                 <p>Ostatnia aktualizacja: 24 lutego 2026</p>
                 <h3 className="text-base font-bold text-foreground mt-2">1. Administrator danych</h3>
-                <p>Administratorem danych osobowych jest $zpont Hub, prowadzony przez Kacpra Szponta. Kontakt: kontakt@szponthub.pl</p>
+                <p>Administratorem danych osobowych jest Hubert Kolejko, prowadzący serwis $zpont Hub. Adres: ul. Stanisława Leszczyńskiego 25/403, 20-400 Lublin. Kontakt: kontakt@szponthub.pl</p>
                 <h3 className="text-base font-bold text-foreground mt-2">2. Jakie dane zbieramy</h3>
                 <p>Zbieramy wyłącznie dane niezbędne do działania serwisu: adres e-mail, zaszyfrowane dane finansowe oraz anonimowe dane analityczne. Wszystkie dane finansowe są szyfrowane end-to-end — nie mamy do nich dostępu.</p>
                 <h3 className="text-base font-bold text-foreground mt-2">3. Cel przetwarzania</h3>
@@ -1413,7 +1414,7 @@ export default function LandingPage() {
               <div className="flex flex-col gap-4 text-sm text-muted-foreground leading-relaxed">
                 <p>Ostatnia aktualizacja: 24 lutego 2026</p>
                 <h3 className="text-base font-bold text-foreground mt-2">1. Postanowienia ogólne</h3>
-                <p>Niniejszy regulamin określa zasady korzystania z serwisu $zpont Hub. Rejestracja oznacza akceptację regulaminu.</p>
+                <p>Niniejszy regulamin określa zasady korzystania z serwisu $zpont Hub. Operatorem serwisu jest Hubert Kolejko, ul. Stanisława Leszczyńskiego 25/403, 20-400 Lublin, e-mail: kontakt@szponthub.pl. Rejestracja oznacza akceptację regulaminu.</p>
                 <h3 className="text-base font-bold text-foreground mt-2">2. Konto użytkownika</h3>
                 <p>Użytkownik zobowiązany jest do podania prawdziwego adresu e-mail. Konto jest osobiste i nie może być udostępniane osobom trzecim.</p>
                 <h3 className="text-base font-bold text-foreground mt-2">3. Plan darmowy i Pro</h3>

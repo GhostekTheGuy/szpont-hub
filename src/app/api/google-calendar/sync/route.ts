@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { nanoid } from 'nanoid';
 import { getUser } from '@/lib/supabase/cached';
+import { isProUser } from '@/app/actions';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { decryptFromCookie, encryptString, decryptString, encryptNumber } from '@/lib/crypto';
 import { fetchEvents, getRefreshedTokens } from '@/lib/google-calendar';
@@ -10,6 +11,10 @@ export async function POST() {
   const user = await getUser();
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  if (!(await isProUser())) {
+    return NextResponse.json({ error: 'Wymagany Plan Pro' }, { status: 403 });
   }
 
   const cookieStore = await cookies();

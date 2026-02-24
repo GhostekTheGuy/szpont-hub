@@ -34,6 +34,10 @@ export async function POST(req: NextRequest) {
               : session.subscription.id;
 
           const sub = await stripe.subscriptions.retrieve(subscriptionId);
+          const subPeriodEnd =
+            sub.items.data[0]?.current_period_end ??
+            (sub as unknown as { current_period_end?: number })
+              .current_period_end;
 
           await supabaseAdmin
             .from('subscriptions')
@@ -41,9 +45,9 @@ export async function POST(req: NextRequest) {
               stripe_subscription_id: sub.id,
               price_id: sub.items.data[0]?.price.id,
               status: sub.status,
-              current_period_end: new Date(
-                sub.current_period_end * 1000
-              ).toISOString(),
+              current_period_end: subPeriodEnd
+                ? new Date(subPeriodEnd * 1000).toISOString()
+                : null,
               cancel_at_period_end: sub.cancel_at_period_end,
               updated_at: new Date().toISOString(),
             })
@@ -59,14 +63,18 @@ export async function POST(req: NextRequest) {
 
       case 'customer.subscription.updated': {
         const sub = event.data.object as Stripe.Subscription;
+        const updatedPeriodEnd =
+          sub.items.data[0]?.current_period_end ??
+          (sub as unknown as { current_period_end?: number })
+            .current_period_end;
         await supabaseAdmin
           .from('subscriptions')
           .update({
             status: sub.status,
             price_id: sub.items.data[0]?.price.id,
-            current_period_end: new Date(
-              sub.current_period_end * 1000
-            ).toISOString(),
+            current_period_end: updatedPeriodEnd
+              ? new Date(updatedPeriodEnd * 1000).toISOString()
+              : null,
             cancel_at_period_end: sub.cancel_at_period_end,
             updated_at: new Date().toISOString(),
           })
