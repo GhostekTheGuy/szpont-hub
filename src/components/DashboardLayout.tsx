@@ -23,7 +23,7 @@ interface DashboardLayoutProps {
 }
 
 const navItems = [
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/wallets', label: 'Portfele', icon: Wallet },
   { href: '/assets', label: 'Aktywa', icon: PiggyBank },
   { href: '/calendar', label: 'Praca', icon: CalendarDays },
@@ -62,7 +62,7 @@ export function DashboardLayout({ children, userName, avatarUrl }: DashboardLayo
   const [collapsed, setCollapsed] = useState(false);
 
   const isActive = (href: string) => {
-    if (href === '/') return pathname === '/';
+    if (href === '/dashboard') return pathname === '/dashboard';
     return pathname.startsWith(href);
   };
 
@@ -82,7 +82,7 @@ export function DashboardLayout({ children, userName, avatarUrl }: DashboardLayo
         <div className="flex flex-col h-full">
           {/* Logo */}
           <div className={`border-b border-sidebar-border ${collapsed ? 'p-4 flex justify-center' : 'p-5'}`}>
-            <Link href="/" className="flex items-center justify-center">
+            <Link href="/dashboard" className="flex items-center justify-center">
               {collapsed ? (
                 <Image src="/sygnet.svg" alt="SzpontHub" width={32} height={28} className="h-8 w-auto" />
               ) : (
@@ -155,7 +155,7 @@ export function DashboardLayout({ children, userName, avatarUrl }: DashboardLayo
       {/* Mobile header */}
       <header className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-card border-b border-border p-4">
         <div className="flex items-center justify-between">
-          <Link href="/" className="flex items-center">
+          <Link href="/dashboard" className="flex items-center">
             <Image src="/sygnet.svg" alt="SzpontHub" width={32} height={28} className="h-7 w-auto" />
           </Link>
           <Link href="/settings" className="p-1">

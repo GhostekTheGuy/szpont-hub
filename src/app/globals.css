@@ -186,6 +186,52 @@ html {
 }
 
 /* Animations */
+@keyframes hero-tilt {
+  0% {
+    opacity: 0;
+    transform: perspective(1200px) rotateX(25deg) translateY(40px) scale(0.95);
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: perspective(1200px) rotateX(0deg) translateY(0) scale(1);
+  }
+}
+
+.animate-hero-tilt {
+  animation: hero-tilt 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transform-origin: center bottom;
+}
+
+@keyframes hero-glare {
+  0%, 70% {
+    opacity: 0;
+    transform: translateX(-100%) skewX(-20deg);
+  }
+  85% {
+    opacity: 0.18;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(100%) skewX(-20deg);
+  }
+}
+
+.animate-hero-glare {
+  background: linear-gradient(
+    105deg,
+    transparent 40%,
+    rgba(255, 255, 255, 0.25) 45%,
+    rgba(255, 255, 255, 0.4) 50%,
+    rgba(255, 255, 255, 0.25) 55%,
+    transparent 60%
+  );
+  animation: hero-glare 2s cubic-bezier(0.16, 1, 0.3, 1) 0.9s forwards;
+  opacity: 0;
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;

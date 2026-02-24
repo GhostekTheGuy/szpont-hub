@@ -34,7 +34,7 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   // Chronione ścieżki - przekieruj na login jeśli nie zalogowany
-  const protectedPaths = ['/', '/wallets', '/assets', '/settings', '/calendar', '/habits'];
+  const protectedPaths = ['/dashboard', '/wallets', '/assets', '/settings', '/calendar', '/habits'];
   const isProtectedPath = protectedPaths.some(
     (path) => request.nextUrl.pathname === path || request.nextUrl.pathname.startsWith(path + '/')
   );
@@ -65,7 +65,7 @@ export async function middleware(request: NextRequest) {
     const hasEncryptionCookie = request.cookies.has('encryption_dek');
     if (hasEncryptionCookie) {
       const url = request.nextUrl.clone();
-      url.pathname = '/';
+      url.pathname = '/dashboard';
       return NextResponse.redirect(url);
     }
   }

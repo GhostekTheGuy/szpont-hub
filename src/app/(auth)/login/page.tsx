@@ -60,7 +60,7 @@ function AuthPageContent() {
         await initEncryptionSession(loginData.password);
         setTransitioning(true);
         setTimeout(() => {
-          router.push('/');
+          router.push('/dashboard');
           router.refresh();
         }, 1200);
       }
