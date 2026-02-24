@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
-import { X, Upload, Timer, Loader2, Check, Trash2, FileText } from 'lucide-react';
+import { useState, useRef, useCallback, useEffect } from 'react';
+import { X, Upload, Timer, Loader2, Check, Trash2, FileText, Sparkles } from 'lucide-react';
 import { useFinanceStore } from '@/hooks/useFinanceStore';
-import { addCalendarEvent } from '@/app/actions';
+import { addCalendarEvent, getScansRemaining } from '@/app/actions';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface ScanTogglModalProps {
@@ -39,6 +39,17 @@ export function ScanTogglModal({ isOpen, onClose }: ScanTogglModalProps) {
   const [globalRate, setGlobalRate] = useState('');
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [savedCount, setSavedCount] = useState(0);
+  const [scansRemaining, setScansRemaining] = useState<number | null>(null);
+  const [scansPro, setScansPro] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      getScansRemaining().then(({ remaining, isPro }) => {
+        setScansRemaining(remaining);
+        setScansPro(isPro);
+      });
+    }
+  }, [isOpen]);
 
   const resetState = useCallback(() => {
     setState('idle');
@@ -227,6 +238,26 @@ export function ScanTogglModal({ isOpen, onClose }: ScanTogglModalProps) {
                 <X className="w-5 h-5" />
               </button>
             </div>
+
+            {!scansPro && scansRemaining !== null && (
+              <div className={`mb-4 p-3 rounded-lg text-sm flex items-center justify-between ${
+                scansRemaining === 0
+                  ? 'bg-red-500/10 border border-red-500/30 text-red-400'
+                  : 'bg-violet-500/10 border border-violet-500/30 text-violet-300'
+              }`}>
+                <span>
+                  {scansRemaining === 0
+                    ? 'Wykorzystano limit skanów w tym tygodniu'
+                    : `Pozostało ${scansRemaining}/3 skanów w tym tygodniu`}
+                </span>
+                {scansRemaining === 0 && (
+                  <a href="/settings" className="flex items-center gap-1 text-violet-400 hover:underline text-xs font-medium">
+                    <Sparkles className="w-3 h-3" />
+                    Przejdź na Pro
+                  </a>
+                )}
+              </div>
+            )}
 
             {error && (
               <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">

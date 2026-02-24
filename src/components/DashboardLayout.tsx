@@ -12,6 +12,7 @@ import {
   Target,
   ChevronsLeft,
   ChevronsRight,
+  Sparkles,
 } from 'lucide-react';
 import { PageTransition } from '@/components/PageTransition';
 import { Spotlight } from '@/components/Spotlight';
@@ -20,6 +21,7 @@ interface DashboardLayoutProps {
   children: ReactNode;
   userName: string;
   avatarUrl: string | null;
+  isPro?: boolean;
 }
 
 const navItems = [
@@ -57,7 +59,7 @@ function UserAvatar({ userName, avatarUrl, size = 'sm' }: { userName: string; av
   );
 }
 
-export function DashboardLayout({ children, userName, avatarUrl }: DashboardLayoutProps) {
+export function DashboardLayout({ children, userName, avatarUrl, isPro }: DashboardLayoutProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
 
@@ -129,8 +131,20 @@ export function DashboardLayout({ children, userName, avatarUrl }: DashboardLayo
                   : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
               }`}
             >
-              <UserAvatar userName={userName} avatarUrl={avatarUrl} />
-              {!collapsed && <span className="text-sm truncate">{userName}</span>}
+              <div className="relative shrink-0">
+                <UserAvatar userName={userName} avatarUrl={avatarUrl} />
+                {isPro && (
+                  <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-violet-600 flex items-center justify-center ring-2 ring-sidebar">
+                    <Sparkles className="w-2.5 h-2.5 text-white" />
+                  </div>
+                )}
+              </div>
+              {!collapsed && (
+                <span className="text-sm truncate flex items-center gap-1.5">
+                  {userName}
+                  {isPro && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500/15 text-violet-400">PRO</span>}
+                </span>
+              )}
             </Link>
 
             <button
@@ -159,7 +173,14 @@ export function DashboardLayout({ children, userName, avatarUrl }: DashboardLayo
             <Image src="/sygnet.svg" alt="SzpontHub" width={32} height={28} className="h-7 w-auto" />
           </Link>
           <Link href="/settings" className="p-1">
-            <UserAvatar userName={userName} avatarUrl={avatarUrl} />
+            <div className="relative">
+              <UserAvatar userName={userName} avatarUrl={avatarUrl} />
+              {isPro && (
+                <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-violet-600 flex items-center justify-center ring-2 ring-card">
+                  <Sparkles className="w-2.5 h-2.5 text-white" />
+                </div>
+              )}
+            </div>
           </Link>
         </div>
       </header>

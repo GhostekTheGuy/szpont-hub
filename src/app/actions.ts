@@ -2267,3 +2267,21 @@ export async function isProUser() {
   const sub = await getSubscription();
   return sub?.status === 'active' || sub?.status === 'trialing';
 }
+
+export async function getScansRemaining(): Promise<{ remaining: number; limit: number; isPro: boolean }> {
+  const userId = await getUserId();
+  if (!userId) return { remaining: 0, limit: 3, isPro: false };
+
+  const pro = await isProUser();
+  if (pro) return { remaining: Infinity, limit: Infinity, isPro: true };
+
+  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const { count } = await supabaseAdmin
+    .from('scan_logs')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .gte('created_at', weekAgo);
+
+  const used = count ?? 0;
+  return { remaining: Math.max(0, 3 - used), limit: 3, isPro: false };
+}

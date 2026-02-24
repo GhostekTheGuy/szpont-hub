@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, Sparkles, Wallet, PiggyBank, CalendarDays, Target, Monitor, Smartphone, Check, ScanLine, Bot, Send, X, Menu } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import DarkVeil from '@/components/DarkVeil';
@@ -24,6 +25,7 @@ export default function LandingPage() {
   const [legalModal, setLegalModal] = useState<'privacy' | 'terms' | null>(null);
   const [mobileMenu, setMobileMenu] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   const handleCheckout = async () => {
     setCheckoutLoading(true);
@@ -51,6 +53,12 @@ export default function LandingPage() {
       setCheckoutLoading(false);
     }
   };
+
+  useEffect(() => {
+    createClient().auth.getUser().then(({ data }) => {
+      if (data.user) setIsLoggedIn(true);
+    });
+  }, []);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 16);
@@ -120,8 +128,8 @@ export default function LandingPage() {
             </div>
 
             <div className="flex items-center gap-2">
-              <Button size="sm" className="rounded-full text-xs h-8 px-4 shrink-0 hidden sm:inline-flex" onClick={() => navigateTo('/login?mode=register')}>
-                Rozpocznij
+              <Button size="sm" className="rounded-full text-xs h-8 px-4 shrink-0 hidden sm:inline-flex" onClick={() => navigateTo(isLoggedIn ? '/dashboard' : '/login?mode=register')}>
+                {isLoggedIn ? 'Przejdź do panelu' : 'Rozpocznij'}
                 <ArrowRight className="w-3.5 h-3.5" />
               </Button>
 
@@ -169,8 +177,8 @@ export default function LandingPage() {
               className="mt-6 w-full max-w-xs animate-fade-in"
               style={{ animationDelay: '360ms', animationFillMode: 'both' }}
             >
-              <Button className="rounded-full text-sm h-12 w-full" onClick={() => { setMobileMenu(false); navigateTo('/login?mode=register'); }}>
-                Rozpocznij za darmo
+              <Button className="rounded-full text-sm h-12 w-full" onClick={() => { setMobileMenu(false); navigateTo(isLoggedIn ? '/dashboard' : '/login?mode=register'); }}>
+                {isLoggedIn ? 'Przejdź do panelu' : 'Rozpocznij za darmo'}
                 <ArrowRight className="w-4 h-4" />
               </Button>
             </div>
@@ -217,13 +225,13 @@ export default function LandingPage() {
 
           <BlurFade delay={0.4} inView>
             <div className="flex flex-wrap items-center justify-center gap-3 mt-2">
-              <Button size="lg" className="rounded-full text-sm h-11 px-6" onClick={() => navigateTo('/login?mode=register')}>
-                Rozpocznij za darmo
+              <Button size="lg" className="rounded-full text-sm h-11 px-6" onClick={() => navigateTo(isLoggedIn ? '/dashboard' : '/login?mode=register')}>
+                {isLoggedIn ? 'Przejdź do panelu' : 'Rozpocznij za darmo'}
                 <ArrowRight className="w-4 h-4" />
               </Button>
-              <Button variant="outline" size="lg" className="rounded-full text-sm h-11 px-6" onClick={() => navigateTo('/login')}>
+              {!isLoggedIn && <Button variant="outline" size="lg" className="rounded-full text-sm h-11 px-6" onClick={() => navigateTo('/login')}>
                 Zaloguj się
-              </Button>
+              </Button>}
             </div>
           </BlurFade>
         </div>
@@ -328,8 +336,8 @@ export default function LandingPage() {
           </BlurFade>
 
           <BlurFade delay={0.4} inView>
-            <Button className="rounded-full text-sm h-11 px-6 mt-10" onClick={() => navigateTo('/login?mode=register')}>
-              Wypróbuj za darmo
+            <Button className="rounded-full text-sm h-11 px-6 mt-10" onClick={() => navigateTo(isLoggedIn ? '/dashboard' : '/login?mode=register')}>
+              {isLoggedIn ? 'Przejdź do panelu' : 'Wypróbuj za darmo'}
               <ArrowRight className="w-4 h-4" />
             </Button>
           </BlurFade>
@@ -634,8 +642,8 @@ export default function LandingPage() {
 
         <div className="relative z-10 flex justify-center mt-14">
           <BlurFade delay={0.45} inView>
-            <Button className="rounded-full text-sm h-11 px-6" onClick={() => navigateTo('/login?mode=register')}>
-              Odkryj wszystkie funkcje
+            <Button className="rounded-full text-sm h-11 px-6" onClick={() => navigateTo(isLoggedIn ? '/dashboard' : '/login?mode=register')}>
+              {isLoggedIn ? 'Przejdź do panelu' : 'Odkryj wszystkie funkcje'}
               <ArrowRight className="w-4 h-4" />
             </Button>
           </BlurFade>
@@ -848,8 +856,8 @@ export default function LandingPage() {
 
           <BlurFade delay={0.45} inView>
             <div className="flex justify-center mt-16">
-              <Button className="rounded-full text-sm h-11 px-6" onClick={() => navigateTo('/login?mode=register')}>
-                Połącz swoje usługi
+              <Button className="rounded-full text-sm h-11 px-6" onClick={() => navigateTo(isLoggedIn ? '/dashboard' : '/login?mode=register')}>
+                {isLoggedIn ? 'Przejdź do panelu' : 'Połącz swoje usługi'}
                 <ArrowRight className="w-4 h-4" />
               </Button>
             </div>
@@ -938,8 +946,8 @@ export default function LandingPage() {
 
         <div className="relative z-10 flex justify-center mt-14">
           <BlurFade delay={0.3} inView>
-            <Button className="rounded-full text-sm h-11 px-6" onClick={() => navigateTo('/login?mode=register')}>
-              Dołącz do nich
+            <Button className="rounded-full text-sm h-11 px-6" onClick={() => navigateTo(isLoggedIn ? '/dashboard' : '/login?mode=register')}>
+              {isLoggedIn ? 'Przejdź do panelu' : 'Dołącz do nich'}
               <ArrowRight className="w-4 h-4" />
             </Button>
           </BlurFade>
@@ -1020,9 +1028,9 @@ export default function LandingPage() {
                 <Button
                   variant="outline"
                   className="rounded-full w-full mb-8"
-                  onClick={() => navigateTo('/login?mode=register')}
+                  onClick={() => navigateTo(isLoggedIn ? '/dashboard' : '/login?mode=register')}
                 >
-                  Rozpocznij za darmo
+                  {isLoggedIn ? 'Przejdź do panelu' : 'Rozpocznij za darmo'}
                 </Button>
 
                 <div className="flex flex-col gap-3">
@@ -1225,8 +1233,8 @@ export default function LandingPage() {
 
           <BlurFade delay={0.4} inView>
             <div className="flex justify-center mt-14">
-              <Button className="rounded-full text-sm h-11 px-6" onClick={() => navigateTo('/login?mode=register')}>
-                Dołącz teraz
+              <Button className="rounded-full text-sm h-11 px-6" onClick={() => navigateTo(isLoggedIn ? '/dashboard' : '/login?mode=register')}>
+                {isLoggedIn ? 'Przejdź do panelu' : 'Dołącz teraz'}
                 <ArrowRight className="w-4 h-4" />
               </Button>
             </div>
@@ -1270,8 +1278,8 @@ export default function LandingPage() {
             </p>
           </BlurFade>
           <BlurFade delay={0.3} inView>
-            <Button size="lg" className="rounded-full text-sm h-12 px-8 mt-8" onClick={() => navigateTo('/login?mode=register')}>
-              Rozpocznij za darmo
+            <Button size="lg" className="rounded-full text-sm h-12 px-8 mt-8" onClick={() => navigateTo(isLoggedIn ? '/dashboard' : '/login?mode=register')}>
+              {isLoggedIn ? 'Przejdź do panelu' : 'Rozpocznij za darmo'}
               <ArrowRight className="w-4 h-4" />
             </Button>
           </BlurFade>

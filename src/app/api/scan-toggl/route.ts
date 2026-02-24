@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getUser } from "@/lib/supabase/cached";
 import { isProUser } from "@/app/actions";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 async function extractPdfText(buffer: ArrayBuffer): Promise<string> {
   // Import internal module directly to avoid pdf-parse's top-level fs.readFileSync in index.js
@@ -40,8 +41,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    if (!(await isProUser())) {
-      return NextResponse.json({ error: "Wymagany Plan Pro" }, { status: 403 });
+    const pro = await isProUser();
+    if (!pro) {
+      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      const { count } = await supabaseAdmin
+        .from("scan_logs")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .gte("created_at", weekAgo);
+      if ((count ?? 0) >= 3) {
+        return NextResponse.json(
+          { error: "Limit 3 skanów tygodniowo w planie darmowym. Przejdź na Pro, aby skanować bez limitu.", remaining: 0 },
+          { status: 403 }
+        );
+      }
     }
 
     const apiKey = process.env.GROQ_API_KEY;
@@ -175,6 +188,10 @@ export async function POST(request: Request) {
       end_time: (item.end_time as string) || "10:00",
       duration_hours: Number(item.duration_hours) || 1,
     }));
+
+    await supabaseAdmin
+      .from("scan_logs")
+      .insert({ user_id: user.id, scan_type: "toggl" });
 
     return NextResponse.json({ entries });
   } catch (error: unknown) {

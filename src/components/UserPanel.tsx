@@ -38,9 +38,28 @@ export function UserPanel({ userName, userEmail, avatarUrl, subscription }: User
   const [resetSent, setResetSent] = useState(false);
   const [currentAvatar, setCurrentAvatar] = useState(avatarUrl);
   const [portalLoading, setPortalLoading] = useState(false);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isPro = subscription?.status === 'active' || subscription?.status === 'trialing';
+
+  const handleUpgrade = async () => {
+    setCheckoutLoading(true);
+    try {
+      const priceId = process.env.NEXT_PUBLIC_STRIPE_PRO_MONTHLY_PRICE_ID;
+      const res = await fetch('/api/stripe/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ priceId }),
+      });
+      const { url } = await res.json();
+      if (url) window.location.href = url;
+    } catch {
+      // silently fail
+    } finally {
+      setCheckoutLoading(false);
+    }
+  };
 
   const handleManageSubscription = async () => {
     setPortalLoading(true);
@@ -235,9 +254,25 @@ export function UserPanel({ userName, userEmail, avatarUrl, subscription }: User
               Zarządzaj subskrypcją
             </button>
           ) : (
-            <p className="text-xs text-muted-foreground">
-              Ulepsz do Pro, aby odblokować funkcje AI.
-            </p>
+            <div className="flex flex-col gap-2">
+              <p className="text-xs text-muted-foreground">
+                Ulepsz do Pro, aby odblokować funkcje AI.
+              </p>
+              <button
+                onClick={handleUpgrade}
+                disabled={checkoutLoading}
+                className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium transition-colors disabled:opacity-50"
+              >
+                {checkoutLoading ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <Crown className="w-4 h-4" />
+                    Przejdź na Pro — 19 zł/mies.
+                  </>
+                )}
+              </button>
+            </div>
           )}
         </div>
 
