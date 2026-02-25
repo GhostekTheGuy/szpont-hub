@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     .from('stripe_events')
     .select('id')
     .eq('event_id', event.id)
-    .single();
+    .maybeSingle();
 
   if (existing) {
     return NextResponse.json({ received: true, duplicate: true });
