@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useFinanceStore, type Wallet, type CalendarEvent } from '@/hooks/useFinanceStore';
 import { getCalendarEvents, toggleEventConfirmed } from '@/app/actions';
 import { WeeklyCalendar } from '@/components/WeeklyCalendar';
 import { CalendarEventModal } from '@/components/CalendarEventModal';
 import { WeeklySummaryModal } from '@/components/WeeklySummaryModal';
+import { InvoiceModal } from '@/components/InvoiceModal';
 import { ScanTogglModal } from '@/components/ScanTogglModal';
 import { TimerWidget } from '@/components/TimerWidget';
 import { GoogleCalendarSettings } from '@/components/GoogleCalendarSettings';
@@ -45,6 +46,7 @@ export function CalendarPageClient({ initialEvents, initialWallets, googleConnec
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
   const [isScanTogglOpen, setIsScanTogglOpen] = useState(false);
+  const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
   const [isGoogleSettingsOpen, setIsGoogleSettingsOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
   const [prefillDate, setPrefillDate] = useState<Date | null>(null);
@@ -168,6 +170,29 @@ export function CalendarPageClient({ initialEvents, initialWallets, googleConnec
     window.location.href = '/api/google-calendar/auth';
   };
 
+  const invoiceWorkEvents = useMemo(() => {
+    const msStart = monthStart.toISOString();
+    const meEnd = monthEnd.toISOString();
+    return calendarEvents
+      .filter(
+        (e) =>
+          e.event_type === 'work' &&
+          e.is_confirmed &&
+          e.start_time >= msStart &&
+          e.start_time <= meEnd
+      )
+      .map((e) => {
+        const start = new Date(e.start_time);
+        const end = new Date(e.end_time);
+        const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+        return {
+          title: e.title,
+          hours,
+          hourlyRate: e.hourly_rate,
+        };
+      });
+  }, [calendarEvents, monthStart, monthEnd]);
+
   const isSundayToday = isSunday(new Date());
 
   // For WeeklySummaryModal: derive week from selectedDate
@@ -265,6 +290,17 @@ export function CalendarPageClient({ initialEvents, initialWallets, googleConnec
         weekEnd={weekEnd.toISOString()}
         monthStart={monthStart.toISOString()}
         monthEnd={monthEnd.toISOString()}
+        monthLabel={format(currentMonth, 'LLLL yyyy', { locale: pl })}
+        onGenerateInvoice={() => {
+          setIsSummaryModalOpen(false);
+          setIsInvoiceModalOpen(true);
+        }}
+      />
+
+      <InvoiceModal
+        isOpen={isInvoiceModalOpen}
+        onClose={() => setIsInvoiceModalOpen(false)}
+        workEvents={invoiceWorkEvents}
         monthLabel={format(currentMonth, 'LLLL yyyy', { locale: pl })}
       />
 

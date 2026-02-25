@@ -9,13 +9,16 @@ import { FinancialChart } from '@/components/FinancialChart';
 import { MonthlyIncomeChart } from '@/components/MonthlyIncomeChart';
 import { ProfitChart } from '@/components/ProfitChart';
 import { PLNBTCChart } from '@/components/PLNBTCChart';
+import { ProjectedNetWorthChart } from '@/components/ProjectedNetWorthChart';
 import { TransactionModal } from '@/components/TransactionModal';
 import { WalletModal } from '@/components/WalletModal';
-import { useFinanceStore, Transaction, Wallet, Asset } from '@/hooks/useFinanceStore';
-import { TrendingUp, Wallet as WalletIcon, ArrowUpRight, ArrowDownRight, Plus, ArrowRight } from 'lucide-react';
+import { useFinanceStore, Transaction, Wallet, Asset, Goal } from '@/hooks/useFinanceStore';
+import { GoalCard } from '@/components/GoalCard';
+import { GoalModal } from '@/components/GoalModal';
+import { TrendingUp, Wallet as WalletIcon, ArrowUpRight, ArrowDownRight, Plus, ArrowRight, Target } from 'lucide-react';
 import { subDays, format } from 'date-fns';
 import { pl } from 'date-fns/locale';
-import { deleteTransactionAction, deleteWalletAction } from '@/app/actions';
+import { deleteTransactionAction, deleteWalletAction, deleteGoalAction } from '@/app/actions';
 import { convertAmount, formatCurrency, type Currency, type ExchangeRates, type HistoricalRates } from '@/lib/exchange-rates';
 import { getDashboardHistoricalRates } from '@/app/actions';
 
@@ -23,6 +26,7 @@ interface Props {
   initialWallets: Wallet[];
   initialTransactions: Transaction[];
   initialAssets: Asset[];
+  initialGoals: Goal[];
   exchangeRates: ExchangeRates;
   userName: string;
 }
@@ -35,24 +39,27 @@ function getGreeting(): string {
   return 'Dobrej nocy';
 }
 
-export function DashboardOverview({ initialWallets, initialTransactions, initialAssets, exchangeRates, userName }: Props) {
+export function DashboardOverview({ initialWallets, initialTransactions, initialAssets, initialGoals, exchangeRates, userName }: Props) {
   const [isTransModalOpen, setIsTransModalOpen] = useState(false);
   const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [editingWallet, setEditingWallet] = useState<Wallet | null>(null);
+  const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
+  const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
   const [range, setRange] = useState<'1W' | '1M' | '3M' | '1Y'>('1M');
   const [displayCurrency, setDisplayCurrency] = useState<Currency>('PLN');
 
   const [historicalRates, setHistoricalRates] = useState<HistoricalRates | undefined>(undefined);
   const [ratesReady, setRatesReady] = useState(false);
 
-  const { wallets, transactions, assets, setWallets, setTransactions, setAssets, balanceMasked } = useFinanceStore();
+  const { wallets, transactions, assets, goals, setWallets, setTransactions, setAssets, setGoals, balanceMasked } = useFinanceStore();
 
   useEffect(() => {
     setWallets(initialWallets);
     setTransactions(initialTransactions);
     setAssets(initialAssets);
-  }, [initialWallets, initialTransactions, initialAssets, setWallets, setTransactions, setAssets]);
+    setGoals(initialGoals);
+  }, [initialWallets, initialTransactions, initialAssets, initialGoals, setWallets, setTransactions, setAssets, setGoals]);
 
   // Pobierz historyczne kursy gdy zmieni się range
   useEffect(() => {
@@ -99,6 +106,10 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
 
   const handleDeleteWallet = async (id: string) => {
     if (confirm('Czy na pewno?')) await deleteWalletAction(id);
+  };
+
+  const handleDeleteGoal = async (id: string) => {
+    if (confirm('Czy na pewno?')) await deleteGoalAction(id);
   };
 
   return (
@@ -212,6 +223,17 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
             <PLNBTCChart />
           </div>
 
+          {/* Projected net worth */}
+          <div className={`card-responsive ${balanceMasked ? 'blur-lg select-none pointer-events-none' : ''}`}>
+            <ProjectedNetWorthChart
+              transactions={transactions}
+              wallets={wallets}
+              assets={assets}
+              displayCurrency={displayCurrency}
+              exchangeRates={exchangeRates}
+            />
+          </div>
+
           {/* Assets preview */}
           <div className="card-responsive">
             <AssetList assets={assets} />
@@ -248,6 +270,39 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
             </div>
           </div>
 
+          {/* Goals */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-lg font-bold text-foreground">Cele</h2>
+              <button
+                onClick={() => { setEditingGoal(null); setIsGoalModalOpen(true); }}
+                className="flex items-center gap-1 text-xs text-primary hover:underline"
+              >
+                <Plus className="w-3 h-3" /> Nowy
+              </button>
+            </div>
+            <div className="space-y-2">
+              {goals.map((goal) => (
+                <GoalCard
+                  key={goal.id}
+                  goal={goal}
+                  displayCurrency={displayCurrency}
+                  onEdit={(g) => { setEditingGoal(g); setIsGoalModalOpen(true); }}
+                  onDelete={handleDeleteGoal}
+                />
+              ))}
+              {goals.length === 0 && (
+                <button
+                  onClick={() => { setEditingGoal(null); setIsGoalModalOpen(true); }}
+                  className="w-full flex flex-col items-center gap-2 py-6 border border-dashed border-border rounded-lg text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors"
+                >
+                  <Target className="w-8 h-8 opacity-40" />
+                  <span className="text-sm">Dodaj swój pierwszy cel</span>
+                </button>
+              )}
+            </div>
+          </div>
+
           {/* Recent transactions */}
           <div className="card-responsive">
             <TransactionList
@@ -272,6 +327,13 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
         isOpen={isWalletModalOpen}
         onClose={() => setIsWalletModalOpen(false)}
         editingWallet={editingWallet}
+      />
+
+      <GoalModal
+        isOpen={isGoalModalOpen}
+        onClose={() => setIsGoalModalOpen(false)}
+        editingGoal={editingGoal}
+        wallets={wallets}
       />
     </>
   );

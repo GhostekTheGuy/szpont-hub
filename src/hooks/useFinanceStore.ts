@@ -68,6 +68,17 @@ export interface HabitEntry {
   completed: boolean;
 }
 
+export interface Goal {
+  id: string;
+  name: string;
+  target_amount: number;
+  current_amount: number;
+  target_date: string | null;
+  category: string;
+  icon: string;
+  wallet_id: string | null;
+}
+
 export interface CalendarEvent {
   id: string;
   title: string;
@@ -92,6 +103,7 @@ interface FinanceState {
   assets: Asset[];
   assetSales: AssetSale[];
   calendarEvents: CalendarEvent[];
+  goals: Goal[];
   habits: Habit[];
   habitEntries: HabitEntry[];
   activeWalletId: string | null;
@@ -103,6 +115,7 @@ interface FinanceState {
   setAssets: (assets: Asset[]) => void;
   setAssetSales: (sales: AssetSale[]) => void;
   setCalendarEvents: (events: CalendarEvent[]) => void;
+  setGoals: (goals: Goal[]) => void;
   setHabits: (habits: Habit[]) => void;
   setHabitEntries: (entries: HabitEntry[]) => void;
   setActiveWallet: (id: string | null) => void;
@@ -117,6 +130,7 @@ export const useFinanceStore = create<FinanceState>()(
     assets: [],
     assetSales: [],
     calendarEvents: [],
+    goals: [],
     habits: [],
     habitEntries: [],
     activeWalletId: null,
@@ -127,6 +141,7 @@ export const useFinanceStore = create<FinanceState>()(
     setAssets: (assets) => set({ assets }),
     setAssetSales: (assetSales) => set({ assetSales }),
     setCalendarEvents: (calendarEvents) => set({ calendarEvents }),
+    setGoals: (goals) => set({ goals }),
     setHabits: (habits) => set({ habits }),
     setHabitEntries: (habitEntries) => set({ habitEntries }),
     setActiveWallet: (id) => set({ activeWalletId: id }),

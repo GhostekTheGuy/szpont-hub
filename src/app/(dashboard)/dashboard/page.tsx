@@ -1,13 +1,14 @@
 import { Suspense } from "react";
-import { getDashboardData } from "@/app/actions";
+import { getDashboardData, getGoals } from "@/app/actions";
 import { DashboardOverview } from "@/components/DashboardOverview";
 import { AutoCheckout } from "@/components/AutoCheckout";
 import { getUser } from "@/lib/supabase/cached";
 
 export default async function Home() {
-  const [user, data] = await Promise.all([
+  const [user, data, goals] = await Promise.all([
     getUser(),
     getDashboardData(),
+    getGoals(),
   ]);
 
   const userName = user?.user_metadata?.name || user?.email?.split('@')[0] || 'Użytkownik';
@@ -27,6 +28,7 @@ export default async function Home() {
         initialWallets={data.wallets}
         initialTransactions={data.transactions}
         initialAssets={data.assets}
+        initialGoals={goals}
         exchangeRates={data.exchangeRates}
         userName={userName}
       />

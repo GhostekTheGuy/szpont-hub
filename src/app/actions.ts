@@ -2290,3 +2290,136 @@ export async function getScansRemaining(): Promise<{ remaining: number; limit: n
   const used = count ?? 0;
   return { remaining: Math.max(0, 3 - used), limit: 3, isPro: false };
 }
+
+// --- CELE FINANSOWE ---
+
+export async function getGoals() {
+  const userId = await getUserId();
+  if (!userId) return [];
+
+  const dek = await getDEK();
+
+  const { data: goals, error } = await supabaseAdmin
+    .from('goals')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching goals:', error);
+    return [];
+  }
+
+  return (goals || []).map(g => ({
+    id: g.id,
+    name: decryptString(g.name, dek) || g.name,
+    target_amount: decryptNumber(g.target_amount, dek),
+    current_amount: decryptNumber(g.current_amount, dek),
+    target_date: g.target_date,
+    category: g.category,
+    icon: g.icon,
+    wallet_id: g.wallet_id,
+  }));
+}
+
+export async function addGoalAction(data: {
+  name: string;
+  target_amount: number;
+  current_amount: number;
+  target_date: string | null;
+  category: string;
+  icon: string;
+  wallet_id: string | null;
+}) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  if (!data.name || data.name.length > 100) throw new Error('Invalid name');
+  if (typeof data.target_amount !== 'number' || !isFinite(data.target_amount)) throw new Error('Invalid target_amount');
+  if (typeof data.current_amount !== 'number' || !isFinite(data.current_amount)) throw new Error('Invalid current_amount');
+
+  const dek = await getDEK();
+
+  const { error } = await supabaseAdmin
+    .from('goals')
+    .insert({
+      id: nanoid(),
+      user_id: userId,
+      name: encryptString(data.name, dek),
+      target_amount: encryptNumber(data.target_amount, dek),
+      current_amount: encryptNumber(data.current_amount, dek),
+      target_date: data.target_date || null,
+      category: data.category || 'savings',
+      icon: data.icon || 'target',
+      wallet_id: data.wallet_id || null,
+      created_at: new Date().toISOString(),
+    });
+
+  if (error) {
+    console.error('Error adding goal:', error);
+    throw new Error(error.message);
+  }
+
+  revalidatePath('/', 'layout');
+}
+
+export async function editGoalAction(id: string, data: {
+  name: string;
+  target_amount: number;
+  current_amount: number;
+  target_date: string | null;
+  category: string;
+  icon: string;
+  wallet_id: string | null;
+}) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  if (!id) throw new Error('Invalid id');
+  if (!data.name || data.name.length > 100) throw new Error('Invalid name');
+
+  const { data: goal } = await supabaseAdmin
+    .from('goals')
+    .select('user_id')
+    .eq('id', id)
+    .single();
+
+  if (!goal || goal.user_id !== userId) return;
+
+  const dek = await getDEK();
+
+  await supabaseAdmin
+    .from('goals')
+    .update({
+      name: encryptString(data.name, dek),
+      target_amount: encryptNumber(data.target_amount, dek),
+      current_amount: encryptNumber(data.current_amount, dek),
+      target_date: data.target_date || null,
+      category: data.category || 'savings',
+      icon: data.icon || 'target',
+      wallet_id: data.wallet_id || null,
+    })
+    .eq('id', id);
+
+  revalidatePath('/', 'layout');
+}
+
+export async function deleteGoalAction(id: string) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  const { data: goal } = await supabaseAdmin
+    .from('goals')
+    .select('user_id')
+    .eq('id', id)
+    .single();
+
+  if (!goal || goal.user_id !== userId) return;
+
+  await supabaseAdmin
+    .from('goals')
+    .delete()
+    .eq('id', id);
+
+  revalidatePath('/', 'layout');
+}

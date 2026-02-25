@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, TrendingUp, TrendingDown, Minus, Loader2, Sparkles } from 'lucide-react';
+import { X, TrendingUp, TrendingDown, Minus, Loader2, Sparkles, FileText } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { settleWeekAction, settleMonthAction, getWeeklySummary, getMonthlySummary } from '@/app/actions';
+import { calculatePIT } from '@/lib/tax-calculator';
 
 interface WalletBreakdown {
   id: string;
@@ -40,9 +41,10 @@ interface WeeklySummaryModalProps {
   monthStart: string;
   monthEnd: string;
   monthLabel: string;
+  onGenerateInvoice?: () => void;
 }
 
-export function WeeklySummaryModal({ isOpen, onClose, weekStart, weekEnd, monthStart, monthEnd, monthLabel }: WeeklySummaryModalProps) {
+export function WeeklySummaryModal({ isOpen, onClose, weekStart, weekEnd, monthStart, monthEnd, monthLabel, onGenerateInvoice }: WeeklySummaryModalProps) {
   const [mode, setMode] = useState<SummaryMode>('week');
   const [summary, setSummary] = useState<SummaryData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -275,6 +277,47 @@ export function WeeklySummaryModal({ isOpen, onClose, weekStart, weekEnd, monthS
                   </div>
                 )}
 
+                {/* Tax estimation (month mode only) */}
+                {mode === 'month' && summary.totalEarnings > 0 && (() => {
+                  const tax = calculatePIT(summary.totalEarnings);
+                  return (
+                    <div>
+                      <div className="text-sm font-medium text-muted-foreground mb-2">Szacunek podatkowy</div>
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between bg-secondary/50 rounded-lg px-3 py-2">
+                          <span className="text-sm text-foreground">Brutto</span>
+                          <span className="text-sm font-medium text-foreground">
+                            {tax.grossIncome.toLocaleString('pl-PL', { minimumFractionDigits: 2 })} PLN
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between bg-secondary/50 rounded-lg px-3 py-2">
+                          <span className="text-sm text-foreground">PIT</span>
+                          <span className="text-sm font-medium text-red-500">
+                            -{tax.pitTax.toLocaleString('pl-PL', { minimumFractionDigits: 2 })} PLN
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between bg-secondary/50 rounded-lg px-3 py-2">
+                          <span className="text-sm text-foreground">Składka zdrowotna</span>
+                          <span className="text-sm font-medium text-red-500">
+                            -{tax.healthInsurance.toLocaleString('pl-PL', { minimumFractionDigits: 2 })} PLN
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between bg-primary/10 border border-primary/20 rounded-lg px-3 py-2">
+                          <span className="text-sm font-medium text-foreground">Netto</span>
+                          <div className="text-right">
+                            <span className="text-sm font-bold text-foreground">
+                              {tax.netIncome.toLocaleString('pl-PL', { minimumFractionDigits: 2 })} PLN
+                            </span>
+                            <span className="text-xs text-muted-foreground ml-1.5">
+                              ({tax.effectiveRate.toFixed(1)}% efektywna)
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {/* AI Insight */}
                 {(aiLoading || aiInsight) && (
                   <div className="bg-secondary/50 border border-border rounded-lg p-3">
@@ -311,6 +354,16 @@ export function WeeklySummaryModal({ isOpen, onClose, weekStart, weekEnd, monthS
                     Wszystkie potwierdzone wydarzenia rozliczone
                   </div>
                 )}
+                {mode === 'month' && onGenerateInvoice && summary.totalEarnings > 0 && (
+                  <button
+                    onClick={onGenerateInvoice}
+                    className="w-full flex items-center justify-center gap-2 bg-secondary hover:bg-accent text-secondary-foreground font-medium py-2.5 rounded-lg transition-colors border border-border"
+                  >
+                    <FileText className="w-4 h-4" />
+                    Generuj fakturę
+                  </button>
+                )}
+
                 {summary.confirmedCount < summary.eventCount && (
                   <div className="text-center text-sm text-muted-foreground py-1">
                     {summary.eventCount - summary.confirmedCount} wydarzeń niepotwierdzone — zaznacz je w kalendarzu

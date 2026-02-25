@@ -7,6 +7,7 @@ import { TransactionModal } from '@/components/TransactionModal';
 import { WalletModal } from '@/components/WalletModal';
 import { WalletChart } from '@/components/WalletChart';
 import { ExpensePieChart } from '@/components/ExpensePieChart';
+import { FinancialCushion } from '@/components/FinancialCushion';
 import { ScanReceiptModal } from '@/components/ScanReceiptModal';
 import { useFinanceStore, Transaction, Wallet } from '@/hooks/useFinanceStore';
 import { Plus, Camera } from 'lucide-react';
@@ -175,12 +176,22 @@ export function WalletsPageClient({ initialWallets, initialTransactions, exchang
         </div>
 
         {activeWalletId && (
-          <div className="card-responsive h-fit lg:w-[340px]">
-            <ExpensePieChart
-              transactions={filteredTransactions}
-              displayCurrency={displayCurrency}
-              exchangeRates={exchangeRates}
-            />
+          <div className="space-y-3 lg:w-[340px]">
+            <div className="card-responsive h-fit">
+              <ExpensePieChart
+                transactions={filteredTransactions}
+                displayCurrency={displayCurrency}
+                exchangeRates={exchangeRates}
+              />
+            </div>
+            <div className="card-responsive h-fit">
+              <FinancialCushion
+                transactions={filteredTransactions}
+                walletBalance={activeWallet?.balance ?? 0}
+                displayCurrency={displayCurrency}
+                exchangeRates={exchangeRates}
+              />
+            </div>
           </div>
         )}
       </div>

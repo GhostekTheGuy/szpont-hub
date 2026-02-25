@@ -25,6 +25,7 @@
     "framer-motion": "^12.34.0",
     "geist": "^1.7.0",
     "googleapis": "^171.4.0",
+    "jspdf": "^4.2.0",
     "lucide-react": "^0.263.1",
     "motion": "^12.34.2",
     "nanoid": "^5.1.6",
