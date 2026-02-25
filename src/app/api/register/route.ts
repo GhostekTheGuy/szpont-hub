@@ -2,16 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { generateSalt, generateDEK, deriveKEK, encryptDEK } from "@/lib/crypto";
-import { rateLimit, getClientIp } from "@/lib/rate-limit";
-
 export async function POST(request: Request) {
   try {
-    const ip = getClientIp(request);
-    const rl = rateLimit(`register:${ip}`, { limit: 5, windowSeconds: 600 });
-    if (!rl.success) {
-      return new NextResponse("Zbyt wiele prób. Spróbuj ponownie później.", { status: 429 });
-    }
-
     const body = await request.json();
     const { email, name, password } = body;
 
@@ -49,6 +41,9 @@ export async function POST(request: Request) {
 
     if (authError) {
       console.error("Supabase auth error:", authError);
+      if (authError.message.includes("rate limit") || authError.status === 429) {
+        return new NextResponse("Zbyt wiele prób. Odczekaj kilka minut i spróbuj ponownie.", { status: 429 });
+      }
       if (authError.message.includes("already")) {
         return new NextResponse("Email już istnieje", { status: 400 });
       }

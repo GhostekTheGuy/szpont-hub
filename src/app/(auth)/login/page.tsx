@@ -90,13 +90,14 @@ function AuthPageContent() {
 
       if (!response.ok) {
         const msg = await response.text();
-        throw new Error(msg || 'Błąd rejestracji');
+        setError(msg || 'Błąd rejestracji');
+        return;
       }
 
       setRegisterSuccess(true);
       setLoginData({ email: registerData.email, password: '' });
     } catch {
-      setError('Wystąpił błąd. Spróbuj użyć innego adresu email.');
+      setError('Wystąpił błąd. Spróbuj ponownie.');
     } finally {
       setLoading(false);
     }

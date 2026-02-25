@@ -253,7 +253,7 @@ export default function LandingPage() {
           <div className="relative overflow-hidden rounded-xl">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/image 7.png"
+              src="/hero-dashboard.webp"
               alt="Dashboard $zpont Hub"
               className="w-full h-auto shadow-2xl shadow-primary/5"
             />
