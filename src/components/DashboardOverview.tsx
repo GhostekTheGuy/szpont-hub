@@ -271,35 +271,37 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
           </div>
 
           {/* Goals */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-lg font-bold text-foreground">Cele</h2>
-              <button
-                onClick={() => { setEditingGoal(null); setIsGoalModalOpen(true); }}
-                className="flex items-center gap-1 text-xs text-primary hover:underline"
-              >
-                <Plus className="w-3 h-3" /> Nowy
-              </button>
-            </div>
-            <div className="space-y-2">
-              {goals.map((goal) => (
-                <GoalCard
-                  key={goal.id}
-                  goal={goal}
-                  displayCurrency={displayCurrency}
-                  onEdit={(g) => { setEditingGoal(g); setIsGoalModalOpen(true); }}
-                  onDelete={handleDeleteGoal}
-                />
-              ))}
-              {goals.length === 0 && (
+          <div className="card-responsive">
+            <div className="px-4 py-4 lg:px-6 lg:py-5">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-lg font-bold text-foreground">Cele</h2>
                 <button
                   onClick={() => { setEditingGoal(null); setIsGoalModalOpen(true); }}
-                  className="w-full flex flex-col items-center gap-2 py-6 border border-dashed border-border rounded-lg text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors"
+                  className="flex items-center gap-1 text-xs text-primary hover:underline"
                 >
-                  <Target className="w-8 h-8 opacity-40" />
-                  <span className="text-sm">Dodaj swój pierwszy cel</span>
+                  <Plus className="w-3 h-3" /> Nowy
                 </button>
-              )}
+              </div>
+              <div className="space-y-2">
+                {goals.map((goal) => (
+                  <GoalCard
+                    key={goal.id}
+                    goal={goal}
+                    displayCurrency={displayCurrency}
+                    onEdit={(g) => { setEditingGoal(g); setIsGoalModalOpen(true); }}
+                    onDelete={handleDeleteGoal}
+                  />
+                ))}
+                {goals.length === 0 && (
+                  <button
+                    onClick={() => { setEditingGoal(null); setIsGoalModalOpen(true); }}
+                    className="w-full flex flex-col items-center gap-2 py-6 border border-dashed border-border rounded-lg text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors"
+                  >
+                    <Target className="w-8 h-8 opacity-40" />
+                    <span className="text-sm">Dodaj swój pierwszy cel</span>
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
