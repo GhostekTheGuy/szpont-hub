@@ -1,8 +1,12 @@
 import { getWalletsWithTransactions } from "@/app/actions";
+import { getExchangeRates } from "@/lib/exchange-rates";
 import { WalletsPageClient } from "@/components/pages/WalletsPageClient";
 
 export default async function WalletsPage() {
-  const data = await getWalletsWithTransactions();
+  const [data, exchangeRates] = await Promise.all([
+    getWalletsWithTransactions(),
+    getExchangeRates(),
+  ]);
 
   if (!data) {
     return (
@@ -16,6 +20,7 @@ export default async function WalletsPage() {
     <WalletsPageClient
       initialWallets={data.wallets}
       initialTransactions={data.transactions}
+      exchangeRates={exchangeRates}
     />
   );
 }

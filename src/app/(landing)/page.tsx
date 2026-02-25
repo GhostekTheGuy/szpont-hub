@@ -4,17 +4,17 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Sparkles, Wallet, PiggyBank, CalendarDays, Target, Monitor, Smartphone, Check, ScanLine, Bot, Send, X, Menu } from 'lucide-react';
+import { ArrowRight, Sparkles, Wallet, PiggyBank, CalendarDays, Target, Monitor, Smartphone, Check, ScanLine, Bot, Send, X, Menu, ChevronDown } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import DarkVeil from '@/components/DarkVeil';
 import LetterGlitch from '@/components/LetterGlitch';
 import { BlurFade } from '@/components/ui/blur-fade';
 import { Marquee } from '@/components/ui/marquee';
 import { AvatarCircles } from '@/components/ui/avatar-circles';
 import { GridPattern } from '@/components/ui/grid-pattern';
 import { Globe } from '@/components/ui/globe';
+import { MeshGradient } from '@paper-design/shaders-react';
 
 export default function LandingPage() {
   const router = useRouter();
@@ -26,6 +26,7 @@ export default function LandingPage() {
   const [mobileMenu, setMobileMenu] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   const handleCheckout = async () => {
     setCheckoutLoading(true);
@@ -115,6 +116,7 @@ export default function LandingPage() {
                 { label: 'Integracje', href: '#integracje' },
                 { label: 'Opinie', href: '#opinie' },
                 { label: 'Cennik', href: '#cennik' },
+                { label: 'FAQ', href: '#faq' },
                 { label: 'Społeczność', href: '#spolecznosc' },
               ].map((link) => (
                 <a
@@ -161,6 +163,7 @@ export default function LandingPage() {
               { label: 'Integracje', href: '#integracje' },
               { label: 'Opinie', href: '#opinie' },
               { label: 'Cennik', href: '#cennik' },
+              { label: 'FAQ', href: '#faq' },
               { label: 'Społeczność', href: '#spolecznosc' },
             ].map((link, i) => (
               <a
@@ -189,15 +192,18 @@ export default function LandingPage() {
     <div className={`min-h-screen bg-background text-foreground transition-all duration-500 ${exiting ? 'opacity-0 scale-[0.98] blur-sm' : 'opacity-100 scale-100'}`}>
       {/* Hero */}
       <section className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden">
-        {/* DarkVeil BG */}
-        <div className="absolute inset-0 grayscale">
-          <DarkVeil
-            hueShift={0}
-            noiseIntensity={0.15}
-            scanlineIntensity={0.04}
-            speed={0.8}
-            scanlineFrequency={80}
-            warpAmount={0.02}
+        {/* Mesh Gradient BG */}
+        <div className="absolute inset-0">
+          <MeshGradient
+            style={{ width: '100%', height: '100%' }}
+            colors={['#212121', '#000000']}
+            distortion={1}
+            swirl={0.2}
+            grainMixer={0.34}
+            grainOverlay={0}
+            speed={1}
+            rotation={90}
+            offsetY={0.32}
           />
         </div>
 
@@ -234,6 +240,11 @@ export default function LandingPage() {
                 Zaloguj się
               </Button>}
             </div>
+            {!isLoggedIn && (
+              <p className="text-muted-foreground text-sm mt-3 text-center">
+                Nie wymaga karty kredytowej. Konfiguracja w 30 sekund.
+              </p>
+            )}
           </BlurFade>
         </div>
 
@@ -1143,6 +1154,78 @@ export default function LandingPage() {
               </p>
             </div>
           </BlurFade>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section id="faq" className="relative bg-neutral-900 py-32 overflow-hidden scroll-mt-20 blend-from-dark blend-to-bg">
+        <GridPattern
+          width={48}
+          height={48}
+          squares={[[2, 4], [6, 9], [10, 2], [14, 7], [4, 12], [12, 5]]}
+          className="absolute inset-0 h-full w-full fill-white/[0.02] stroke-white/[0.04] [mask-image:radial-gradient(700px_circle_at_center,white,transparent)]"
+        />
+        <div className="relative z-10 max-w-3xl mx-auto px-6">
+          {/* Header */}
+          <div className="text-center mb-16">
+            <BlurFade delay={0.1} inView>
+              <span className="text-[11px] uppercase tracking-[0.2em] font-semibold text-muted-foreground">
+                FAQ
+              </span>
+            </BlurFade>
+            <BlurFade delay={0.2} inView>
+              <h2 className="mt-5 text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight leading-[1.12] text-foreground">
+                Najczęściej zadawane <span className="text-primary">pytania.</span>
+              </h2>
+            </BlurFade>
+          </div>
+
+          {/* Accordion */}
+          <div className="space-y-3">
+            {[
+              {
+                q: 'Czy moje dane są bezpieczne?',
+                a: 'Tak. Wszystkie dane finansowe są szyfrowane end-to-end — nawet my nie mamy do nich dostępu. Klucze szyfrujące są generowane po stronie klienta i nigdy nie opuszczają Twojego urządzenia.',
+              },
+              {
+                q: 'Co daje plan Pro?',
+                a: 'Plan Pro odblokowuje narzędzia AI (inteligentna kategoryzacja, prognozy), nielimitowane skanowanie paragonów, zaawansowane raporty i priorytetowe wsparcie.',
+              },
+              {
+                q: 'Jak szybko mogę zacząć?',
+                a: 'Rejestracja zajmuje około 30 sekund. Nie wymagamy karty kredytowej — możesz korzystać z darmowego planu bez żadnych zobowiązań.',
+              },
+              {
+                q: 'Czy mogę zaimportować dane z innych aplikacji?',
+                a: 'Obecnie wspieramy import z Toggl Track. Pracujemy nad kolejnymi integracjami — jeśli masz konkretną potrzebę, daj nam znać na Discordzie.',
+              },
+              {
+                q: 'Jak działa szyfrowanie?',
+                a: 'Używamy szyfrowania DEK (Data Encryption Key). Każdy użytkownik ma unikalny klucz, a cała operacja szyfrowania odbywa się po stronie klienta (client-side encryption), zanim dane trafią na serwer.',
+              },
+              {
+                q: 'Czy mogę korzystać na telefonie?',
+                a: 'Tak! $zpontHub jest w pełni responsywny — działa na każdym urządzeniu z przeglądarką. Nie potrzebujesz osobnej aplikacji mobilnej.',
+              },
+            ].map((item, i) => (
+              <BlurFade key={i} delay={0.25 + i * 0.05} inView>
+                <div className="glow-card bg-card border border-border rounded-2xl overflow-hidden transition-all duration-300">
+                  <button
+                    onClick={() => setOpenFaq(openFaq === i ? null : i)}
+                    className="w-full flex items-center justify-between px-6 py-5 text-left"
+                  >
+                    <span className="text-sm font-semibold text-foreground pr-4">{item.q}</span>
+                    <ChevronDown className={`w-4 h-4 shrink-0 text-muted-foreground transition-transform duration-300 ${openFaq === i ? 'rotate-180' : ''}`} />
+                  </button>
+                  <div className={`overflow-hidden transition-all duration-300 ${openFaq === i ? 'max-h-60' : 'max-h-0'}`}>
+                    <p className="px-6 pb-5 text-sm text-muted-foreground leading-relaxed">
+                      {item.a}
+                    </p>
+                  </div>
+                </div>
+              </BlurFade>
+            ))}
+          </div>
         </div>
       </section>
 

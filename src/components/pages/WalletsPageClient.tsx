@@ -6,18 +6,20 @@ import { TransactionList } from '@/components/TransactionList';
 import { TransactionModal } from '@/components/TransactionModal';
 import { WalletModal } from '@/components/WalletModal';
 import { WalletChart } from '@/components/WalletChart';
+import { ExpensePieChart } from '@/components/ExpensePieChart';
 import { ScanReceiptModal } from '@/components/ScanReceiptModal';
 import { useFinanceStore, Transaction, Wallet } from '@/hooks/useFinanceStore';
 import { Plus, Camera } from 'lucide-react';
 import { deleteTransactionAction, deleteWalletAction } from '@/app/actions';
-import { type Currency } from '@/lib/exchange-rates';
+import { type Currency, type ExchangeRates } from '@/lib/exchange-rates';
 
 interface Props {
   initialWallets: Wallet[];
   initialTransactions: Transaction[];
+  exchangeRates: ExchangeRates;
 }
 
-export function WalletsPageClient({ initialWallets, initialTransactions }: Props) {
+export function WalletsPageClient({ initialWallets, initialTransactions, exchangeRates }: Props) {
   const [isTransModalOpen, setIsTransModalOpen] = useState(false);
   const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
@@ -149,26 +151,38 @@ export function WalletsPageClient({ initialWallets, initialTransactions }: Props
         />
       )}
 
-      {/* Transactions for selected wallet */}
-      <div className="card-responsive">
-        <div className="px-4 py-4 lg:px-6 lg:py-6 pb-0 flex items-center justify-between">
-          <h2 className="text-xl font-bold text-card-foreground">
-            {activeWalletId
-              ? `Transakcje — ${activeWallet?.name}`
-              : 'Wszystkie transakcje'}
-          </h2>
-          <button
-            onClick={() => { setEditingTransaction(null); setIsTransModalOpen(true); }}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm bg-secondary hover:bg-secondary/80 text-secondary-foreground rounded-lg transition-colors border border-border"
-          >
-            <Plus className="w-3 h-3" /> Transakcja
-          </button>
+      {/* Transactions + Pie Chart */}
+      <div className={`grid gap-6 ${activeWalletId ? 'grid-cols-1 lg:grid-cols-[1fr_auto]' : ''}`}>
+        <div className="card-responsive min-w-0">
+          <div className="px-4 py-4 lg:px-6 lg:py-6 pb-0 flex items-center justify-between">
+            <h2 className="text-xl font-bold text-card-foreground">
+              {activeWalletId
+                ? `Transakcje — ${activeWallet?.name}`
+                : 'Wszystkie transakcje'}
+            </h2>
+            <button
+              onClick={() => { setEditingTransaction(null); setIsTransModalOpen(true); }}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm bg-secondary hover:bg-secondary/80 text-secondary-foreground rounded-lg transition-colors border border-border"
+            >
+              <Plus className="w-3 h-3" /> Transakcja
+            </button>
+          </div>
+          <TransactionList
+            transactions={filteredTransactions}
+            onDelete={handleDeleteTransaction}
+            onEdit={(t) => { setEditingTransaction(t); setIsTransModalOpen(true); }}
+          />
         </div>
-        <TransactionList
-          transactions={filteredTransactions}
-          onDelete={handleDeleteTransaction}
-          onEdit={(t) => { setEditingTransaction(t); setIsTransModalOpen(true); }}
-        />
+
+        {activeWalletId && (
+          <div className="card-responsive h-fit lg:w-[340px]">
+            <ExpensePieChart
+              transactions={filteredTransactions}
+              displayCurrency={displayCurrency}
+              exchangeRates={exchangeRates}
+            />
+          </div>
+        )}
       </div>
 
       <TransactionModal

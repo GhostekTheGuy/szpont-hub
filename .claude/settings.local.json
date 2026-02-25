@@ -21,7 +21,8 @@
       "Bash(cd \"G:/Obrazy/2k26/2/9szpont/szpont-hub\" && pnpm dlx shadcn@latest add \"https://magicui.design/r/blur-fade\" 2>&1)",
       "Bash(cd G:\\\\Obrazy\\\\2k26\\\\2\\\\9szpont\\\\szpont-hub:*)",
       "Bash(grep:*)",
-      "Bash(head:*)"
+      "Bash(head:*)",
+      "Bash(cd \"G:\\\\Obrazy\\\\2k26\\\\2\\\\9szpont\\\\szpont-hub\" && pnpm add @paper-design/shaders-react 2>&11)"
     ]
   }
 }
