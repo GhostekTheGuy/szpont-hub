@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
       .from('subscriptions')
       .select('stripe_customer_id')
       .eq('user_id', user.id)
-      .single();
+      .maybeSingle();
 
     let customerId = subscription?.stripe_customer_id;
 
@@ -43,12 +43,12 @@ export async function POST(req: NextRequest) {
       });
       customerId = customer.id;
 
-      // Save customer ID to DB
-      await supabaseAdmin.from('subscriptions').insert({
+      // Save or update customer ID in DB
+      await supabaseAdmin.from('subscriptions').upsert({
         user_id: user.id,
         stripe_customer_id: customerId,
         status: 'inactive',
-      });
+      }, { onConflict: 'user_id' });
     }
 
     const origin = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ url: session.url });
   } catch (error) {
-    console.error('Stripe checkout error:', error instanceof Error ? error.message : 'Unknown error');
+    console.error('Stripe checkout error:', error);
     return NextResponse.json(
       { error: 'Failed to create checkout session' },
       { status: 500 }
