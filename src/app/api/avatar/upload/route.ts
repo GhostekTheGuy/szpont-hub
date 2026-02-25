@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { rateLimit, getClientIp } from '@/lib/rate-limit';
 
 export async function POST(request: Request) {
   try {
@@ -9,6 +10,11 @@ export async function POST(request: Request) {
 
     if (!user) {
       return new NextResponse('Unauthorized', { status: 401 });
+    }
+
+    const rl = rateLimit(`avatar:${user.id}`, { limit: 10, windowSeconds: 600 });
+    if (!rl.success) {
+      return new NextResponse('Too many uploads. Try again later.', { status: 429 });
     }
 
     const formData = await request.formData();

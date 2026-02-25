@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getUser } from "@/lib/supabase/cached";
 import { isProUser } from "@/app/actions";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { rateLimit } from "@/lib/rate-limit";
 
 async function extractPdfText(buffer: ArrayBuffer): Promise<string> {
   // Import internal module directly to avoid pdf-parse's top-level fs.readFileSync in index.js
@@ -40,6 +41,11 @@ export async function POST(request: Request) {
     const user = await getUser();
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const rl = rateLimit(`scan-receipt:${user.id}`, { limit: 10, windowSeconds: 60 });
+    if (!rl.success) {
+      return NextResponse.json({ error: "Zbyt wiele żądań. Spróbuj za chwilę." }, { status: 429 });
     }
 
     const pro = await isProUser();

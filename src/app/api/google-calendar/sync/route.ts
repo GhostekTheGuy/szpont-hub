@@ -6,11 +6,17 @@ import { isProUser } from '@/app/actions';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { decryptFromCookie, encryptString, decryptString, encryptNumber } from '@/lib/crypto';
 import { fetchEvents, getRefreshedTokens } from '@/lib/google-calendar';
+import { rateLimit } from '@/lib/rate-limit';
 
 export async function POST() {
   const user = await getUser();
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const rl = rateLimit(`google-sync:${user.id}`, { limit: 5, windowSeconds: 300 });
+  if (!rl.success) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
   }
 
   if (!(await isProUser())) {

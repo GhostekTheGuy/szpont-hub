@@ -3,11 +3,17 @@ import { cookies } from 'next/headers';
 import { randomUUID } from 'crypto';
 import { getUser } from '@/lib/supabase/cached';
 import { getAuthUrl } from '@/lib/google-calendar';
+import { rateLimit } from '@/lib/rate-limit';
 
 export async function GET() {
   const user = await getUser();
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const rl = rateLimit(`google-auth:${user.id}`, { limit: 5, windowSeconds: 300 });
+  if (!rl.success) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
   }
 
   const nonce = randomUUID();

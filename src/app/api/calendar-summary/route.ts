@@ -1,12 +1,18 @@
 import { NextResponse } from "next/server";
 import { getUser } from "@/lib/supabase/cached";
 import { isProUser } from "@/app/actions";
+import { rateLimit } from "@/lib/rate-limit";
 
 export async function POST(request: Request) {
   try {
     const user = await getUser();
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const rl = rateLimit(`calendar-summary:${user.id}`, { limit: 10, windowSeconds: 60 });
+    if (!rl.success) {
+      return NextResponse.json({ error: "Zbyt wiele żądań" }, { status: 429 });
     }
 
     if (!(await isProUser())) {
