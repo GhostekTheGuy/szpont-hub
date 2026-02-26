@@ -283,7 +283,7 @@ html {
 }
 
 .animate-hero-tilt {
-  animation: hero-tilt 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: hero-tilt 1.2s cubic-bezier(0.16, 1, 0.3, 1) both;
   transform-origin: center bottom;
 }
 
