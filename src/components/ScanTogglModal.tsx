@@ -146,16 +146,10 @@ export function ScanTogglModal({ isOpen, onClose }: ScanTogglModalProps) {
   const removeEntry = (index: number) => {
     setEntries(prev => prev.filter((_, i) => i !== index));
     if (editingIndex === index) setEditingIndex(null);
+    else if (editingIndex !== null && editingIndex > index) setEditingIndex(editingIndex - 1);
   };
 
-  // Apply global wallet & rate to all entries
-  const applyGlobals = () => {
-    setEntries(prev => prev.map(e => ({
-      ...e,
-      wallet_id: globalWalletId || e.wallet_id,
-      hourly_rate: globalRate || e.hourly_rate,
-    })));
-  };
+
 
   const handleSaveAll = async () => {
     const selected = entries.filter(e => e.selected);
@@ -185,6 +179,7 @@ export function ScanTogglModal({ isOpen, onClose }: ScanTogglModalProps) {
         const e = selected[i];
         const startDt = new Date(`${e.date}T${e.start_time}:00`);
         const endDt = new Date(`${e.date}T${e.end_time}:00`);
+        if (endDt <= startDt) endDt.setDate(endDt.getDate() + 1);
 
         await addCalendarEvent({
           title: e.title,
@@ -295,6 +290,7 @@ export function ScanTogglModal({ isOpen, onClose }: ScanTogglModalProps) {
                       onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (file) handleFile(file);
+                        e.target.value = '';
                       }}
                     />
                   </div>
@@ -489,11 +485,12 @@ export function ScanTogglModal({ isOpen, onClose }: ScanTogglModalProps) {
                                 value={entry.start_time}
                                 onChange={(e) => {
                                   updateEntry(i, 'start_time', e.target.value);
-                                  // Recalc duration
+                                  // Recalc duration (handle overnight)
                                   const [sh, sm] = e.target.value.split(':').map(Number);
                                   const [eh, em] = entry.end_time.split(':').map(Number);
-                                  const dur = (eh * 60 + em - sh * 60 - sm) / 60;
-                                  if (dur > 0) updateEntry(i, 'duration_hours', Math.round(dur * 100) / 100);
+                                  let dur = (eh * 60 + em - sh * 60 - sm) / 60;
+                                  if (dur <= 0) dur += 24;
+                                  updateEntry(i, 'duration_hours', Math.round(dur * 100) / 100);
                                 }}
                                 className={inputClass}
                               />
@@ -507,8 +504,9 @@ export function ScanTogglModal({ isOpen, onClose }: ScanTogglModalProps) {
                                   updateEntry(i, 'end_time', e.target.value);
                                   const [sh, sm] = entry.start_time.split(':').map(Number);
                                   const [eh, em] = e.target.value.split(':').map(Number);
-                                  const dur = (eh * 60 + em - sh * 60 - sm) / 60;
-                                  if (dur > 0) updateEntry(i, 'duration_hours', Math.round(dur * 100) / 100);
+                                  let dur2 = (eh * 60 + em - sh * 60 - sm) / 60;
+                                  if (dur2 <= 0) dur2 += 24;
+                                  updateEntry(i, 'duration_hours', Math.round(dur2 * 100) / 100);
                                 }}
                                 className={inputClass}
                               />

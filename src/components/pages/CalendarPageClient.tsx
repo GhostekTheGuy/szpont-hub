@@ -140,30 +140,28 @@ export function CalendarPageClient({ initialEvents, initialWallets, googleConnec
   };
 
   const handleToggleConfirmed = useCallback(async (event: CalendarEvent, confirmed: boolean) => {
-    const current = () => useFinanceStore.getState().calendarEvents;
+    const snapshot = useFinanceStore.getState().calendarEvents;
     setCalendarEvents(
-      current().map(e => e.id === event.id ? { ...e, is_confirmed: confirmed } : e)
+      snapshot.map(e => e.id === event.id ? { ...e, is_confirmed: confirmed } : e)
     );
     try {
       await toggleEventConfirmed(event.id, confirmed);
     } catch {
-      setCalendarEvents(
-        current().map(e => e.id === event.id ? { ...e, is_confirmed: !confirmed } : e)
-      );
+      setCalendarEvents(snapshot);
     }
   }, [setCalendarEvents]);
 
-  const handleModalClose = () => {
+  const handleModalClose = (didChange?: boolean) => {
     setIsEventModalOpen(false);
     setEditingEvent(null);
     setPrefillDate(null);
     setPrefillHour(null);
-    loadMonth(currentMonth);
+    if (didChange) loadMonth(currentMonth);
   };
 
-  const handleSummaryClose = () => {
+  const handleSummaryClose = (didChange?: boolean) => {
     setIsSummaryModalOpen(false);
-    loadMonth(currentMonth);
+    if (didChange) loadMonth(currentMonth);
   };
 
   const handleGoogleConnect = () => {

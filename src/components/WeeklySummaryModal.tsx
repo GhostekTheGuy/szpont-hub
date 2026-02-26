@@ -35,7 +35,7 @@ type SummaryMode = 'week' | 'month';
 
 interface WeeklySummaryModalProps {
   isOpen: boolean;
-  onClose: () => void;
+  onClose: (didChange?: boolean) => void;
   weekStart: string;
   weekEnd: string;
   monthStart: string;
@@ -49,6 +49,7 @@ export function WeeklySummaryModal({ isOpen, onClose, weekStart, weekEnd, monthS
   const [summary, setSummary] = useState<SummaryData | null>(null);
   const [loading, setLoading] = useState(false);
   const [settling, setSettling] = useState(false);
+  const [didSettle, setDidSettle] = useState(false);
   const [aiInsight, setAiInsight] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
 
@@ -76,6 +77,7 @@ export function WeeklySummaryModal({ isOpen, onClose, weekStart, weekEnd, monthS
 
   useEffect(() => {
     if (isOpen) {
+      setDidSettle(false);
       loadSummary(mode);
     }
   }, [isOpen, weekStart, weekEnd, monthStart, monthEnd]);
@@ -122,6 +124,7 @@ export function WeeklySummaryModal({ isOpen, onClose, weekStart, weekEnd, monthS
       } else {
         await settleMonthAction(monthStart, monthEnd);
       }
+      setDidSettle(true);
       await loadSummary(mode);
     } catch (error) {
       console.error(error);
@@ -160,7 +163,7 @@ export function WeeklySummaryModal({ isOpen, onClose, weekStart, weekEnd, monthS
           >
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold text-card-foreground">Podsumowanie</h2>
-              <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
+              <button onClick={() => onClose(didSettle)} className="text-muted-foreground hover:text-foreground transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>

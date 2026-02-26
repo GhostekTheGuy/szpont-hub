@@ -124,9 +124,13 @@ export async function fetchEvents(
     // SyncToken 410 Gone → need full re-sync
     const err = error as { code?: number };
     if (err.code === 410) {
+      // Fallback to full sync with sensible time bounds
+      const now = new Date();
+      const defaultMin = new Date(now.getFullYear(), now.getMonth() - 3, 1).toISOString();
+      const defaultMax = new Date(now.getFullYear(), now.getMonth() + 4, 0, 23, 59, 59, 999).toISOString();
       return fetchEvents(accessToken, refreshToken, calendarId, {
-        timeMin: options.timeMin,
-        timeMax: options.timeMax,
+        timeMin: options.timeMin || defaultMin,
+        timeMax: options.timeMax || defaultMax,
       });
     }
     throw error;

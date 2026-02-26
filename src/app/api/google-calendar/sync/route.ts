@@ -89,10 +89,8 @@ export async function POST() {
     try {
       // Use syncToken for incremental sync, or time range for full sync
       const now = new Date();
-      const threeMonthsAgo = new Date(now);
-      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-      const threeMonthsAhead = new Date(now);
-      threeMonthsAhead.setMonth(threeMonthsAhead.getMonth() + 3);
+      const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+      const threeMonthsAhead = new Date(now.getFullYear(), now.getMonth() + 4, 0, 23, 59, 59, 999);
 
       const result = await fetchEvents(accessToken, refreshToken, mapping.google_calendar_id, {
         syncToken: mapping.sync_token || null,
@@ -100,10 +98,8 @@ export async function POST() {
         timeMax: mapping.sync_token ? undefined : threeMonthsAhead.toISOString(),
       });
 
-      // Default hourly rate from mapping
-      const defaultRate = mapping.hourly_rate
-        ? encryptNumber(0, dek) // placeholder - we keep existing rate on upsert
-        : encryptNumber(0, dek);
+      // Default hourly rate: use mapping rate if set, otherwise encrypted 0
+      const defaultRate = mapping.hourly_rate || encryptNumber(0, dek);
 
       console.log(`[Google Sync] Fetched ${result.events.length} events`);
 

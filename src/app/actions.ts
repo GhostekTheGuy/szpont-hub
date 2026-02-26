@@ -724,8 +724,8 @@ export async function getCalendarEvents(weekStart: string, weekEnd: string) {
       .from('calendar_events')
       .select('*')
       .eq('user_id', userId)
-      .gte('start_time', weekStart)
-      .lte('end_time', weekEnd)
+      .lte('start_time', weekEnd)
+      .gte('end_time', weekStart)
       .order('start_time', { ascending: true }),
     supabaseAdmin
       .from('calendar_events')
@@ -754,7 +754,10 @@ export async function getCalendarEvents(weekStart: string, weekEnd: string) {
     (wallets || []).map(w => [w.id, { name: decryptString(w.name, dek) || w.name, color: w.color }])
   );
 
-  const decryptedEvents = allEvents.map(e => ({
+  // Filter out excluded recurring instances (soft-deleted)
+  const visibleEvents = allEvents.filter(e => e.recurrence_rule !== 'EXCLUDED');
+
+  const decryptedEvents = visibleEvents.map(e => ({
     id: e.id,
     title: decryptString(e.title, dek) || e.title,
     wallet_id: e.wallet_id,
@@ -796,6 +799,7 @@ export async function addCalendarEvent(data: {
 }) {
   const userId = await getUserId();
   if (!userId) throw new Error('Unauthorized');
+  if (data.hourly_rate < 0) throw new Error('Invalid hourly rate');
 
   const dek = await getDEK();
   const isPersonal = data.event_type === 'personal';
@@ -885,6 +889,140 @@ export async function deleteCalendarEvent(id: string) {
   revalidatePath('/', 'layout');
 }
 
+export async function editRecurringInstance(instanceId: string, data: {
+  title: string;
+  wallet_id: string;
+  hourly_rate: number;
+  event_type?: 'work' | 'personal';
+}) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  const parentId = instanceId.split('_').slice(0, -1).join('_');
+  const dek = await getDEK();
+  const isPersonal = data.event_type === 'personal';
+
+  // Check if instance is already materialized
+  const { data: existing } = await supabaseAdmin
+    .from('calendar_events')
+    .select('id, user_id')
+    .eq('id', instanceId)
+    .single();
+
+  if (existing) {
+    if (existing.user_id !== userId) return;
+    // Update the materialized instance
+    await supabaseAdmin
+      .from('calendar_events')
+      .update({
+        title: encryptString(data.title, dek),
+        wallet_id: isPersonal ? null : data.wallet_id,
+        hourly_rate: isPersonal ? encryptNumber(0, dek) : encryptNumber(data.hourly_rate, dek),
+        event_type: data.event_type || 'work',
+      })
+      .eq('id', instanceId);
+  } else {
+    // Materialize from parent, then apply edits
+    const { data: parent } = await supabaseAdmin
+      .from('calendar_events')
+      .select('*')
+      .eq('id', parentId)
+      .eq('user_id', userId)
+      .single();
+
+    if (!parent) return;
+
+    const dateStr = instanceId.split('_').pop()!;
+    const origStart = new Date(parent.start_time);
+    const origEnd = new Date(parent.end_time);
+    const durationMs = origEnd.getTime() - origStart.getTime();
+
+    const instanceStart = new Date(dateStr + 'T00:00:00Z');
+    instanceStart.setUTCHours(origStart.getUTCHours(), origStart.getUTCMinutes(), origStart.getUTCSeconds(), 0);
+    const instanceEnd = new Date(instanceStart.getTime() + durationMs);
+
+    await supabaseAdmin
+      .from('calendar_events')
+      .insert({
+        id: instanceId,
+        user_id: userId,
+        title: encryptString(data.title, dek),
+        wallet_id: isPersonal ? null : data.wallet_id,
+        hourly_rate: isPersonal ? encryptNumber(0, dek) : encryptNumber(data.hourly_rate, dek),
+        start_time: instanceStart.toISOString(),
+        end_time: instanceEnd.toISOString(),
+        is_recurring: false,
+        recurrence_rule: null,
+        is_settled: false,
+        is_confirmed: false,
+        event_type: data.event_type || 'work',
+        created_at: new Date().toISOString(),
+      });
+  }
+
+  revalidatePath('/', 'layout');
+}
+
+export async function deleteRecurringInstance(instanceId: string) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  const { data: existing } = await supabaseAdmin
+    .from('calendar_events')
+    .select('id, user_id')
+    .eq('id', instanceId)
+    .single();
+
+  if (existing && existing.user_id === userId) {
+    // Materialized instance — delete it and insert exclusion marker
+    await supabaseAdmin
+      .from('calendar_events')
+      .delete()
+      .eq('id', instanceId)
+      .eq('user_id', userId);
+  }
+
+  // Insert exclusion marker so expansion doesn't regenerate this instance.
+  // mergeWithExpanded deduplicates by ID, so this blocks the virtual instance.
+  const parentId = instanceId.split('_').slice(0, -1).join('_');
+  const { data: parent } = await supabaseAdmin
+    .from('calendar_events')
+    .select('start_time, end_time, title, wallet_id, hourly_rate, event_type')
+    .eq('id', parentId)
+    .eq('user_id', userId)
+    .single();
+
+  if (parent) {
+    const dateStr = instanceId.split('_').pop()!;
+    const origStart = new Date(parent.start_time);
+    const origEnd = new Date(parent.end_time);
+    const durationMs = origEnd.getTime() - origStart.getTime();
+    const instanceStart = new Date(dateStr + 'T00:00:00Z');
+    instanceStart.setUTCHours(origStart.getUTCHours(), origStart.getUTCMinutes(), origStart.getUTCSeconds(), 0);
+    const instanceEnd = new Date(instanceStart.getTime() + durationMs);
+
+    await supabaseAdmin
+      .from('calendar_events')
+      .insert({
+        id: instanceId,
+        user_id: userId,
+        title: parent.title,
+        wallet_id: parent.wallet_id,
+        hourly_rate: parent.hourly_rate,
+        start_time: instanceStart.toISOString(),
+        end_time: instanceEnd.toISOString(),
+        is_recurring: false,
+        recurrence_rule: 'EXCLUDED',
+        is_settled: false,
+        is_confirmed: false,
+        event_type: parent.event_type || 'work',
+        created_at: new Date().toISOString(),
+      });
+  }
+
+  revalidatePath('/', 'layout');
+}
+
 export async function toggleEventConfirmed(id: string, confirmed: boolean) {
   const userId = await getUserId();
   if (!userId) throw new Error('Unauthorized');
@@ -926,8 +1064,8 @@ export async function toggleEventConfirmed(id: string, confirmed: boolean) {
         const origEnd = new Date(parent.end_time);
         const durationMs = origEnd.getTime() - origStart.getTime();
 
-        const instanceStart = new Date(dateStr + 'T00:00:00');
-        instanceStart.setHours(origStart.getHours(), origStart.getMinutes(), origStart.getSeconds(), 0);
+        const instanceStart = new Date(dateStr + 'T00:00:00Z');
+        instanceStart.setUTCHours(origStart.getUTCHours(), origStart.getUTCMinutes(), origStart.getUTCSeconds(), 0);
         const instanceEnd = new Date(instanceStart.getTime() + durationMs);
 
         // Materialize as a non-recurring confirmed event
@@ -950,12 +1088,20 @@ export async function toggleEventConfirmed(id: string, confirmed: boolean) {
           });
       }
     } else {
-      // Unconfirm — delete the materialized instance (it'll be regenerated from parent)
-      await supabaseAdmin
+      // Unconfirm — toggle is_confirmed to false (preserve user edits on materialized instance)
+      const { data: existing } = await supabaseAdmin
         .from('calendar_events')
-        .delete()
+        .select('id')
         .eq('id', id)
-        .eq('user_id', userId);
+        .single();
+
+      if (existing) {
+        await supabaseAdmin
+          .from('calendar_events')
+          .update({ is_confirmed: false })
+          .eq('id', id)
+          .eq('user_id', userId);
+      }
     }
   } else {
     // Regular (non-recurring) event — simple toggle
@@ -990,8 +1136,8 @@ export async function settleWeekAction(weekStart: string, weekEnd: string) {
     .eq('user_id', userId)
     .eq('is_confirmed', true)
     .eq('is_settled', false)
-    .gte('start_time', weekStart)
-    .lte('end_time', weekEnd);
+    .lte('start_time', weekEnd)
+    .gte('end_time', weekStart);
 
   if (error || !events || events.length === 0) return { settled: 0 };
 
@@ -1061,7 +1207,7 @@ export async function settleWeekAction(weekStart: string, weekEnd: string) {
         category: encryptString('Praca', dek),
         description: encryptString(`Zarobki za tydzień ${weekStart.split('T')[0]}`, dek),
         type: 'income',
-        date: new Date().toISOString().split('T')[0],
+        date: weekStart.split('T')[0],
         wallet_id: walletId,
         currency: 'PLN',
         created_at: new Date().toISOString(),
@@ -1093,9 +1239,9 @@ export async function getWeeklySummary(weekStart: string, weekEnd: string) {
   const dek = await getDEK();
 
   const prevWeekStart = new Date(weekStart);
-  prevWeekStart.setDate(prevWeekStart.getDate() - 7);
+  prevWeekStart.setUTCDate(prevWeekStart.getUTCDate() - 7);
   const prevWeekEnd = new Date(weekEnd);
-  prevWeekEnd.setDate(prevWeekEnd.getDate() - 7);
+  prevWeekEnd.setUTCDate(prevWeekEnd.getUTCDate() - 7);
 
   // Fetch current week events, previous week events, recurring events, and wallets in parallel
   const [{ data: events }, { data: prevEvents }, { data: recurringEvents }, { data: wallets }] = await Promise.all([
@@ -1103,14 +1249,14 @@ export async function getWeeklySummary(weekStart: string, weekEnd: string) {
       .from('calendar_events')
       .select('*')
       .eq('user_id', userId)
-      .gte('start_time', weekStart)
-      .lte('end_time', weekEnd),
+      .lte('start_time', weekEnd)
+      .gte('end_time', weekStart),
     supabaseAdmin
       .from('calendar_events')
       .select('*')
       .eq('user_id', userId)
-      .gte('start_time', prevWeekStart.toISOString())
-      .lte('end_time', prevWeekEnd.toISOString()),
+      .lte('start_time', prevWeekEnd.toISOString())
+      .gte('end_time', prevWeekStart.toISOString()),
     supabaseAdmin
       .from('calendar_events')
       .select('*')
@@ -1123,12 +1269,12 @@ export async function getWeeklySummary(weekStart: string, weekEnd: string) {
       .eq('user_id', userId),
   ]);
 
-  // Expand recurring events for current and previous week
+  // Expand recurring events for current and previous week, filter out excluded
   const expandedCurrent = expandRecurringEvents(recurringEvents || [], weekStart, weekEnd);
-  const allCurrentEvents = mergeWithExpanded(events || [], expandedCurrent);
+  const allCurrentEvents = mergeWithExpanded(events || [], expandedCurrent).filter(e => e.recurrence_rule !== 'EXCLUDED');
 
   const expandedPrev = expandRecurringEvents(recurringEvents || [], prevWeekStart.toISOString(), prevWeekEnd.toISOString());
-  const allPrevEvents = mergeWithExpanded(prevEvents || [], expandedPrev);
+  const allPrevEvents = mergeWithExpanded(prevEvents || [], expandedPrev).filter(e => e.recurrence_rule !== 'EXCLUDED');
 
   const walletMap = new Map(
     (wallets || []).map(w => [w.id, { name: decryptString(w.name, dek) || w.name, color: w.color }])
@@ -1167,7 +1313,9 @@ export async function getWeeklySummary(weekStart: string, weekEnd: string) {
   const workEvents = allCurrentEvents.filter(e => (e.event_type || 'work') === 'work');
   const confirmedEvents = workEvents.filter(e => e.is_confirmed);
   const current = calcEarnings(confirmedEvents);
-  const previous = calcEarnings(allPrevEvents);
+  const prevWorkEvents = allPrevEvents.filter(e => (e.event_type || 'work') === 'work');
+  const prevConfirmedEvents = prevWorkEvents.filter(e => e.is_confirmed);
+  const previous = calcEarnings(prevConfirmedEvents);
   const confirmedCount = confirmedEvents.length;
   const unsettledCount = confirmedEvents.filter(e => !e.is_settled).length;
 
@@ -1189,10 +1337,10 @@ export async function getMonthlySummary(monthStart: string, monthEnd: string) {
 
   const dek = await getDEK();
 
-  const prevMonthStart = new Date(monthStart);
-  prevMonthStart.setMonth(prevMonthStart.getMonth() - 1);
-  const prevMonthEnd = new Date(monthEnd);
-  prevMonthEnd.setMonth(prevMonthEnd.getMonth() - 1);
+  // Safe previous month calculation — setMonth() fails at month boundaries (e.g. Mar 31 → Mar 3 instead of Feb 28)
+  const msDate = new Date(monthStart);
+  const prevMonthStart = new Date(msDate.getFullYear(), msDate.getMonth() - 1, 1);
+  const prevMonthEnd = new Date(msDate.getFullYear(), msDate.getMonth(), 0, 23, 59, 59, 999);
 
   // Fetch current month events, previous month events, recurring events, and wallets in parallel
   const [{ data: events }, { data: prevEvents }, { data: recurringEvents }, { data: wallets }] = await Promise.all([
@@ -1200,14 +1348,14 @@ export async function getMonthlySummary(monthStart: string, monthEnd: string) {
       .from('calendar_events')
       .select('*')
       .eq('user_id', userId)
-      .gte('start_time', monthStart)
-      .lte('end_time', monthEnd),
+      .lte('start_time', monthEnd)
+      .gte('end_time', monthStart),
     supabaseAdmin
       .from('calendar_events')
       .select('*')
       .eq('user_id', userId)
-      .gte('start_time', prevMonthStart.toISOString())
-      .lte('end_time', prevMonthEnd.toISOString()),
+      .lte('start_time', prevMonthEnd.toISOString())
+      .gte('end_time', prevMonthStart.toISOString()),
     supabaseAdmin
       .from('calendar_events')
       .select('*')
@@ -1220,12 +1368,12 @@ export async function getMonthlySummary(monthStart: string, monthEnd: string) {
       .eq('user_id', userId),
   ]);
 
-  // Expand recurring events for current and previous month
+  // Expand recurring events for current and previous month, filter out excluded
   const expandedCurrent = expandRecurringEvents(recurringEvents || [], monthStart, monthEnd);
-  const allCurrentEvents = mergeWithExpanded(events || [], expandedCurrent);
+  const allCurrentEvents = mergeWithExpanded(events || [], expandedCurrent).filter(e => e.recurrence_rule !== 'EXCLUDED');
 
   const expandedPrev = expandRecurringEvents(recurringEvents || [], prevMonthStart.toISOString(), prevMonthEnd.toISOString());
-  const allPrevEvents = mergeWithExpanded(prevEvents || [], expandedPrev);
+  const allPrevEvents = mergeWithExpanded(prevEvents || [], expandedPrev).filter(e => e.recurrence_rule !== 'EXCLUDED');
 
   const walletMap = new Map(
     (wallets || []).map(w => [w.id, { name: decryptString(w.name, dek) || w.name, color: w.color }])
@@ -1277,7 +1425,9 @@ export async function getMonthlySummary(monthStart: string, monthEnd: string) {
   const workMonthEvts = allCurrentEvents.filter(e => (e.event_type || 'work') === 'work');
   const confirmedEvents = workMonthEvts.filter(e => e.is_confirmed);
   const current = calcEarnings(confirmedEvents);
-  const previous = calcEarnings(allPrevEvents);
+  const prevWorkEvents = allPrevEvents.filter(e => (e.event_type || 'work') === 'work');
+  const prevConfirmedEvents = prevWorkEvents.filter(e => e.is_confirmed);
+  const previous = calcEarnings(prevConfirmedEvents);
   const confirmedCount = confirmedEvents.length;
   const unsettledCount = confirmedEvents.filter(e => !e.is_settled).length;
 
@@ -1315,8 +1465,8 @@ export async function settleMonthAction(monthStart: string, monthEnd: string) {
     .eq('user_id', userId)
     .eq('is_confirmed', true)
     .eq('is_settled', false)
-    .gte('start_time', monthStart)
-    .lte('end_time', monthEnd);
+    .lte('start_time', monthEnd)
+    .gte('end_time', monthStart);
 
   if (error || !events || events.length === 0) return { settled: 0 };
 
@@ -1382,7 +1532,7 @@ export async function settleMonthAction(monthStart: string, monthEnd: string) {
         category: encryptString('Praca', dek),
         description: encryptString(`Zarobki za miesiąc ${monthStart.split('T')[0].slice(0, 7)}`, dek),
         type: 'income',
-        date: new Date().toISOString().split('T')[0],
+        date: monthStart.split('T')[0],
         wallet_id: walletId,
         currency: 'PLN',
         created_at: new Date().toISOString(),

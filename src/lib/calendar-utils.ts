@@ -1,6 +1,8 @@
 /**
  * Shared helpers for expanding recurring calendar events.
  * Used by both getCalendarEvents and summary functions in actions.ts.
+ *
+ * All date operations use UTC methods to avoid server-timezone dependency.
  */
 
 export interface RawCalendarEvent {
@@ -34,11 +36,11 @@ export function expandRecurringEvents<T extends RawCalendarEvent>(
     const rule = event.recurrence_rule;
 
     if (rule === 'daily') {
-      for (let d = new Date(wsDate); d <= weDate; d.setDate(d.getDate() + 1)) {
+      for (let d = new Date(wsDate); d <= weDate; d.setUTCDate(d.getUTCDate() + 1)) {
         const instanceStart = new Date(d);
-        instanceStart.setHours(origStart.getHours(), origStart.getMinutes(), origStart.getSeconds(), 0);
+        instanceStart.setUTCHours(origStart.getUTCHours(), origStart.getUTCMinutes(), origStart.getUTCSeconds(), 0);
         const instanceEnd = new Date(instanceStart.getTime() + durationMs);
-        if (instanceStart >= wsDate && instanceEnd <= weDate && instanceStart > origStart) {
+        if (instanceStart >= wsDate && instanceStart < weDate && instanceStart > origStart) {
           expanded.push({
             ...event,
             id: `${event.id}_${instanceStart.toISOString().split('T')[0]}`,
@@ -50,18 +52,18 @@ export function expandRecurringEvents<T extends RawCalendarEvent>(
         }
       }
     } else if (rule === 'weekly') {
-      const origDay = origStart.getDay();
-      const wsDay = wsDate.getDay();
+      const origDay = origStart.getUTCDay();
+      const wsDay = wsDate.getUTCDay();
       let diff = origDay - wsDay;
       if (diff < 0) diff += 7;
       const firstInstance = new Date(wsDate);
-      firstInstance.setDate(firstInstance.getDate() + diff);
+      firstInstance.setUTCDate(firstInstance.getUTCDate() + diff);
 
-      for (let d = new Date(firstInstance); d <= weDate; d.setDate(d.getDate() + 7)) {
+      for (let d = new Date(firstInstance); d <= weDate; d.setUTCDate(d.getUTCDate() + 7)) {
         const instanceStart = new Date(d);
-        instanceStart.setHours(origStart.getHours(), origStart.getMinutes(), origStart.getSeconds(), 0);
+        instanceStart.setUTCHours(origStart.getUTCHours(), origStart.getUTCMinutes(), origStart.getUTCSeconds(), 0);
         const instanceEnd = new Date(instanceStart.getTime() + durationMs);
-        if (instanceStart >= wsDate && instanceEnd <= weDate && instanceStart > origStart) {
+        if (instanceStart >= wsDate && instanceStart < weDate && instanceStart > origStart) {
           expanded.push({
             ...event,
             id: `${event.id}_${instanceStart.toISOString().split('T')[0]}`,
@@ -73,22 +75,28 @@ export function expandRecurringEvents<T extends RawCalendarEvent>(
         }
       }
     } else if (rule === 'monthly') {
-      const origDayOfMonth = origStart.getDate();
-      for (let d = new Date(wsDate); d <= weDate; d.setDate(d.getDate() + 1)) {
-        if (d.getDate() === origDayOfMonth && d > origStart) {
-          const instanceStart = new Date(d);
-          instanceStart.setHours(origStart.getHours(), origStart.getMinutes(), origStart.getSeconds(), 0);
-          const instanceEnd = new Date(instanceStart.getTime() + durationMs);
-          if (instanceStart >= wsDate && instanceEnd <= weDate) {
-            expanded.push({
-              ...event,
-              id: `${event.id}_${instanceStart.toISOString().split('T')[0]}`,
-              start_time: instanceStart.toISOString(),
-              end_time: instanceEnd.toISOString(),
-              is_settled: false,
-              is_confirmed: false,
-            });
-          }
+      const origDayOfMonth = origStart.getUTCDate();
+      // Iterate month by month, using last day of month as fallback for short months
+      const startMonth = wsDate.getUTCFullYear() * 12 + wsDate.getUTCMonth();
+      const endMonth = weDate.getUTCFullYear() * 12 + weDate.getUTCMonth();
+      for (let m = startMonth; m <= endMonth; m++) {
+        const year = Math.floor(m / 12);
+        const month = m % 12;
+        // Last day of this month
+        const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+        const day = Math.min(origDayOfMonth, lastDay);
+        const instanceStart = new Date(Date.UTC(year, month, day,
+          origStart.getUTCHours(), origStart.getUTCMinutes(), origStart.getUTCSeconds()));
+        const instanceEnd = new Date(instanceStart.getTime() + durationMs);
+        if (instanceStart >= wsDate && instanceStart < weDate && instanceStart > origStart) {
+          expanded.push({
+            ...event,
+            id: `${event.id}_${instanceStart.toISOString().split('T')[0]}`,
+            start_time: instanceStart.toISOString(),
+            end_time: instanceEnd.toISOString(),
+            is_settled: false,
+            is_confirmed: false,
+          });
         }
       }
     }

@@ -3,13 +3,13 @@
 import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { useFinanceStore, type CalendarEvent } from '@/hooks/useFinanceStore';
-import { addCalendarEvent, editCalendarEvent, deleteCalendarEvent } from '@/app/actions';
+import { addCalendarEvent, editCalendarEvent, deleteCalendarEvent, editRecurringInstance, deleteRecurringInstance } from '@/app/actions';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 
 interface CalendarEventModalProps {
   isOpen: boolean;
-  onClose: () => void;
+  onClose: (didChange?: boolean) => void;
   editingEvent?: CalendarEvent | null;
   prefillDate?: Date | null;
   prefillHour?: number | null;
@@ -34,7 +34,7 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
   const [loading, setLoading] = useState(false);
 
   const isGoogleEvent = !!editingEvent?.google_event_id;
-  const isRecurringInstance = !!(editingEvent?.is_recurring && editingEvent?.id.includes('_') && /\d{4}-\d{2}-\d{2}$/.test(editingEvent.id));
+  const isRecurringInstance = !!(editingEvent?.id.includes('_') && /\d{4}-\d{2}-\d{2}$/.test(editingEvent.id));
   const isPersonal = eventType === 'personal';
 
   useEffect(() => {
@@ -72,7 +72,8 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
     }
   }, [editingEvent, isOpen, wallets, prefillDate, prefillHour]);
 
-  const timeInvalid = startTime >= endTime;
+  const timeInvalid = startTime === endTime;
+  const isOvernight = startTime > endTime;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -82,6 +83,7 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
 
     const startDt = new Date(`${date}T${startTime}:00`);
     const endDt = new Date(`${date}T${endTime}:00`);
+    if (isOvernight) endDt.setDate(endDt.getDate() + 1);
 
     const eventData = {
       title,
@@ -96,15 +98,21 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
 
     try {
       if (editingEvent) {
-        // Instancje cykliczne mają ID w formacie "originalId_YYYY-MM-DD"
-        const realId = editingEvent.id.includes('_') && editingEvent.is_recurring
-          ? editingEvent.id.replace(/_\d{4}-\d{2}-\d{2}$/, '')
-          : editingEvent.id;
-        await editCalendarEvent(realId, eventData);
+        if (isRecurringInstance) {
+          // Instancja cykliczna — edytuj tylko tę instancję (materializuje jeśli trzeba)
+          await editRecurringInstance(editingEvent.id, {
+            title: eventData.title,
+            wallet_id: eventData.wallet_id,
+            hourly_rate: eventData.hourly_rate,
+            event_type: eventData.event_type,
+          });
+        } else {
+          await editCalendarEvent(editingEvent.id, eventData);
+        }
       } else {
         await addCalendarEvent(eventData);
       }
-      onClose();
+      onClose(true);
     } catch (error) {
       console.error(error);
       alert('Wystąpił błąd zapisu');
@@ -117,11 +125,13 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
     if (!editingEvent || !confirm('Usunąć wydarzenie?')) return;
     setLoading(true);
     try {
-      const realId = editingEvent.id.includes('_') && editingEvent.is_recurring
-        ? editingEvent.id.replace(/_\d{4}-\d{2}-\d{2}$/, '')
-        : editingEvent.id;
-      await deleteCalendarEvent(realId);
-      onClose();
+      if (isRecurringInstance) {
+        // Instancja cykliczna — usuń tylko tę instancję (zmaterializowaną)
+        await deleteRecurringInstance(editingEvent.id);
+      } else {
+        await deleteCalendarEvent(editingEvent.id);
+      }
+      onClose(true);
     } catch (error) {
       console.error(error);
     } finally {
@@ -160,7 +170,7 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
                   </svg>
                 )}
               </div>
-              <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors" disabled={loading}>
+              <button onClick={() => onClose()} className="text-muted-foreground hover:text-foreground transition-colors" disabled={loading}>
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -241,7 +251,10 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
               </div>
 
               {timeInvalid && (
-                <p className="text-xs text-destructive">Czas zakończenia musi być po czasie rozpoczęcia</p>
+                <p className="text-xs text-destructive">Czas rozpoczęcia i zakończenia nie mogą być takie same</p>
+              )}
+              {isOvernight && (
+                <p className="text-xs text-muted-foreground">Wydarzenie przechodzi przez północ (kończy się następnego dnia)</p>
               )}
 
               {!isPersonal && (
@@ -265,6 +278,7 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
                     <input
                       type="number"
                       step="0.01"
+                      min="0"
                       required
                       value={hourlyRate}
                       onChange={(e) => setHourlyRate(e.target.value)}
@@ -306,7 +320,7 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
 
               {isRecurringInstance && (
                 <p className="text-xs text-muted-foreground">
-                  To jest instancja cyklicznego wydarzenia. Zmiany tytułu, portfela i stawki dotyczą wszystkich instancji.
+                  To jest instancja cyklicznego wydarzenia. Zmiany dotyczą tylko tej instancji.
                 </p>
               )}
 

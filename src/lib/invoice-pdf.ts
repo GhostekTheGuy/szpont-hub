@@ -140,7 +140,8 @@ export function generateInvoicePDF(data: InvoiceData): void {
   doc.text(`${data.totalNet.toFixed(2)} PLN`, summaryX + 40, y);
   y += 6;
 
-  doc.text('VAT 23%:', summaryX, y);
+  const displayVatRate = data.items.length > 0 ? data.items[0].vatRate : 23;
+  doc.text(`VAT ${displayVatRate}%:`, summaryX, y);
   doc.text(`${data.totalVat.toFixed(2)} PLN`, summaryX + 40, y);
   y += 6;
 

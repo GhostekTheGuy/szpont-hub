@@ -40,7 +40,8 @@ function layoutEvents(events: CalendarEvent[]): LayoutedEvent[] {
     const start = parseISO(event.start_time);
     const end = parseISO(event.end_time);
     const startMin = start.getHours() * 60 + start.getMinutes();
-    const endMin = end.getHours() * 60 + end.getMinutes();
+    const rawEndMin = end.getHours() * 60 + end.getMinutes();
+    const endMin = rawEndMin <= startMin ? 24 * 60 : rawEndMin;
     return { event, startMin, endMin: Math.max(endMin, startMin + 1) };
   });
 
@@ -415,9 +416,7 @@ export function WeeklyCalendar({
                   selectedDayEvents.map((event) => {
                     const start = parseISO(event.start_time);
                     const end = parseISO(event.end_time);
-                    const startMin = start.getHours() * 60 + start.getMinutes();
-                    const endMin = end.getHours() * 60 + end.getMinutes();
-                    const eventHours = (endMin - startMin) / 60;
+                    const eventHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
                     const earnings = eventHours * event.hourly_rate;
                     const indicatorColor = getEventColor(event);
 
@@ -450,7 +449,7 @@ export function WeeklyCalendar({
                             )}
                           </div>
                         </div>
-                        {onToggleConfirmed && event.is_recurring && event.event_type !== 'personal' && (
+                        {onToggleConfirmed && event.event_type !== 'personal' && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -563,9 +562,10 @@ function DayTimeGrid({
             const end = parseISO(event.end_time);
             const startMin = start.getHours() * 60 + start.getMinutes();
             const endMin = end.getHours() * 60 + end.getMinutes();
+            const effectiveEndMin = endMin <= startMin ? 24 * 60 : endMin;
             const top = ((startMin - DAY_START_HOUR * 60) / 60) * HOUR_HEIGHT;
-            const height = Math.max(((endMin - startMin) / 60) * HOUR_HEIGHT, 24);
-            const eventHours = (endMin - startMin) / 60;
+            const height = Math.max(((effectiveEndMin - startMin) / 60) * HOUR_HEIGHT, 24);
+            const eventHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
             const earnings = eventHours * event.hourly_rate;
             const color = getEventColor(event);
 
@@ -603,7 +603,7 @@ function DayTimeGrid({
                       </div>
                     )}
                   </div>
-                  {onToggleConfirmed && event.is_recurring && event.event_type !== 'personal' && (
+                  {onToggleConfirmed && event.event_type !== 'personal' && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -777,9 +777,10 @@ function WeekTimeGrid({
                   const end = parseISO(event.end_time);
                   const startMin = start.getHours() * 60 + start.getMinutes();
                   const endMin = end.getHours() * 60 + end.getMinutes();
+                  const effectiveEndMin = endMin <= startMin ? 24 * 60 : endMin;
                   const top = ((startMin - DAY_START_HOUR * 60) / 60) * HOUR_HEIGHT;
-                  const height = Math.max(((endMin - startMin) / 60) * HOUR_HEIGHT, 20);
-                  const eventHours = (endMin - startMin) / 60;
+                  const height = Math.max(((effectiveEndMin - startMin) / 60) * HOUR_HEIGHT, 20);
+                  const eventHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
                   const earnings = eventHours * event.hourly_rate;
                   const color = getEventColor(event);
 
@@ -817,7 +818,7 @@ function WeekTimeGrid({
                             </div>
                           )}
                         </div>
-                        {onToggleConfirmed && event.is_recurring && event.event_type !== 'personal' && (
+                        {onToggleConfirmed && event.event_type !== 'personal' && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();

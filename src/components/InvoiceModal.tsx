@@ -24,7 +24,7 @@ interface SellerData {
   nip: string;
 }
 
-function getNextInvoiceNumber(): string {
+function peekNextInvoiceNumber(): string {
   const now = new Date();
   const yyyy = now.getFullYear();
   const mm = String(now.getMonth() + 1).padStart(2, '0');
@@ -32,9 +32,18 @@ function getNextInvoiceNumber(): string {
   const counterKey = `invoice_counter_${yyyy}_${mm}`;
   const current = parseInt(localStorage.getItem(counterKey) || '0', 10);
   const next = current + 1;
-  localStorage.setItem(counterKey, String(next));
 
   return `FV/${yyyy}/${mm}/${String(next).padStart(3, '0')}`;
+}
+
+function commitInvoiceNumber(): void {
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+
+  const counterKey = `invoice_counter_${yyyy}_${mm}`;
+  const current = parseInt(localStorage.getItem(counterKey) || '0', 10);
+  localStorage.setItem(counterKey, String(current + 1));
 }
 
 function getSavedSeller(): SellerData | null {
@@ -80,26 +89,25 @@ export function InvoiceModal({ isOpen, onClose, workEvents, monthLabel }: Invoic
         setSellerCollapsed(false);
       }
 
-      setInvoiceNumber(getNextInvoiceNumber());
+      setInvoiceNumber(peekNextInvoiceNumber());
       setIssueDate(new Date().toISOString().split('T')[0]);
     }
   }, [isOpen]);
 
   const items: InvoiceItem[] = useMemo(() => {
-    // Group by title
-    const grouped = new Map<string, { hours: number; rate: number }>();
+    // Group by title + rate
+    const grouped = new Map<string, { title: string; hours: number; rate: number }>();
     for (const ev of workEvents) {
-      const key = `${ev.title}_${ev.hourlyRate}`;
+      const key = `${ev.title}\0${ev.hourlyRate}`;
       const existing = grouped.get(key);
       if (existing) {
         existing.hours += ev.hours;
       } else {
-        grouped.set(key, { hours: ev.hours, rate: ev.hourlyRate });
+        grouped.set(key, { title: ev.title, hours: ev.hours, rate: ev.hourlyRate });
       }
     }
 
-    return Array.from(grouped.entries()).map(([key, { hours, rate }]) => {
-      const title = key.split('_')[0];
+    return Array.from(grouped.values()).map(({ title, hours, rate }) => {
       const netAmount = hours * rate;
       const vatAmount = netAmount * (vatRate / 100);
       return {
@@ -127,6 +135,8 @@ export function InvoiceModal({ isOpen, onClose, workEvents, monthLabel }: Invoic
   }, [issueDate, paymentDays]);
 
   const handleGenerate = () => {
+    // Commit invoice counter only when actually generating
+    commitInvoiceNumber();
     // Save seller for future
     saveSeller({ name: sellerName, address: sellerAddress, nip: sellerNip });
 
