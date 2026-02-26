@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { X, ChevronDown, ChevronUp, FileText } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { generateInvoicePDF, type InvoiceData, type InvoiceItem } from '@/lib/invoice-pdf';
+import { generateInvoicePDF, generateSummaryPDF, type InvoiceData, type InvoiceItem } from '@/lib/invoice-pdf';
 
 interface WorkEventForInvoice {
   title: string;
@@ -60,9 +60,12 @@ function saveSeller(seller: SellerData) {
   localStorage.setItem('invoice_seller', JSON.stringify(seller));
 }
 
+type DocType = 'invoice' | 'summary';
+
 export function InvoiceModal({ isOpen, onClose, workEvents, monthLabel }: InvoiceModalProps) {
   const savedSeller = useMemo(() => getSavedSeller(), []);
 
+  const [docType, setDocType] = useState<DocType>('invoice');
   const [sellerName, setSellerName] = useState('');
   const [sellerAddress, setSellerAddress] = useState('');
   const [sellerNip, setSellerNip] = useState('');
@@ -135,6 +138,19 @@ export function InvoiceModal({ isOpen, onClose, workEvents, monthLabel }: Invoic
   }, [issueDate, paymentDays]);
 
   const handleGenerate = () => {
+    if (docType === 'summary') {
+      const totalHours = items.reduce((sum, i) => sum + i.quantity, 0);
+      generateSummaryPDF({
+        title: monthLabel,
+        issueDate,
+        items,
+        totalNet,
+        totalHours,
+      });
+      onClose();
+      return;
+    }
+
     // Commit invoice counter only when actually generating
     commitInvoiceNumber();
     // Save seller for future
@@ -157,7 +173,9 @@ export function InvoiceModal({ isOpen, onClose, workEvents, monthLabel }: Invoic
     onClose();
   };
 
-  const canGenerate = sellerName && sellerNip && buyerName && buyerNip && items.length > 0;
+  const canGenerate = docType === 'summary'
+    ? items.length > 0
+    : sellerName && sellerNip && buyerName && buyerNip && items.length > 0;
 
   return (
     <AnimatePresence>
@@ -177,25 +195,145 @@ export function InvoiceModal({ isOpen, onClose, workEvents, monthLabel }: Invoic
             transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
           >
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-card-foreground">Generuj fakturę — {monthLabel}</h2>
+              <h2 className="text-xl font-bold text-card-foreground">Generuj dokument — {monthLabel}</h2>
               <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="space-y-4">
+              {/* Doc type toggle */}
+              <div className="flex bg-secondary rounded-lg p-1">
+                <button
+                  onClick={() => setDocType('summary')}
+                  className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${
+                    docType === 'summary'
+                      ? 'bg-card text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Podsumowanie
+                </button>
+                <button
+                  onClick={() => setDocType('invoice')}
+                  className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${
+                    docType === 'invoice'
+                      ? 'bg-card text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Faktura VAT
+                </button>
+              </div>
+
               {/* Invoice number & dates */}
-              <div className="grid grid-cols-2 gap-3">
+              {docType === 'invoice' ? (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-muted-foreground">Numer faktury</label>
+                      <input
+                        value={invoiceNumber}
+                        onChange={(e) => setInvoiceNumber(e.target.value)}
+                        className="w-full mt-1 px-3 py-2 bg-secondary border border-border rounded-lg text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">Data wystawienia</label>
+                      <input
+                        type="date"
+                        value={issueDate}
+                        onChange={(e) => setIssueDate(e.target.value)}
+                        className="w-full mt-1 px-3 py-2 bg-secondary border border-border rounded-lg text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-muted-foreground">Termin płatności (dni)</label>
+                      <input
+                        type="number"
+                        value={paymentDays}
+                        onChange={(e) => setPaymentDays(parseInt(e.target.value) || 14)}
+                        className="w-full mt-1 px-3 py-2 bg-secondary border border-border rounded-lg text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">Stawka VAT (%)</label>
+                      <input
+                        type="number"
+                        value={vatRate}
+                        onChange={(e) => setVatRate(parseInt(e.target.value) || 23)}
+                        className="w-full mt-1 px-3 py-2 bg-secondary border border-border rounded-lg text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Seller */}
+                  <div>
+                    <button
+                      onClick={() => setSellerCollapsed(!sellerCollapsed)}
+                      className="flex items-center gap-2 text-sm font-medium text-muted-foreground mb-2"
+                    >
+                      Sprzedawca
+                      {sellerCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+                      {sellerCollapsed && sellerName && (
+                        <span className="text-foreground font-normal">— {sellerName}</span>
+                      )}
+                    </button>
+                    {!sellerCollapsed && (
+                      <div className="space-y-2">
+                        <input
+                          placeholder="Nazwa firmy"
+                          value={sellerName}
+                          onChange={(e) => setSellerName(e.target.value)}
+                          className="w-full px-3 py-2 bg-secondary border border-border rounded-lg text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
+                        />
+                        <input
+                          placeholder="Adres"
+                          value={sellerAddress}
+                          onChange={(e) => setSellerAddress(e.target.value)}
+                          className="w-full px-3 py-2 bg-secondary border border-border rounded-lg text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
+                        />
+                        <input
+                          placeholder="NIP"
+                          value={sellerNip}
+                          onChange={(e) => setSellerNip(e.target.value)}
+                          className="w-full px-3 py-2 bg-secondary border border-border rounded-lg text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Buyer */}
+                  <div>
+                    <div className="text-sm font-medium text-muted-foreground mb-2">Nabywca</div>
+                    <div className="space-y-2">
+                      <input
+                        placeholder="Nazwa firmy"
+                        value={buyerName}
+                        onChange={(e) => setBuyerName(e.target.value)}
+                        className="w-full px-3 py-2 bg-secondary border border-border rounded-lg text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
+                      />
+                      <input
+                        placeholder="Adres"
+                        value={buyerAddress}
+                        onChange={(e) => setBuyerAddress(e.target.value)}
+                        className="w-full px-3 py-2 bg-secondary border border-border rounded-lg text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
+                      />
+                      <input
+                        placeholder="NIP"
+                        value={buyerNip}
+                        onChange={(e) => setBuyerNip(e.target.value)}
+                        className="w-full px-3 py-2 bg-secondary border border-border rounded-lg text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
+                      />
+                    </div>
+                  </div>
+                </>
+              ) : (
                 <div>
-                  <label className="text-xs text-muted-foreground">Numer faktury</label>
-                  <input
-                    value={invoiceNumber}
-                    onChange={(e) => setInvoiceNumber(e.target.value)}
-                    className="w-full mt-1 px-3 py-2 bg-secondary border border-border rounded-lg text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground">Data wystawienia</label>
+                  <label className="text-xs text-muted-foreground">Data</label>
                   <input
                     type="date"
                     value={issueDate}
@@ -203,89 +341,7 @@ export function InvoiceModal({ isOpen, onClose, workEvents, monthLabel }: Invoic
                     className="w-full mt-1 px-3 py-2 bg-secondary border border-border rounded-lg text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
                   />
                 </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-muted-foreground">Termin płatności (dni)</label>
-                  <input
-                    type="number"
-                    value={paymentDays}
-                    onChange={(e) => setPaymentDays(parseInt(e.target.value) || 14)}
-                    className="w-full mt-1 px-3 py-2 bg-secondary border border-border rounded-lg text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground">Stawka VAT (%)</label>
-                  <input
-                    type="number"
-                    value={vatRate}
-                    onChange={(e) => setVatRate(parseInt(e.target.value) || 23)}
-                    className="w-full mt-1 px-3 py-2 bg-secondary border border-border rounded-lg text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
-                  />
-                </div>
-              </div>
-
-              {/* Seller */}
-              <div>
-                <button
-                  onClick={() => setSellerCollapsed(!sellerCollapsed)}
-                  className="flex items-center gap-2 text-sm font-medium text-muted-foreground mb-2"
-                >
-                  Sprzedawca
-                  {sellerCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
-                  {sellerCollapsed && sellerName && (
-                    <span className="text-foreground font-normal">— {sellerName}</span>
-                  )}
-                </button>
-                {!sellerCollapsed && (
-                  <div className="space-y-2">
-                    <input
-                      placeholder="Nazwa firmy"
-                      value={sellerName}
-                      onChange={(e) => setSellerName(e.target.value)}
-                      className="w-full px-3 py-2 bg-secondary border border-border rounded-lg text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
-                    />
-                    <input
-                      placeholder="Adres"
-                      value={sellerAddress}
-                      onChange={(e) => setSellerAddress(e.target.value)}
-                      className="w-full px-3 py-2 bg-secondary border border-border rounded-lg text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
-                    />
-                    <input
-                      placeholder="NIP"
-                      value={sellerNip}
-                      onChange={(e) => setSellerNip(e.target.value)}
-                      className="w-full px-3 py-2 bg-secondary border border-border rounded-lg text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
-                    />
-                  </div>
-                )}
-              </div>
-
-              {/* Buyer */}
-              <div>
-                <div className="text-sm font-medium text-muted-foreground mb-2">Nabywca</div>
-                <div className="space-y-2">
-                  <input
-                    placeholder="Nazwa firmy"
-                    value={buyerName}
-                    onChange={(e) => setBuyerName(e.target.value)}
-                    className="w-full px-3 py-2 bg-secondary border border-border rounded-lg text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
-                  />
-                  <input
-                    placeholder="Adres"
-                    value={buyerAddress}
-                    onChange={(e) => setBuyerAddress(e.target.value)}
-                    className="w-full px-3 py-2 bg-secondary border border-border rounded-lg text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
-                  />
-                  <input
-                    placeholder="NIP"
-                    value={buyerNip}
-                    onChange={(e) => setBuyerNip(e.target.value)}
-                    className="w-full px-3 py-2 bg-secondary border border-border rounded-lg text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
-                  />
-                </div>
-              </div>
+              )}
 
               {/* Items table */}
               <div>
@@ -314,18 +370,33 @@ export function InvoiceModal({ isOpen, onClose, workEvents, monthLabel }: Invoic
               {/* Summary */}
               {items.length > 0 && (
                 <div className="bg-primary/10 border border-primary/20 rounded-lg p-3 space-y-1">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Netto</span>
-                    <span className="text-foreground">{totalNet.toFixed(2)} PLN</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">VAT {vatRate}%</span>
-                    <span className="text-foreground">{totalVat.toFixed(2)} PLN</span>
-                  </div>
-                  <div className="flex justify-between text-sm font-bold pt-1 border-t border-primary/20">
-                    <span className="text-foreground">Brutto</span>
-                    <span className="text-foreground">{totalGross.toFixed(2)} PLN</span>
-                  </div>
+                  {docType === 'invoice' ? (
+                    <>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Netto</span>
+                        <span className="text-foreground">{totalNet.toFixed(2)} PLN</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">VAT {vatRate}%</span>
+                        <span className="text-foreground">{totalVat.toFixed(2)} PLN</span>
+                      </div>
+                      <div className="flex justify-between text-sm font-bold pt-1 border-t border-primary/20">
+                        <span className="text-foreground">Brutto</span>
+                        <span className="text-foreground">{totalGross.toFixed(2)} PLN</span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Godziny</span>
+                        <span className="text-foreground">{items.reduce((s, i) => s + i.quantity, 0).toFixed(2)}h</span>
+                      </div>
+                      <div className="flex justify-between text-sm font-bold pt-1 border-t border-primary/20">
+                        <span className="text-foreground">Razem</span>
+                        <span className="text-foreground">{totalNet.toFixed(2)} PLN</span>
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
 
@@ -336,7 +407,7 @@ export function InvoiceModal({ isOpen, onClose, workEvents, monthLabel }: Invoic
                 className="w-full flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-medium py-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:pointer-events-none"
               >
                 <FileText className="w-4 h-4" />
-                Generuj PDF
+                {docType === 'summary' ? 'Generuj podsumowanie' : 'Generuj fakturę'}
               </button>
             </div>
           </motion.div>

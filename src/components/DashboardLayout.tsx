@@ -102,6 +102,7 @@ export function DashboardLayout({ children, userName, avatarUrl, isPro }: Dashbo
                 <Link
                   key={item.href}
                   href={item.href}
+                  data-onboarding={item.href.slice(1)}
                   title={collapsed ? item.label : undefined}
                   className={`flex items-center gap-3 py-3 rounded-lg transition-colors ${
                     collapsed ? 'justify-center px-2' : 'px-4'
@@ -205,6 +206,7 @@ export function DashboardLayout({ children, userName, avatarUrl, isPro }: Dashbo
               <Link
                 key={item.href}
                 href={item.href}
+                data-onboarding={item.href.slice(1)}
                 className={`flex flex-col items-center gap-1 px-3 py-2 rounded-lg transition-colors ${
                   active
                     ? 'text-primary'

@@ -6,7 +6,7 @@ import { toggleHabitEntry } from '@/app/actions';
 import { HabitModal, ICON_OPTIONS } from '@/components/HabitModal';
 import { HabitRadarChart } from '@/components/HabitRadarChart';
 import { HabitStreakBars } from '@/components/HabitStreakBars';
-import { Plus, Check, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Check, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, CircleDot } from 'lucide-react';
 import { format, addDays, subDays } from 'date-fns';
 import { pl } from 'date-fns/locale';
 
@@ -137,34 +137,35 @@ export function HabitTracker({ weekStart, onPrevWeek, onNextWeek, onToday, isCur
                 <button
                   key={mode}
                   onClick={() => setViewMode(mode)}
-                  className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                  className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
                     viewMode === mode
-                      ? 'bg-primary text-primary-foreground'
+                      ? 'bg-card text-foreground shadow-sm'
                       : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
-                  {mode === 'today' ? 'Today' : mode === 'weekly' ? 'Weekly' : 'Overall'}
+                  {mode === 'today' ? 'Dziś' : mode === 'weekly' ? 'Tydzień' : 'Ogólne'}
                 </button>
               ))}
             </div>
-            <div className="flex items-center bg-secondary rounded-lg">
+            <div className="flex items-center gap-0.5 bg-secondary rounded-lg p-0.5">
               <button
                 onClick={onPrevWeek}
-                className="p-2 hover:bg-accent rounded-l-lg transition-colors"
+                className="p-2 hover:bg-accent rounded-md transition-colors"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <button
                 onClick={onToday}
-                className={`px-3 py-1.5 text-sm font-medium transition-colors ${
-                  isCurrentWeek ? 'text-primary' : 'text-foreground hover:text-primary'
+                title="Bieżący tydzień"
+                className={`p-2 hover:bg-accent rounded-md transition-colors ${
+                  isCurrentWeek ? 'text-primary' : 'text-foreground'
                 }`}
               >
-                Dziś
+                <CircleDot className="w-4 h-4" />
               </button>
               <button
                 onClick={onNextWeek}
-                className="p-2 hover:bg-accent rounded-r-lg transition-colors"
+                className="p-2 hover:bg-accent rounded-md transition-colors"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>

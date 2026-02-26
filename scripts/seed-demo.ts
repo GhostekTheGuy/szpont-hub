@@ -358,262 +358,295 @@ async function main() {
     console.log(`   ${s.asset_symbol} — profit: ${s.profit} PLN`);
   }
 
-  // ── Step 6: Calendar Events (6 months, dense) ──
-  console.log('\n6. Creating calendar events...');
+  // ── Step 6: Calendar Events (full year 2026) ──
+  console.log('\n6. Creating calendar events for 2026...');
   let eventCount = 0;
+  const calBatch: any[] = [];
+
+  const flushCalendar = async () => {
+    for (let i = 0; i < calBatch.length; i += 50) {
+      const batch = calBatch.slice(i, i + 50);
+      const { error } = await supabase.from('calendar_events').insert(batch);
+      if (error) console.error(`   Cal batch error:`, error.message);
+    }
+    eventCount += calBatch.length;
+    calBatch.length = 0;
+  };
 
   // Kacper works B2B for NovaSoft, has clients, and personal life
-  // Typical week: Mon-Fri work blocks at NovaSoft + meetings + freelance evenings + personal
+  // Full 2026: Jan 5 (first Monday) through Dec 31
 
-  for (let weeksAgo = 24; weeksAgo >= -2; weeksAgo--) {
-    const weekStart = new Date(now);
-    weekStart.setDate(weekStart.getDate() - weeksAgo * 7);
-    weekStart.setHours(0, 0, 0, 0);
-    const dayOfWeek = weekStart.getDay();
-    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-    weekStart.setDate(weekStart.getDate() + mondayOffset);
+  // Vacation/holiday weeks — week index from Jan 5 = 0
+  // Week 9 (Mar 9): konferencja/wyjazd
+  // Week 13 (Apr 6): Wielkanoc — off
+  // Week 22 (Jun 1): długi weekend Boże Ciało
+  // Week 30-31 (Aug 3-16): wakacje letnie — off
+  // Week 44 (Nov 2): Wszystkich Świętych — light
+  // Week 50-51 (Dec 21-28): Boże Narodzenie / Sylwester — off
+  const vacationWeeks = new Set([13, 30, 31, 50, 51]);
+  const lightWeeks = new Set([9, 14, 22, 29, 32, 44, 49]);
 
-    const isSettled = weeksAgo > 2;
-    const isConfirmed = weeksAgo > 0 || Math.random() < 0.7;
+  const adHocMeetings = [
+    'Demo klienta', 'Sync z designem', 'Rozmowa z PM', 'Prezentacja architektury',
+    'Pair programming', 'Planowanie migracji DB', 'Sync z QA', 'Refinement backlogu',
+    'Interview kandydat', 'Tech debt review', 'Onboarding nowego dev', 'Sync z frontendem',
+    'Grooming backlogu', 'Deployment review', 'Architektura mikroserwisów',
+  ];
 
-    // ── Main work blocks: NovaSoft (Mon-Fri, 4-5 days) ──
-    const workDaysCount = randomInt(4, 5);
-    const allWorkDays = [0, 1, 2, 3, 4];
-    const selectedWorkDays = allWorkDays.sort(() => Math.random() - 0.5).slice(0, workDaysCount);
+  const freelanceEvents = [
+    'Freelance — landing page', 'Freelance — API', 'Freelance — UI redesign',
+    'Freelance — bug fixing', 'Freelance — konsultacja', 'Freelance — prototyp',
+    'Praca nad side project', 'Freelance — e-commerce', 'Freelance — dashboard',
+    'Freelance — mobile app',
+  ];
 
-    for (const dayOff of selectedWorkDays) {
-      const d = new Date(weekStart);
-      d.setDate(d.getDate() + dayOff);
+  const personalRoutine = [
+    { title: 'Siłownia',         dur: 75,  days: [0, 2, 4], h: 7 },
+    { title: 'Bieganie',         dur: 45,  days: [1, 3],    h: 6 },
+    { title: 'Zakupy spożywcze', dur: 45,  days: [5],       h: 11 },
+  ];
 
-      const startH = randomPick([8, 9]);
-      const endH = randomPick([16, 17]);
-      const rate = 120;
+  const randomPersonal = [
+    'Kolacja z Olą', 'Kino z ziomkami', 'Wizyta u rodziców', 'Fryzjer',
+    'Dentysta', 'Spotkanie z Kubą', 'Piwo z ekipą', 'Spacer z psem',
+    'Gotowanie', 'Nauka japońskiego', 'Grill u Adama', 'Mecz piłki',
+    'Escape room', 'Basen', 'Masaż', 'Spotkanie z księgową',
+    'Wyjście na miasto', 'Koncert', 'Bilard z ekipą', 'Planszówki',
+    'Wizyta u dziadków', 'Kręgle', 'Zakupy w IKEA', 'Sprzątanie mieszkania',
+  ];
 
-      const start = new Date(d); start.setHours(startH, 0, 0, 0);
-      const end = new Date(d); end.setHours(endH, 0, 0, 0);
+  const vacationPersonal = [
+    'Plaża', 'Zwiedzanie', 'Wycieczka rowerowa', 'Relaks',
+    'Góry — szlak', 'Grill z rodziną', 'Kajaki', 'Fotografia',
+  ];
 
-      const titles = ['Praca — NovaSoft', 'NovaSoft dev', 'NovaSoft — sprint', 'NovaSoft — feature work'];
+  // Iterate week by week: Jan 5, 2026 (Mon) through end of year
+  const weekMon = new Date(2026, 0, 5);
+  let weekIdx = 0;
 
-      await supabase.from('calendar_events').insert({
-        id: nanoid(), user_id: userId,
-        title: encryptString(randomPick(titles), dek),
-        wallet_id: mbankId,
-        hourly_rate: encryptNumber(rate, dek),
-        start_time: isoStr(start), end_time: isoStr(end),
-        is_recurring: false, recurrence_rule: null,
-        is_settled: isSettled, is_confirmed: isConfirmed,
-        event_type: 'work', created_at: isoStr(start),
-      });
-      eventCount++;
+  while (weekMon.getFullYear() <= 2026) {
+    const ws = new Date(weekMon); // week start (Monday)
+    const isVacation = vacationWeeks.has(weekIdx);
+    const isLight = lightWeeks.has(weekIdx);
+    const isPast = ws < now;
+    const weeksFromNow = Math.round((now.getTime() - ws.getTime()) / (7 * 24 * 3600000));
+    const isSettled = isPast && weeksFromNow > 2;
+    const isConfirmedWork = isPast ? (weeksFromNow > 0 || Math.random() < 0.7) : false;
+
+    if (!isVacation) {
+      // ── NovaSoft work blocks (Mon-Fri, 4-5 days or 2-3 on light weeks) ──
+      const workDaysCount = isLight ? randomInt(2, 3) : randomInt(4, 5);
+      const allDays = [0, 1, 2, 3, 4];
+      const workDays = allDays.sort(() => Math.random() - 0.5).slice(0, workDaysCount);
+
+      for (const dayOff of workDays) {
+        const d = new Date(ws); d.setDate(d.getDate() + dayOff);
+        const startH = randomPick([8, 9]);
+        const endH = randomPick([16, 17]);
+        const start = new Date(d); start.setHours(startH, 0, 0, 0);
+        const end = new Date(d); end.setHours(endH, 0, 0, 0);
+
+        calBatch.push({
+          id: nanoid(), user_id: userId,
+          title: encryptString(randomPick(['Praca — NovaSoft', 'NovaSoft dev', 'NovaSoft — sprint', 'NovaSoft — feature work']), dek),
+          wallet_id: mbankId, hourly_rate: encryptNumber(120, dek),
+          start_time: isoStr(start), end_time: isoStr(end),
+          is_recurring: false, recurrence_rule: null,
+          is_settled: isSettled, is_confirmed: isConfirmedWork,
+          event_type: 'work', created_at: isoStr(start),
+        });
+      }
+
+      // ── Recurring meetings (standup, sprint, retro, 1:1, code review) ──
+      if (!isLight) {
+        // Daily standup Mon-Fri 9:00-9:15
+        for (let d = 0; d < 5; d++) {
+          const day = new Date(ws); day.setDate(day.getDate() + d);
+          const start = new Date(day); start.setHours(9, 0, 0, 0);
+          const end = new Date(day); end.setHours(9, 15, 0, 0);
+
+          calBatch.push({
+            id: nanoid(), user_id: userId,
+            title: encryptString('Daily standup', dek),
+            wallet_id: mbankId, hourly_rate: encryptNumber(120, dek),
+            start_time: isoStr(start), end_time: isoStr(end),
+            is_recurring: true, recurrence_rule: 'RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR',
+            is_settled: isSettled, is_confirmed: true,
+            event_type: 'work', created_at: isoStr(start),
+          });
+        }
+
+        // Sprint planning — Monday 10:00-11:30 (biweekly)
+        if (weekIdx % 2 === 0) {
+          const start = new Date(ws); start.setHours(10, 0, 0, 0);
+          const end = new Date(ws); end.setHours(11, 30, 0, 0);
+
+          calBatch.push({
+            id: nanoid(), user_id: userId,
+            title: encryptString('Sprint planning', dek),
+            wallet_id: mbankId, hourly_rate: encryptNumber(120, dek),
+            start_time: isoStr(start), end_time: isoStr(end),
+            is_recurring: true, recurrence_rule: 'RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=MO',
+            is_settled: isSettled, is_confirmed: true,
+            event_type: 'work', created_at: isoStr(start),
+          });
+        }
+
+        // Retro — Friday 15:00-16:00 (biweekly, alternating)
+        if (weekIdx % 2 === 1) {
+          const fri = new Date(ws); fri.setDate(fri.getDate() + 4);
+          const start = new Date(fri); start.setHours(15, 0, 0, 0);
+          const end = new Date(fri); end.setHours(16, 0, 0, 0);
+
+          calBatch.push({
+            id: nanoid(), user_id: userId,
+            title: encryptString('Retro', dek),
+            wallet_id: mbankId, hourly_rate: encryptNumber(120, dek),
+            start_time: isoStr(start), end_time: isoStr(end),
+            is_recurring: true, recurrence_rule: 'RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=FR',
+            is_settled: isSettled, is_confirmed: true,
+            event_type: 'work', created_at: isoStr(start),
+          });
+        }
+
+        // 1:1 z CTO — Wednesday 13:00-13:30
+        {
+          const wed = new Date(ws); wed.setDate(wed.getDate() + 2);
+          const start = new Date(wed); start.setHours(13, 0, 0, 0);
+          const end = new Date(wed); end.setHours(13, 30, 0, 0);
+
+          calBatch.push({
+            id: nanoid(), user_id: userId,
+            title: encryptString('1:1 z Marcinem (CTO)', dek),
+            wallet_id: mbankId, hourly_rate: encryptNumber(120, dek),
+            start_time: isoStr(start), end_time: isoStr(end),
+            is_recurring: true, recurrence_rule: 'RRULE:FREQ=WEEKLY;BYDAY=WE',
+            is_settled: isSettled, is_confirmed: true,
+            event_type: 'work', created_at: isoStr(start),
+          });
+        }
+
+        // Code review — Thursday 14:00-15:00
+        {
+          const thu = new Date(ws); thu.setDate(thu.getDate() + 3);
+          const start = new Date(thu); start.setHours(14, 0, 0, 0);
+          const end = new Date(thu); end.setHours(15, 0, 0, 0);
+
+          calBatch.push({
+            id: nanoid(), user_id: userId,
+            title: encryptString('Code review', dek),
+            wallet_id: mbankId, hourly_rate: encryptNumber(120, dek),
+            start_time: isoStr(start), end_time: isoStr(end),
+            is_recurring: true, recurrence_rule: 'RRULE:FREQ=WEEKLY;BYDAY=TH',
+            is_settled: isSettled, is_confirmed: true,
+            event_type: 'work', created_at: isoStr(start),
+          });
+        }
+      }
+
+      // ── Ad-hoc meetings (2-4 per week, 1-2 on light) ──
+      const meetCount = isLight ? randomInt(1, 2) : randomInt(2, 4);
+      for (let i = 0; i < meetCount; i++) {
+        const dayOff = randomInt(0, 4);
+        const d = new Date(ws); d.setDate(d.getDate() + dayOff);
+        const h = randomPick([10, 11, 12, 14, 15, 16]);
+        const dur = randomPick([30, 45, 60]);
+        const start = new Date(d); start.setHours(h, randomPick([0, 30]), 0, 0);
+        const end = new Date(start.getTime() + dur * 60_000);
+
+        calBatch.push({
+          id: nanoid(), user_id: userId,
+          title: encryptString(randomPick(adHocMeetings), dek),
+          wallet_id: mbankId, hourly_rate: encryptNumber(120, dek),
+          start_time: isoStr(start), end_time: isoStr(end),
+          is_recurring: false, recurrence_rule: null,
+          is_settled: isSettled, is_confirmed: isPast ? Math.random() < 0.85 : false,
+          event_type: 'work', created_at: isoStr(start),
+        });
+      }
+
+      // ── Freelance sessions (0-2 per week) ──
+      const flCount = isLight ? randomInt(0, 1) : randomInt(0, 2);
+      for (let i = 0; i < flCount; i++) {
+        const dayOff = Math.random() < 0.4 ? randomInt(5, 6) : randomInt(0, 4);
+        const d = new Date(ws); d.setDate(d.getDate() + dayOff);
+        const h = dayOff >= 5 ? randomInt(10, 15) : randomInt(18, 20);
+        const dur = randomPick([60, 90, 120, 180]);
+        const start = new Date(d); start.setHours(h, 0, 0, 0);
+        const end = new Date(start.getTime() + dur * 60_000);
+
+        calBatch.push({
+          id: nanoid(), user_id: userId,
+          title: encryptString(randomPick(freelanceEvents), dek),
+          wallet_id: revolutId, hourly_rate: encryptNumber(randomPick([100, 120, 150]), dek),
+          start_time: isoStr(start), end_time: isoStr(end),
+          is_recurring: false, recurrence_rule: null,
+          is_settled: isSettled, is_confirmed: isConfirmedWork,
+          event_type: 'work', created_at: isoStr(start),
+        });
+      }
     }
 
-    // ── Recurring meetings ──
-    // Daily standup Mon-Fri 9:00-9:15
-    for (let d = 0; d < 5; d++) {
-      const day = new Date(weekStart);
-      day.setDate(day.getDate() + d);
-      const start = new Date(day); start.setHours(9, 0, 0, 0);
-      const end = new Date(day); end.setHours(9, 15, 0, 0);
-
-      await supabase.from('calendar_events').insert({
-        id: nanoid(), user_id: userId,
-        title: encryptString('Daily standup', dek),
-        wallet_id: mbankId,
-        hourly_rate: encryptNumber(120, dek),
-        start_time: isoStr(start), end_time: isoStr(end),
-        is_recurring: true, recurrence_rule: 'RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR',
-        is_settled: isSettled, is_confirmed: true,
-        event_type: 'work', created_at: isoStr(start),
-      });
-      eventCount++;
-    }
-
-    // Sprint planning — Monday 10:00-11:30 (co 2 tygodnie)
-    if (weeksAgo % 2 === 0) {
-      const mon = new Date(weekStart);
-      const start = new Date(mon); start.setHours(10, 0, 0, 0);
-      const end = new Date(mon); end.setHours(11, 30, 0, 0);
-
-      await supabase.from('calendar_events').insert({
-        id: nanoid(), user_id: userId,
-        title: encryptString('Sprint planning', dek),
-        wallet_id: mbankId, hourly_rate: encryptNumber(120, dek),
-        start_time: isoStr(start), end_time: isoStr(end),
-        is_recurring: true, recurrence_rule: 'RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=MO',
-        is_settled: isSettled, is_confirmed: true,
-        event_type: 'work', created_at: isoStr(start),
-      });
-      eventCount++;
-    }
-
-    // Retro — Friday 15:00-16:00 (co 2 tygodnie)
-    if (weeksAgo % 2 === 1) {
-      const fri = new Date(weekStart); fri.setDate(fri.getDate() + 4);
-      const start = new Date(fri); start.setHours(15, 0, 0, 0);
-      const end = new Date(fri); end.setHours(16, 0, 0, 0);
-
-      await supabase.from('calendar_events').insert({
-        id: nanoid(), user_id: userId,
-        title: encryptString('Retro', dek),
-        wallet_id: mbankId, hourly_rate: encryptNumber(120, dek),
-        start_time: isoStr(start), end_time: isoStr(end),
-        is_recurring: true, recurrence_rule: 'RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=FR',
-        is_settled: isSettled, is_confirmed: true,
-        event_type: 'work', created_at: isoStr(start),
-      });
-      eventCount++;
-    }
-
-    // 1:1 z CTO — Wednesday 13:00-13:30
-    const wed = new Date(weekStart); wed.setDate(wed.getDate() + 2);
-    const w1Start = new Date(wed); w1Start.setHours(13, 0, 0, 0);
-    const w1End = new Date(wed); w1End.setHours(13, 30, 0, 0);
-
-    await supabase.from('calendar_events').insert({
-      id: nanoid(), user_id: userId,
-      title: encryptString('1:1 z Marcinem (CTO)', dek),
-      wallet_id: mbankId, hourly_rate: encryptNumber(120, dek),
-      start_time: isoStr(w1Start), end_time: isoStr(w1End),
-      is_recurring: true, recurrence_rule: 'RRULE:FREQ=WEEKLY;BYDAY=WE',
-      is_settled: isSettled, is_confirmed: true,
-      event_type: 'work', created_at: isoStr(w1Start),
-    });
-    eventCount++;
-
-    // Code review — Thursday 14:00-15:00
-    const thu = new Date(weekStart); thu.setDate(thu.getDate() + 3);
-    const crStart = new Date(thu); crStart.setHours(14, 0, 0, 0);
-    const crEnd = new Date(thu); crEnd.setHours(15, 0, 0, 0);
-
-    await supabase.from('calendar_events').insert({
-      id: nanoid(), user_id: userId,
-      title: encryptString('Code review', dek),
-      wallet_id: mbankId, hourly_rate: encryptNumber(120, dek),
-      start_time: isoStr(crStart), end_time: isoStr(crEnd),
-      is_recurring: true, recurrence_rule: 'RRULE:FREQ=WEEKLY;BYDAY=TH',
-      is_settled: isSettled, is_confirmed: true,
-      event_type: 'work', created_at: isoStr(crStart),
-    });
-    eventCount++;
-
-    // ── Ad-hoc meetings (2-4 per week) ──
-    const adHocMeetings = [
-      'Demo klienta', 'Sync z designem', 'Rozmowa z PM', 'Prezentacja architektury',
-      'Pair programming', 'Planowanie migracji DB', 'Sync z QA', 'Refinement backlogu',
-      'Interview kandydat', 'Tech debt review', 'Onboarding nowego dev',
-    ];
-
-    const meetCount = randomInt(2, 4);
-    for (let i = 0; i < meetCount; i++) {
-      const dayOff = randomInt(0, 4);
-      const d = new Date(weekStart); d.setDate(d.getDate() + dayOff);
-      const h = randomPick([10, 11, 12, 14, 15, 16]);
-      const dur = randomPick([30, 45, 60]);
-
-      const start = new Date(d); start.setHours(h, randomPick([0, 30]), 0, 0);
-      const end = new Date(start.getTime() + dur * 60_000);
-
-      await supabase.from('calendar_events').insert({
-        id: nanoid(), user_id: userId,
-        title: encryptString(randomPick(adHocMeetings), dek),
-        wallet_id: mbankId, hourly_rate: encryptNumber(120, dek),
-        start_time: isoStr(start), end_time: isoStr(end),
-        is_recurring: false, recurrence_rule: null,
-        is_settled: isSettled, is_confirmed: Math.random() < 0.85,
-        event_type: 'work', created_at: isoStr(start),
-      });
-      eventCount++;
-    }
-
-    // ── Freelance sessions (0-2 per week, evenings/weekends) ──
-    const freelanceEvents = [
-      'Freelance — landing page', 'Freelance — API', 'Freelance — UI redesign',
-      'Freelance — bug fixing', 'Freelance — konsultacja', 'Freelance — prototyp',
-      'Praca nad side project',
-    ];
-
-    const flCount = randomInt(0, 2);
-    for (let i = 0; i < flCount; i++) {
-      const dayOff = Math.random() < 0.4 ? randomInt(5, 6) : randomInt(0, 4); // weekend or evening
-      const d = new Date(weekStart); d.setDate(d.getDate() + dayOff);
-      const h = dayOff >= 5 ? randomInt(10, 15) : randomInt(18, 20);
-      const dur = randomPick([60, 90, 120, 180]);
-
-      const start = new Date(d); start.setHours(h, 0, 0, 0);
-      const end = new Date(start.getTime() + dur * 60_000);
-
-      await supabase.from('calendar_events').insert({
-        id: nanoid(), user_id: userId,
-        title: encryptString(randomPick(freelanceEvents), dek),
-        wallet_id: revolutId, hourly_rate: encryptNumber(randomPick([100, 120, 150]), dek),
-        start_time: isoStr(start), end_time: isoStr(end),
-        is_recurring: false, recurrence_rule: null,
-        is_settled: isSettled, is_confirmed: isConfirmed,
-        event_type: 'work', created_at: isoStr(start),
-      });
-      eventCount++;
-    }
-
-    // ── Personal events (3-6 per week) ──
-    const personalEvents = [
-      { title: 'Siłownia',            dur: 75,  days: [0, 2, 4],    h: 7 },
-      { title: 'Bieganie',            dur: 45,  days: [1, 3],       h: 6 },
-      { title: 'Zakupy spożywcze',    dur: 45,  days: [5],          h: 11 },
-    ];
-
-    // Recurring personal
-    for (const pe of personalEvents) {
+    // ── Personal routine (gym, running, groceries — even partial during vacation) ──
+    for (const pe of personalRoutine) {
       for (const dayOff of pe.days) {
-        if (Math.random() < 0.75) { // skip sometimes
-          const d = new Date(weekStart); d.setDate(d.getDate() + dayOff);
+        const skipChance = isVacation ? 0.5 : 0.25;
+        if (Math.random() > skipChance) {
+          const d = new Date(ws); d.setDate(d.getDate() + dayOff);
           const start = new Date(d); start.setHours(pe.h, 0, 0, 0);
           const end = new Date(start.getTime() + pe.dur * 60_000);
 
-          await supabase.from('calendar_events').insert({
+          calBatch.push({
             id: nanoid(), user_id: userId,
             title: encryptString(pe.title, dek),
             wallet_id: null, hourly_rate: encryptNumber(0, dek),
             start_time: isoStr(start), end_time: isoStr(end),
-            is_recurring: false, recurrence_rule: null,
+            is_recurring: true, recurrence_rule: pe.days.length > 1
+              ? `RRULE:FREQ=WEEKLY;BYDAY=${pe.days.map(d => ['MO','TU','WE','TH','FR','SA','SU'][d]).join(',')}`
+              : `RRULE:FREQ=WEEKLY;BYDAY=${['MO','TU','WE','TH','FR','SA','SU'][pe.days[0]]}`,
             is_settled: false, is_confirmed: true,
             event_type: 'personal', created_at: isoStr(start),
           });
-          eventCount++;
         }
       }
     }
 
-    // Random personal events
-    const randomPersonal = [
-      'Kolacja z Olą', 'Kino z ziomkami', 'Wizyta u rodziców', 'Fryzjer',
-      'Dentysta', 'Spotkanie z Kubą', 'Piwo z ekipą', 'Spacer z psem',
-      'Gotowanie', 'Nauka japońskiego', 'Grill u Adama', 'Mecz piłki',
-      'Escape room', 'Basen', 'Masaż', 'Spotkanie z księgową',
-    ];
+    // ── Random personal events (1-3 per week, more during vacation) ──
+    const rpCount = isVacation ? randomInt(3, 5) : randomInt(1, 3);
+    const personalPool = isVacation ? [...randomPersonal, ...vacationPersonal] : randomPersonal;
 
-    const rpCount = randomInt(1, 3);
     for (let i = 0; i < rpCount; i++) {
       const dayOff = randomInt(0, 6);
-      const d = new Date(weekStart); d.setDate(d.getDate() + dayOff);
+      const d = new Date(ws); d.setDate(d.getDate() + dayOff);
       const h = randomInt(10, 20);
       const dur = randomPick([30, 60, 90, 120]);
-
       const start = new Date(d); start.setHours(h, randomPick([0, 15, 30]), 0, 0);
       const end = new Date(start.getTime() + dur * 60_000);
 
-      await supabase.from('calendar_events').insert({
+      calBatch.push({
         id: nanoid(), user_id: userId,
-        title: encryptString(randomPick(randomPersonal), dek),
+        title: encryptString(randomPick(personalPool), dek),
         wallet_id: null, hourly_rate: encryptNumber(0, dek),
         start_time: isoStr(start), end_time: isoStr(end),
         is_recurring: false, recurrence_rule: null,
-        is_settled: false, is_confirmed: Math.random() < 0.9,
+        is_settled: false, is_confirmed: isPast ? Math.random() < 0.9 : false,
         event_type: 'personal', created_at: isoStr(start),
       });
-      eventCount++;
     }
+
+    // Flush periodically
+    if (calBatch.length >= 200) {
+      await flushCalendar();
+      process.stdout.write(`   ... ${eventCount} events\r`);
+    }
+
+    weekIdx++;
+    weekMon.setDate(weekMon.getDate() + 7);
   }
-  console.log(`   Created ${eventCount} calendar events.`);
+
+  // Final flush
+  await flushCalendar();
+  console.log(`   Created ${eventCount} calendar events (52 weeks of 2026).`);
 
   // ── Step 7: Habits + Entries ──
   console.log('\n7. Creating habits and entries...');

@@ -158,3 +158,176 @@ export function generateInvoicePDF(data: InvoiceData): void {
   // Save
   doc.save(`${data.invoiceNumber.replace(/\//g, '-')}.pdf`);
 }
+
+export interface SummaryData {
+  title: string;
+  issueDate: string;
+  items: InvoiceItem[];
+  totalNet: number;
+  totalHours: number;
+}
+
+export function generateSummaryPDF(data: SummaryData): void {
+  const doc = new jsPDF('p', 'mm', 'a4');
+  const pageWidth = 210;
+  const margin = 20;
+  let y = margin;
+
+  // Header
+  doc.setFontSize(20);
+  doc.setFont('helvetica', 'bold');
+  doc.text('PODSUMOWANIE', pageWidth / 2, y, { align: 'center' });
+  y += 8;
+
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'normal');
+  doc.text(data.title, pageWidth / 2, y, { align: 'center' });
+  y += 8;
+
+  doc.setFontSize(9);
+  doc.text(`Data: ${data.issueDate}`, margin, y);
+  y += 10;
+
+  // Table header
+  doc.setDrawColor(200, 200, 200);
+  doc.line(margin, y, pageWidth - margin, y);
+  y += 5;
+
+  const cols = [
+    { label: 'Lp.', x: margin, w: 10 },
+    { label: 'Opis', x: margin + 10, w: 70 },
+    { label: 'Godziny', x: margin + 80, w: 20 },
+    { label: 'Stawka/h', x: margin + 100, w: 25 },
+    { label: 'Kwota', x: margin + 125, w: 25 },
+  ];
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  cols.forEach((col) => {
+    doc.text(col.label, col.x, y);
+  });
+  y += 2;
+  doc.line(margin, y, pageWidth - margin, y);
+  y += 5;
+
+  // Table rows
+  doc.setFont('helvetica', 'normal');
+  data.items.forEach((item, i) => {
+    const desc = item.description.length > 40 ? item.description.substring(0, 37) + '...' : item.description;
+    doc.text(`${i + 1}`, cols[0].x, y);
+    doc.text(desc, cols[1].x, y);
+    doc.text(item.quantity.toFixed(2), cols[2].x, y);
+    doc.text(`${item.unitPrice.toFixed(2)} PLN`, cols[3].x, y);
+    doc.text(`${item.netAmount.toFixed(2)} PLN`, cols[4].x, y);
+    y += 5;
+  });
+
+  y += 2;
+  doc.line(margin, y, pageWidth - margin, y);
+  y += 8;
+
+  // Summary
+  doc.setFontSize(10);
+  const summaryX = pageWidth - margin - 60;
+
+  doc.setFont('helvetica', 'normal');
+  doc.text('Razem godziny:', summaryX, y);
+  doc.text(`${data.totalHours.toFixed(2)}h`, summaryX + 40, y);
+  y += 6;
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Razem kwota:', summaryX, y);
+  doc.text(`${data.totalNet.toFixed(2)} PLN`, summaryX + 40, y);
+
+  // Save
+  const datePart = data.issueDate.replace(/-/g, '');
+  doc.save(`podsumowanie-${datePart}.pdf`);
+}
+
+export interface PITData {
+  periodLabel: string;
+  grossIncome: number;
+  pitTax: number;
+  healthInsurance: number;
+  netIncome: number;
+  effectiveRate: number;
+  issueDate: string;
+}
+
+export function generatePITPDF(data: PITData): void {
+  const doc = new jsPDF('p', 'mm', 'a4');
+  const pageWidth = 210;
+  const margin = 20;
+  const contentWidth = pageWidth - margin * 2;
+  let y = margin;
+
+  // Header
+  doc.setFontSize(20);
+  doc.setFont('helvetica', 'bold');
+  doc.text('SZACUNEK PODATKOWY PIT', pageWidth / 2, y, { align: 'center' });
+  y += 8;
+
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'normal');
+  doc.text(data.periodLabel, pageWidth / 2, y, { align: 'center' });
+  y += 8;
+
+  doc.setFontSize(9);
+  doc.text(`Data: ${data.issueDate}`, margin, y);
+  y += 10;
+
+  // Table header
+  doc.setDrawColor(200, 200, 200);
+  doc.line(margin, y, pageWidth - margin, y);
+  y += 5;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.text('Pozycja', margin, y);
+  doc.text('Kwota', margin + contentWidth - 30, y);
+  y += 2;
+  doc.line(margin, y, pageWidth - margin, y);
+  y += 6;
+
+  // Table rows
+  doc.setFont('helvetica', 'normal');
+  const rows = [
+    { label: 'Przychod brutto', value: `${data.grossIncome.toFixed(2)} PLN` },
+    { label: 'Zaliczka PIT (12%/32%)', value: `-${data.pitTax.toFixed(2)} PLN` },
+    { label: 'Skladka zdrowotna (9%)', value: `-${data.healthInsurance.toFixed(2)} PLN` },
+  ];
+
+  rows.forEach((row) => {
+    doc.text(row.label, margin, y);
+    doc.text(row.value, margin + contentWidth - 30, y);
+    y += 6;
+  });
+
+  // Net row (bold)
+  y += 2;
+  doc.line(margin, y, pageWidth - margin, y);
+  y += 6;
+  doc.setFont('helvetica', 'bold');
+  doc.text('Przychod netto', margin, y);
+  doc.text(`${data.netIncome.toFixed(2)} PLN`, margin + contentWidth - 30, y);
+  y += 10;
+
+  // Effective rate
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.text(`Stawka efektywna: ${data.effectiveRate.toFixed(1)}%`, margin, y);
+  y += 12;
+
+  // Disclaimer
+  doc.setFontSize(8);
+  doc.setTextColor(120, 120, 120);
+  doc.text(
+    'Dokument ma charakter informacyjny — nie stanowi deklaracji podatkowej.',
+    margin,
+    y
+  );
+
+  // Save
+  const datePart = data.issueDate.replace(/-/g, '');
+  doc.save(`pit-szacunek-${datePart}.pdf`);
+}

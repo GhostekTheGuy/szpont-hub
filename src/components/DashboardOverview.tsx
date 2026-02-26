@@ -15,7 +15,7 @@ import { WalletModal } from '@/components/WalletModal';
 import { useFinanceStore, Transaction, Wallet, Asset, Goal } from '@/hooks/useFinanceStore';
 import { GoalCard } from '@/components/GoalCard';
 import { GoalModal } from '@/components/GoalModal';
-import { TrendingUp, Wallet as WalletIcon, ArrowUpRight, ArrowDownRight, Plus, ArrowRight, Target } from 'lucide-react';
+import { TrendingUp, Wallet as WalletIcon, ArrowUpRight, ArrowDownRight, Plus, ArrowRight, Target, Sparkles } from 'lucide-react';
 import { subDays, format } from 'date-fns';
 import { pl } from 'date-fns/locale';
 import { deleteTransactionAction, deleteWalletAction, deleteGoalAction } from '@/app/actions';
@@ -52,7 +52,7 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
   const [historicalRates, setHistoricalRates] = useState<HistoricalRates | undefined>(undefined);
   const [ratesReady, setRatesReady] = useState(false);
 
-  const { wallets, transactions, assets, goals, setWallets, setTransactions, setAssets, setGoals, balanceMasked } = useFinanceStore();
+  const { wallets, transactions, assets, goals, setWallets, setTransactions, setAssets, setGoals, balanceMasked, setShowWeeklyReport } = useFinanceStore();
 
   useEffect(() => {
     setWallets(initialWallets);
@@ -129,16 +129,22 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => setShowWeeklyReport(true)}
+            className="flex items-center gap-2 px-3 py-2 bg-secondary hover:bg-secondary/80 text-secondary-foreground rounded-lg transition-colors border border-border text-sm"
+          >
+            <Sparkles className="w-4 h-4" /> Raport AI
+          </button>
           <button
             onClick={() => { setEditingWallet(null); setIsWalletModalOpen(true); }}
-            className="flex items-center gap-2 px-4 py-2 bg-secondary hover:bg-secondary/80 text-secondary-foreground rounded-lg transition-colors border border-border"
+            className="flex items-center gap-2 px-3 py-2 bg-secondary hover:bg-secondary/80 text-secondary-foreground rounded-lg transition-colors border border-border text-sm"
           >
             <Plus className="w-4 h-4" /> Portfel
           </button>
           <button
             onClick={() => { setEditingTransaction(null); setIsTransModalOpen(true); }}
-            className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg transition-all"
+            className="flex items-center gap-2 px-3 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg transition-all text-sm"
           >
             <Plus className="w-4 h-4" /> Transakcja
           </button>
@@ -157,15 +163,21 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
                 <div className="px-4 pt-4 lg:px-5 lg:pt-5 pb-0">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-muted-foreground text-sm">Wartość netto</span>
-                    <select
-                      value={displayCurrency}
-                      onChange={(e) => setDisplayCurrency(e.target.value as Currency)}
-                      className="bg-secondary border border-border rounded-md px-2 py-0.5 text-xs text-foreground outline-none focus:ring-1 focus:ring-ring"
-                    >
-                      <option value="PLN">PLN</option>
-                      <option value="USD">USD</option>
-                      <option value="EUR">EUR</option>
-                    </select>
+                    <div className="flex gap-0.5 bg-secondary rounded-md p-0.5">
+                      {(['PLN', 'USD', 'EUR'] as const).map((c) => (
+                        <button
+                          key={c}
+                          onClick={() => setDisplayCurrency(c)}
+                          className={`px-2 py-0.5 text-xs font-medium rounded transition-colors ${
+                            displayCurrency === c
+                              ? 'bg-card text-foreground shadow-sm'
+                              : 'text-muted-foreground hover:text-foreground'
+                          }`}
+                        >
+                          {c}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                   <div className="text-3xl font-bold text-foreground">
                     <span className={balanceMasked ? 'blur-md select-none' : ''}>{formatCurrency(stats.totalNetWorth, displayCurrency)}</span>

@@ -102,8 +102,19 @@ export const ProjectedNetWorthChart = memo(function ProjectedNetWorthChart({
     const actualSimple: { month: string; actual: number; projected: number | null; monthIdx: number }[] = [];
     const regInput: { x: number; y: number }[] = [];
 
+    // Compute initial_balance baseline and earliest track_from
+    const initialBalanceSum = wallets.reduce((sum, w) => sum + (w.initial_balance || 0), 0);
+    const initialBaselineConverted = convertAmount(initialBalanceSum, 'PLN', displayCurrency, exchangeRates);
+
+    // Find earliest track_from across all wallets
+    const trackFromDates = wallets
+      .filter(w => w.track_from)
+      .map(w => w.track_from!);
+    const earliestTrackFrom = trackFromDates.length > 0
+      ? trackFromDates.sort()[0].substring(0, 7) // yyyy-MM format
+      : null;
+
     // Cumulative profit from each month to now
-    let cumulativeFromEnd = 0;
     const reversedMonths = [...months].reverse();
     const profitPerMonth = new Map<string, number>();
 
@@ -117,9 +128,16 @@ export const ProjectedNetWorthChart = memo(function ProjectedNetWorthChart({
     }
 
     // Net worth at end of month[i] = currentNetWorth - sum of profits from month[i+1] to now
+    // For months before earliest track_from, clamp to initial_balance baseline
     let profitAfter = 0;
     for (let i = months.length - 1; i >= 0; i--) {
-      const nw = baseConverted - profitAfter;
+      let nw = baseConverted - profitAfter;
+
+      // If this month is before the earliest track_from, use initial_balance as floor
+      if (earliestTrackFrom && months[i].key < earliestTrackFrom) {
+        nw = initialBaselineConverted;
+      }
+
       actualSimple.unshift({
         month: months[i].label,
         actual: nw,

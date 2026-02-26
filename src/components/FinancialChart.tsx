@@ -76,15 +76,12 @@ export const FinancialChart = memo(function FinancialChart({ transactions, range
     return data;
   }, [transactions, range, displayCurrency, exchangeRates, historicalRates, currentNetWorth]);
 
-  const yDomain = useMemo(() => {
-    if (chartData.length === 0) return [0, 100];
-    const values = chartData.map(d => d.value);
-    const min = Math.min(...values);
-    const max = Math.max(...values);
-    const range = max - min;
-    const padding = range > 0 ? range * 0.1 : Math.abs(max) * 0.05 || 100;
-    return [Math.floor(min - padding), Math.ceil(max + padding)];
-  }, [chartData]);
+  const yDomain = useMemo((): [(min: number) => number, (max: number) => number] => {
+    return [
+      (min: number) => min - Math.abs(min) * 0.01,
+      (max: number) => max + Math.abs(max) * 0.01,
+    ];
+  }, []);
 
   const formatYTick = useCallback((value: number) => {
     if (Math.abs(value) >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;

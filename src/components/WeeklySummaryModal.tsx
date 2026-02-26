@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, TrendingUp, TrendingDown, Minus, Loader2, Sparkles, FileText } from 'lucide-react';
+import { X, TrendingUp, TrendingDown, Minus, Loader2, Sparkles, FileText, Calculator } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { settleWeekAction, settleMonthAction, getWeeklySummary, getMonthlySummary } from '@/app/actions';
 import { calculatePIT } from '@/lib/tax-calculator';
+import { generatePITPDF } from '@/lib/invoice-pdf';
 
 interface WalletBreakdown {
   id: string;
@@ -52,6 +53,7 @@ export function WeeklySummaryModal({ isOpen, onClose, weekStart, weekEnd, monthS
   const [didSettle, setDidSettle] = useState(false);
   const [aiInsight, setAiInsight] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
+  const [showTaxCalc, setShowTaxCalc] = useState(false);
 
   const loadSummary = async (m: SummaryMode) => {
     setLoading(true);
@@ -78,12 +80,14 @@ export function WeeklySummaryModal({ isOpen, onClose, weekStart, weekEnd, monthS
   useEffect(() => {
     if (isOpen) {
       setDidSettle(false);
+      setShowTaxCalc(false);
       loadSummary(mode);
     }
   }, [isOpen, weekStart, weekEnd, monthStart, monthEnd]);
 
   const switchMode = (m: SummaryMode) => {
     setMode(m);
+    setShowTaxCalc(false);
     loadSummary(m);
   };
 
@@ -280,47 +284,6 @@ export function WeeklySummaryModal({ isOpen, onClose, weekStart, weekEnd, monthS
                   </div>
                 )}
 
-                {/* Tax estimation (month mode only) */}
-                {mode === 'month' && summary.totalEarnings > 0 && (() => {
-                  const tax = calculatePIT(summary.totalEarnings);
-                  return (
-                    <div>
-                      <div className="text-sm font-medium text-muted-foreground mb-2">Szacunek podatkowy</div>
-                      <div className="space-y-1.5">
-                        <div className="flex items-center justify-between bg-secondary/50 rounded-lg px-3 py-2">
-                          <span className="text-sm text-foreground">Brutto</span>
-                          <span className="text-sm font-medium text-foreground">
-                            {tax.grossIncome.toLocaleString('pl-PL', { minimumFractionDigits: 2 })} PLN
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between bg-secondary/50 rounded-lg px-3 py-2">
-                          <span className="text-sm text-foreground">PIT</span>
-                          <span className="text-sm font-medium text-red-500">
-                            -{tax.pitTax.toLocaleString('pl-PL', { minimumFractionDigits: 2 })} PLN
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between bg-secondary/50 rounded-lg px-3 py-2">
-                          <span className="text-sm text-foreground">Składka zdrowotna</span>
-                          <span className="text-sm font-medium text-red-500">
-                            -{tax.healthInsurance.toLocaleString('pl-PL', { minimumFractionDigits: 2 })} PLN
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between bg-primary/10 border border-primary/20 rounded-lg px-3 py-2">
-                          <span className="text-sm font-medium text-foreground">Netto</span>
-                          <div className="text-right">
-                            <span className="text-sm font-bold text-foreground">
-                              {tax.netIncome.toLocaleString('pl-PL', { minimumFractionDigits: 2 })} PLN
-                            </span>
-                            <span className="text-xs text-muted-foreground ml-1.5">
-                              ({tax.effectiveRate.toFixed(1)}% efektywna)
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })()}
-
                 {/* AI Insight */}
                 {(aiLoading || aiInsight) && (
                   <div className="bg-secondary/50 border border-border rounded-lg p-3">
@@ -363,7 +326,7 @@ export function WeeklySummaryModal({ isOpen, onClose, weekStart, weekEnd, monthS
                     className="w-full flex items-center justify-center gap-2 bg-secondary hover:bg-accent text-secondary-foreground font-medium py-2.5 rounded-lg transition-colors border border-border"
                   >
                     <FileText className="w-4 h-4" />
-                    Generuj fakturę
+                    Generuj dokument
                   </button>
                 )}
 
@@ -372,6 +335,76 @@ export function WeeklySummaryModal({ isOpen, onClose, weekStart, weekEnd, monthS
                     {summary.eventCount - summary.confirmedCount} wydarzeń niepotwierdzone — zaznacz je w kalendarzu
                   </div>
                 )}
+
+                {/* Tax calc toggle button */}
+                {summary.totalEarnings > 0 && (
+                  <button
+                    onClick={() => setShowTaxCalc(!showTaxCalc)}
+                    className="w-full flex items-center justify-center gap-2 bg-secondary hover:bg-accent text-secondary-foreground font-medium py-2.5 rounded-lg transition-colors border border-border"
+                  >
+                    <Calculator className="w-4 h-4" />
+                    {showTaxCalc ? 'Ukryj podatek' : 'Oblicz podatek'}
+                  </button>
+                )}
+
+                {/* Tax section (on-demand) */}
+                {showTaxCalc && summary.totalEarnings > 0 && (() => {
+                  const tax = calculatePIT(summary.totalEarnings);
+                  return (
+                    <div>
+                      <div className="text-sm font-medium text-muted-foreground mb-2">Szacunek podatkowy</div>
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between bg-secondary/50 rounded-lg px-3 py-2">
+                          <span className="text-sm text-foreground">Brutto</span>
+                          <span className="text-sm font-medium text-foreground">
+                            {tax.grossIncome.toLocaleString('pl-PL', { minimumFractionDigits: 2 })} PLN
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between bg-secondary/50 rounded-lg px-3 py-2">
+                          <span className="text-sm text-foreground">PIT</span>
+                          <span className="text-sm font-medium text-red-500">
+                            -{tax.pitTax.toLocaleString('pl-PL', { minimumFractionDigits: 2 })} PLN
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between bg-secondary/50 rounded-lg px-3 py-2">
+                          <span className="text-sm text-foreground">Składka zdrowotna</span>
+                          <span className="text-sm font-medium text-red-500">
+                            -{tax.healthInsurance.toLocaleString('pl-PL', { minimumFractionDigits: 2 })} PLN
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between bg-primary/10 border border-primary/20 rounded-lg px-3 py-2">
+                          <span className="text-sm font-medium text-foreground">Netto</span>
+                          <div className="text-right">
+                            <span className="text-sm font-bold text-foreground">
+                              {tax.netIncome.toLocaleString('pl-PL', { minimumFractionDigits: 2 })} PLN
+                            </span>
+                            <span className="text-xs text-muted-foreground ml-1.5">
+                              ({tax.effectiveRate.toFixed(1)}% efektywna)
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          const today = new Date().toISOString().split('T')[0];
+                          generatePITPDF({
+                            periodLabel: mode === 'week' ? 'Tydzień' : monthLabel,
+                            grossIncome: tax.grossIncome,
+                            pitTax: tax.pitTax,
+                            healthInsurance: tax.healthInsurance,
+                            netIncome: tax.netIncome,
+                            effectiveRate: tax.effectiveRate,
+                            issueDate: today,
+                          });
+                        }}
+                        className="w-full flex items-center justify-center gap-2 bg-secondary hover:bg-accent text-secondary-foreground font-medium py-2.5 rounded-lg transition-colors border border-border mt-3"
+                      >
+                        <FileText className="w-4 h-4" />
+                        Generuj PIT
+                      </button>
+                    </div>
+                  );
+                })()}
               </div>
             ) : (
               <div className="text-center text-muted-foreground py-8">

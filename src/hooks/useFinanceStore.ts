@@ -23,6 +23,7 @@ export interface Wallet {
   color: string;
   type: 'fiat' | 'crypto' | 'stock';
   track_from?: string;
+  initial_balance?: number;
 }
 
 export interface Asset {
@@ -108,6 +109,8 @@ interface FinanceState {
   habitEntries: HabitEntry[];
   activeWalletId: string | null;
   balanceMasked: boolean;
+  showOnboarding: boolean;
+  showWeeklyReport: boolean;
 
   // Tylko settery - żadnej logiki dodawania/usuwania tutaj!
   setWallets: (wallets: Wallet[]) => void;
@@ -121,6 +124,8 @@ interface FinanceState {
   setActiveWallet: (id: string | null) => void;
   setBalanceMasked: (masked: boolean) => void;
   toggleBalanceMask: () => void;
+  setShowOnboarding: (show: boolean) => void;
+  setShowWeeklyReport: (show: boolean) => void;
 }
 
 export const useFinanceStore = create<FinanceState>()(
@@ -135,6 +140,8 @@ export const useFinanceStore = create<FinanceState>()(
     habitEntries: [],
     activeWalletId: null,
     balanceMasked: false,
+    showOnboarding: false,
+    showWeeklyReport: false,
 
     setWallets: (wallets) => set({ wallets }),
     setTransactions: (transactions) => set({ transactions }),
@@ -149,5 +156,7 @@ export const useFinanceStore = create<FinanceState>()(
     toggleBalanceMask: () => {
       set((state) => ({ balanceMasked: !state.balanceMasked }));
     },
+    setShowOnboarding: (show) => set({ showOnboarding: show }),
+    setShowWeeklyReport: (show) => set({ showWeeklyReport: show }),
   })
 );

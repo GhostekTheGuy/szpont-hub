@@ -13,8 +13,9 @@ import {
   User,
   Crown,
   ExternalLink,
+  GraduationCap,
 } from 'lucide-react';
-import { signOutAction, resetPasswordAction, setBalanceMasked } from '@/app/actions';
+import { signOutAction, resetPasswordAction, setBalanceMasked, setOnboardingDone } from '@/app/actions';
 import { useFinanceStore } from '@/hooks/useFinanceStore';
 
 interface Subscription {
@@ -33,7 +34,7 @@ interface UserPanelProps {
 
 export function UserPanel({ userName, userEmail, avatarUrl, subscription }: UserPanelProps) {
   const { theme, setTheme } = useTheme();
-  const { balanceMasked, toggleBalanceMask } = useFinanceStore();
+  const { balanceMasked, toggleBalanceMask, setShowOnboarding } = useFinanceStore();
   const [uploading, setUploading] = useState(false);
   const [resetSent, setResetSent] = useState(false);
   const [currentAvatar, setCurrentAvatar] = useState(avatarUrl);
@@ -212,6 +213,17 @@ export function UserPanel({ userName, userEmail, avatarUrl, subscription }: User
               >
                 <div className="w-5 h-5 rounded-full bg-white shadow-sm" />
               </div>
+            </button>
+
+            <button
+              onClick={() => {
+                setOnboardingDone(false).catch(console.error);
+                setShowOnboarding(true);
+              }}
+              className="flex items-center gap-3 w-full px-3 py-3 rounded-lg hover:bg-accent transition-colors"
+            >
+              <GraduationCap className="w-5 h-5" />
+              Powtórz samouczek
             </button>
           </div>
         </div>

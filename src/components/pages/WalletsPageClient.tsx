@@ -70,15 +70,21 @@ export function WalletsPageClient({ initialWallets, initialTransactions, exchang
           )}
         </div>
         <div className="flex items-center gap-2">
-          <select
-            value={displayCurrency}
-            onChange={(e) => setDisplayCurrency(e.target.value as Currency)}
-            className="bg-secondary border border-border rounded-md px-2 py-1.5 text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
-          >
-            <option value="PLN">PLN</option>
-            <option value="USD">USD</option>
-            <option value="EUR">EUR</option>
-          </select>
+          <div className="flex gap-0.5 bg-secondary rounded-lg p-0.5">
+            {(['PLN', 'USD', 'EUR'] as const).map((c) => (
+              <button
+                key={c}
+                onClick={() => setDisplayCurrency(c)}
+                className={`px-2.5 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                  displayCurrency === c
+                    ? 'bg-card text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
           <button
             onClick={() => setIsScanModalOpen(true)}
             className="flex items-center gap-2 px-4 py-2 bg-secondary hover:bg-accent text-secondary-foreground rounded-lg transition-all"

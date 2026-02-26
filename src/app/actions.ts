@@ -108,6 +108,7 @@ async function fetchWalletsAndTransactions(userId: string, existingDek?: Buffer)
     name: decryptString(w.name, dek) || w.name,
     balance: decryptNumber(w.balance, dek),
     track_from: w.track_from ? decryptString(w.track_from, dek) : undefined,
+    initial_balance: w.initial_balance ? decryptNumber(w.initial_balance, dek) : 0,
   }));
 
   const { data: transactionsRaw, error: transError } = await supabaseAdmin
@@ -535,6 +536,8 @@ export async function addWalletAction(data: any) {
 
   const trackFrom = data.track_from || new Date().toISOString().split('T')[0];
 
+  const initialBalance = typeof data.initial_balance === 'number' ? data.initial_balance : 0;
+
   const { error } = await supabaseAdmin
     .from('wallets')
     .insert({
@@ -546,6 +549,7 @@ export async function addWalletAction(data: any) {
       icon: data.icon,
       balance: encryptNumber(0, dek),
       track_from: encryptString(trackFrom, dek),
+      initial_balance: encryptNumber(initialBalance, dek),
       currency: 'PLN',
       created_at: new Date().toISOString()
     });
@@ -587,6 +591,10 @@ export async function editWalletAction(id: string, data: any) {
 
   if (data.track_from) {
     updateData.track_from = encryptString(data.track_from, dek);
+  }
+
+  if (typeof data.initial_balance === 'number') {
+    updateData.initial_balance = encryptNumber(data.initial_balance, dek);
   }
 
   await supabaseAdmin
@@ -696,6 +704,29 @@ export async function setBalanceMasked(masked: boolean) {
   await supabaseAdmin
     .from('users')
     .update({ balance_masked: masked })
+    .eq('id', userId);
+}
+
+export async function getOnboardingDone(): Promise<boolean> {
+  const userId = await getUserId();
+  if (!userId) return false;
+
+  const { data } = await supabaseAdmin
+    .from('users')
+    .select('onboarding_done')
+    .eq('id', userId)
+    .single();
+
+  return data?.onboarding_done ?? false;
+}
+
+export async function setOnboardingDone(done: boolean) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  await supabaseAdmin
+    .from('users')
+    .update({ onboarding_done: done })
     .eq('id', userId);
 }
 
@@ -2572,4 +2603,141 @@ export async function deleteGoalAction(id: string) {
     .eq('id', id);
 
   revalidatePath('/', 'layout');
+}
+
+// --- COTYGODNIOWY RAPORT AI ---
+
+export interface WeeklyReportInput {
+  weekLabel: string;
+  totalIncome: number;
+  totalOutcome: number;
+  outcomeByCategory: { category: string; amount: number }[];
+  topExpenses: { description: string; amount: number; category: string }[];
+  workHours: number;
+  workEarnings: number;
+  habits: { name: string; completed: number; expected: number }[];
+}
+
+export async function getLastWeeklyReport(): Promise<string | null> {
+  const userId = await getUserId();
+  if (!userId) return null;
+
+  const { data } = await supabaseAdmin
+    .from('users')
+    .select('last_weekly_report')
+    .eq('id', userId)
+    .single();
+
+  return data?.last_weekly_report ?? null;
+}
+
+export async function getWeeklyReportData(): Promise<WeeklyReportInput | null> {
+  const userId = await getUserId();
+  if (!userId) return null;
+
+  const dek = await getDEK();
+
+  // Oblicz daty poprzedniego tygodnia (pon-ndz)
+  const now = new Date();
+  const dayOfWeek = now.getUTCDay(); // 0=ndz, 1=pon
+  const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  const thisMonday = new Date(now);
+  thisMonday.setUTCDate(now.getUTCDate() - daysSinceMonday);
+  thisMonday.setUTCHours(0, 0, 0, 0);
+
+  const prevMonday = new Date(thisMonday);
+  prevMonday.setUTCDate(thisMonday.getUTCDate() - 7);
+  const prevSunday = new Date(thisMonday);
+  prevSunday.setUTCDate(thisMonday.getUTCDate() - 1);
+  prevSunday.setUTCHours(23, 59, 59, 999);
+
+  const weekStartStr = prevMonday.toISOString().split('T')[0];
+  const weekEndStr = prevSunday.toISOString().split('T')[0];
+
+  // Format label: "17–23 lut 2026"
+  const months = ['sty', 'lut', 'mar', 'kwi', 'maj', 'cze', 'lip', 'sie', 'wrz', 'paź', 'lis', 'gru'];
+  const weekLabel = `${prevMonday.getUTCDate()}–${prevSunday.getUTCDate()} ${months[prevMonday.getUTCMonth()]} ${prevMonday.getUTCFullYear()}`;
+
+  // Fetch transakcje, nawyki, kalendarz równolegle
+  const [
+    { wallets, transactions },
+    habitsData,
+    weeklySummary,
+  ] = await Promise.all([
+    fetchWalletsAndTransactions(userId, dek),
+    (async () => {
+      const [{ data: habits }, { data: entries }] = await Promise.all([
+        supabaseAdmin.from('habits').select('*').eq('user_id', userId),
+        supabaseAdmin.from('habit_entries').select('*, habit:habits!inner(user_id)').eq('habit.user_id', userId),
+      ]);
+      return {
+        habits: (habits || []).map(h => ({
+          id: h.id,
+          name: decryptString(h.name, dek) || h.name,
+          frequency: h.frequency || 'daily',
+        })),
+        entries: (entries || []).map(e => ({
+          habit_id: e.habit_id,
+          date: e.date,
+          completed: e.completed,
+        })),
+      };
+    })(),
+    getWeeklySummary(prevMonday.toISOString(), prevSunday.toISOString()),
+  ]);
+
+  // Filtruj transakcje z poprzedniego tygodnia
+  const weekTransactions = transactions.filter(t => {
+    return t.date >= weekStartStr && t.date <= weekEndStr;
+  });
+
+  const totalIncome = weekTransactions
+    .filter(t => t.type === 'income')
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  const totalOutcome = weekTransactions
+    .filter(t => t.type === 'outcome')
+    .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+
+  // Outcome per kategoria
+  const catMap = new Map<string, number>();
+  weekTransactions.filter(t => t.type === 'outcome').forEach(t => {
+    const cat = t.category || 'Inne';
+    catMap.set(cat, (catMap.get(cat) || 0) + Math.abs(t.amount));
+  });
+  const outcomeByCategory = Array.from(catMap.entries())
+    .map(([category, amount]) => ({ category, amount }))
+    .sort((a, b) => b.amount - a.amount);
+
+  // Top 5 wydatków
+  const topExpenses = weekTransactions
+    .filter(t => t.type === 'outcome')
+    .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount))
+    .slice(0, 5)
+    .map(t => ({
+      description: t.description || t.category || 'Brak opisu',
+      amount: Math.abs(t.amount),
+      category: t.category || 'Inne',
+    }));
+
+  // Nawyki: completion rate z poprzedniego tygodnia
+  const habitStats = habitsData.habits.map(h => {
+    const weekEntries = habitsData.entries.filter(e =>
+      e.habit_id === h.id && e.date >= weekStartStr && e.date <= weekEndStr
+    );
+    const completed = weekEntries.filter(e => e.completed).length;
+    const expected = h.frequency === 'daily' ? 7 : h.frequency === 'weekly' ? 1 : 7;
+    return { name: h.name, completed, expected };
+  });
+
+  return {
+    weekLabel,
+    totalIncome,
+    totalOutcome,
+    outcomeByCategory,
+    topExpenses,
+    workHours: weeklySummary?.totalHours ?? 0,
+    workEarnings: weeklySummary?.totalEarnings ?? 0,
+    habits: habitStats,
+  };
 }

@@ -10,7 +10,7 @@ import { InvoiceModal } from '@/components/InvoiceModal';
 import { ScanTogglModal } from '@/components/ScanTogglModal';
 import { TimerWidget } from '@/components/TimerWidget';
 import { GoogleCalendarSettings } from '@/components/GoogleCalendarSettings';
-import { BarChart3, Timer } from 'lucide-react';
+import { BarChart3, Timer, AlertTriangle } from 'lucide-react';
 import {
   format,
   startOfWeek,
@@ -20,6 +20,8 @@ import {
   addMonths,
   subMonths,
   isSunday,
+  isAfter,
+  endOfDay,
 } from 'date-fns';
 import { pl } from 'date-fns/locale';
 
@@ -52,6 +54,8 @@ export function CalendarPageClient({ initialEvents, initialWallets, googleConnec
   const [prefillDate, setPrefillDate] = useState<Date | null>(null);
   const [prefillHour, setPrefillHour] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
+  const [futureWarning, setFutureWarning] = useState(false);
+  const futureWarningTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [googleConn, setGoogleConn] = useState<GoogleConnection | null>(googleConnection || null);
   const lastSyncRef = useRef<number>(0);
 
@@ -140,6 +144,14 @@ export function CalendarPageClient({ initialEvents, initialWallets, googleConnec
   };
 
   const handleToggleConfirmed = useCallback(async (event: CalendarEvent, confirmed: boolean) => {
+    // Block confirming future events
+    if (confirmed && isAfter(new Date(event.start_time), endOfDay(new Date()))) {
+      if (futureWarningTimer.current) clearTimeout(futureWarningTimer.current);
+      setFutureWarning(true);
+      futureWarningTimer.current = setTimeout(() => setFutureWarning(false), 3500);
+      return;
+    }
+
     const snapshot = useFinanceStore.getState().calendarEvents;
     setCalendarEvents(
       snapshot.map(e => e.id === event.id ? { ...e, is_confirmed: confirmed } : e)
@@ -200,6 +212,17 @@ export function CalendarPageClient({ initialEvents, initialWallets, googleConnec
 
   return (
     <>
+      {/* Future event warning popup */}
+      {futureWarning && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-4 py-3 shadow-lg">
+            <AlertTriangle className="w-4 h-4 text-yellow-500 shrink-0" />
+            <span className="text-sm text-foreground">Nie można zatwierdzić wydarzenia z przyszłości</span>
+            <button onClick={() => setFutureWarning(false)} className="text-muted-foreground hover:text-foreground ml-2 text-lg leading-none">&times;</button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="mb-4 px-4 lg:px-0">
         <h1 className="text-3xl font-bold text-foreground">Praca</h1>
@@ -246,7 +269,7 @@ export function CalendarPageClient({ initialEvents, initialWallets, googleConnec
                     <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
                     <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
                   </svg>
-                  Połącz Google
+                  Google
                 </button>
               )}
               <button
