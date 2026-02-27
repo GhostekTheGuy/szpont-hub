@@ -89,8 +89,8 @@ export async function POST() {
     try {
       // Use syncToken for incremental sync, or time range for full sync
       const now = new Date();
-      const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, 1);
-      const threeMonthsAhead = new Date(now.getFullYear(), now.getMonth() + 4, 0, 23, 59, 59, 999);
+      const threeMonthsAgo = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 3, 1));
+      const threeMonthsAhead = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 4, 0, 23, 59, 59, 999));
 
       const result = await fetchEvents(accessToken, refreshToken, mapping.google_calendar_id, {
         syncToken: mapping.sync_token || null,
@@ -103,40 +103,49 @@ export async function POST() {
 
       console.log(`[Google Sync] Fetched ${result.events.length} events`);
 
-      for (const event of result.events) {
-        if (event.status === 'cancelled') {
-          // Delete cancelled events
-          await supabaseAdmin
-            .from('calendar_events')
-            .delete()
-            .eq('user_id', user.id)
-            .eq('google_event_id', event.id);
-          continue;
-        }
+      // Separate cancelled vs active events
+      const cancelledIds = result.events
+        .filter(e => e.status === 'cancelled')
+        .map(e => e.id);
+      const activeEvents = result.events.filter(e => e.status !== 'cancelled');
 
-        // Check if event already exists
-        const { data: existing } = await supabaseAdmin
+      // Batch delete cancelled events
+      if (cancelledIds.length > 0) {
+        await supabaseAdmin
           .from('calendar_events')
-          .select('id')
+          .delete()
           .eq('user_id', user.id)
-          .eq('google_event_id', event.id)
-          .single();
+          .in('google_event_id', cancelledIds);
+      }
 
-        if (existing) {
-          // Update title and times, preserve wallet/rate
-          await supabaseAdmin
-            .from('calendar_events')
-            .update({
-              title: encryptString(event.summary, dek),
-              start_time: event.start,
-              end_time: event.end,
-            })
-            .eq('id', existing.id);
-        } else {
-          // Insert new event
-          await supabaseAdmin
-            .from('calendar_events')
-            .insert({
+      if (activeEvents.length > 0) {
+        // Batch check which events already exist
+        const googleEventIds = activeEvents.map(e => e.id);
+        const { data: existingEvents } = await supabaseAdmin
+          .from('calendar_events')
+          .select('id, google_event_id')
+          .eq('user_id', user.id)
+          .in('google_event_id', googleEventIds);
+
+        const existingMap = new Map(
+          (existingEvents || []).map(e => [e.google_event_id, e.id])
+        );
+
+        const toInsert: Array<Record<string, unknown>> = [];
+
+        for (const event of activeEvents) {
+          if (existingMap.has(event.id)) {
+            // Update existing — must be individual (different fields per row)
+            await supabaseAdmin
+              .from('calendar_events')
+              .update({
+                title: encryptString(event.summary, dek),
+                start_time: event.start,
+                end_time: event.end,
+              })
+              .eq('id', existingMap.get(event.id)!);
+          } else {
+            toInsert.push({
               id: nanoid(),
               user_id: user.id,
               title: encryptString(event.summary, dek),
@@ -153,8 +162,17 @@ export async function POST() {
               google_calendar_id: mapping.google_calendar_id,
               created_at: new Date().toISOString(),
             });
+          }
         }
-        totalSynced++;
+
+        // Batch insert new events
+        if (toInsert.length > 0) {
+          await supabaseAdmin
+            .from('calendar_events')
+            .insert(toInsert);
+        }
+
+        totalSynced += activeEvents.length;
       }
 
       // Save sync token and last synced time

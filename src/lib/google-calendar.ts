@@ -126,8 +126,8 @@ export async function fetchEvents(
     if (err.code === 410) {
       // Fallback to full sync with sensible time bounds
       const now = new Date();
-      const defaultMin = new Date(now.getFullYear(), now.getMonth() - 3, 1).toISOString();
-      const defaultMax = new Date(now.getFullYear(), now.getMonth() + 4, 0, 23, 59, 59, 999).toISOString();
+      const defaultMin = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 3, 1)).toISOString();
+      const defaultMax = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 4, 0, 23, 59, 59, 999)).toISOString();
       return fetchEvents(accessToken, refreshToken, calendarId, {
         timeMin: options.timeMin || defaultMin,
         timeMax: options.timeMax || defaultMax,
@@ -153,7 +153,15 @@ export async function getRefreshedTokens(accessToken: string, refreshToken: stri
   });
 
   // Force token refresh
-  await client.getAccessToken();
+  try {
+    await client.getAccessToken();
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (message.includes('invalid_grant') || message.includes('Token has been expired or revoked')) {
+      throw new Error('REVOKED: Google token has been revoked. Please reconnect your account.');
+    }
+    throw err;
+  }
 
   return {
     accessToken: newAccessToken,

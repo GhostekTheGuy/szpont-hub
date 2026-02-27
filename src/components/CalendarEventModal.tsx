@@ -34,7 +34,7 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
   const [loading, setLoading] = useState(false);
 
   const isGoogleEvent = !!editingEvent?.google_event_id;
-  const isRecurringInstance = !!(editingEvent?.id.includes('_') && /\d{4}-\d{2}-\d{2}$/.test(editingEvent.id));
+  const isRecurringInstance = !!(editingEvent && /_\d{4}-\d{2}-\d{2}$/.test(editingEvent.id));
   const isPersonal = eventType === 'personal';
 
   useEffect(() => {

@@ -75,11 +75,13 @@ export function GoogleCalendarSettings({
 
   const handleUpdateWallet = async (mapping: CalendarMapping, walletId: string) => {
     setSavingId(mapping.id);
+    const prevWalletId = mapping.wallet_id;
     setMappings(prev => prev.map(m => m.id === mapping.id ? { ...m, wallet_id: walletId || null } : m));
     try {
       await updateGoogleCalendarMapping(mapping.id, { wallet_id: walletId || null });
     } catch (err) {
       console.error(err);
+      setMappings(prev => prev.map(m => m.id === mapping.id ? { ...m, wallet_id: prevWalletId } : m));
     } finally {
       setSavingId(null);
     }

@@ -22,6 +22,18 @@ import {
 import { getExchangeRates, getHistoricalRates, convertAmount, type Currency, type ExchangeRates, type HistoricalRates } from '@/lib/exchange-rates';
 import { expandRecurringEvents, mergeWithExpanded } from '@/lib/calendar-utils';
 
+// --- HELPERS ---
+
+function isValidISODate(s: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d+)?Z?)?$/.test(s) && !isNaN(Date.parse(s));
+}
+
+function parseInstanceId(id: string): { parentId: string; dateStr: string } | null {
+  const match = id.match(/_(\d{4}-\d{2}-\d{2})$/);
+  if (!match) return null;
+  return { parentId: id.slice(0, match.index!), dateStr: match[1] };
+}
+
 async function getUserId() {
   const user = await getUser();
   return user?.id;
@@ -745,6 +757,7 @@ export async function signOutAction() {
 // --- KALENDARZ ---
 
 export async function getCalendarEvents(weekStart: string, weekEnd: string) {
+  if (!isValidISODate(weekStart) || !isValidISODate(weekEnd)) throw new Error('Invalid date range');
   const userId = await getUserId();
   if (!userId) return null;
 
@@ -828,6 +841,7 @@ export async function addCalendarEvent(data: {
   recurrence_rule: string | null;
   event_type?: 'work' | 'personal';
 }) {
+  if (!isValidISODate(data.start_time) || !isValidISODate(data.end_time)) throw new Error('Invalid date');
   const userId = await getUserId();
   if (!userId) throw new Error('Unauthorized');
   if (data.hourly_rate < 0) throw new Error('Invalid hourly rate');
@@ -869,6 +883,7 @@ export async function editCalendarEvent(id: string, data: {
   recurrence_rule: string | null;
   event_type?: 'work' | 'personal';
 }) {
+  if (!isValidISODate(data.start_time) || !isValidISODate(data.end_time)) throw new Error('Invalid date');
   const userId = await getUserId();
   if (!userId) throw new Error('Unauthorized');
 
@@ -929,7 +944,9 @@ export async function editRecurringInstance(instanceId: string, data: {
   const userId = await getUserId();
   if (!userId) throw new Error('Unauthorized');
 
-  const parentId = instanceId.split('_').slice(0, -1).join('_');
+  const parsed = parseInstanceId(instanceId);
+  if (!parsed) throw new Error('Invalid instance ID');
+  const { parentId } = parsed;
   const dek = await getDEK();
   const isPersonal = data.event_type === 'personal';
 
@@ -963,7 +980,7 @@ export async function editRecurringInstance(instanceId: string, data: {
 
     if (!parent) return;
 
-    const dateStr = instanceId.split('_').pop()!;
+    const dateStr = parsed.dateStr;
     const origStart = new Date(parent.start_time);
     const origEnd = new Date(parent.end_time);
     const durationMs = origEnd.getTime() - origStart.getTime();
@@ -998,6 +1015,9 @@ export async function deleteRecurringInstance(instanceId: string) {
   const userId = await getUserId();
   if (!userId) throw new Error('Unauthorized');
 
+  const parsed = parseInstanceId(instanceId);
+  if (!parsed) throw new Error('Invalid instance ID');
+
   const { data: existing } = await supabaseAdmin
     .from('calendar_events')
     .select('id, user_id')
@@ -1015,7 +1035,7 @@ export async function deleteRecurringInstance(instanceId: string) {
 
   // Insert exclusion marker so expansion doesn't regenerate this instance.
   // mergeWithExpanded deduplicates by ID, so this blocks the virtual instance.
-  const parentId = instanceId.split('_').slice(0, -1).join('_');
+  const { parentId } = parsed;
   const { data: parent } = await supabaseAdmin
     .from('calendar_events')
     .select('start_time, end_time, title, wallet_id, hourly_rate, event_type')
@@ -1024,11 +1044,10 @@ export async function deleteRecurringInstance(instanceId: string) {
     .single();
 
   if (parent) {
-    const dateStr = instanceId.split('_').pop()!;
     const origStart = new Date(parent.start_time);
     const origEnd = new Date(parent.end_time);
     const durationMs = origEnd.getTime() - origStart.getTime();
-    const instanceStart = new Date(dateStr + 'T00:00:00Z');
+    const instanceStart = new Date(parsed.dateStr + 'T00:00:00Z');
     instanceStart.setUTCHours(origStart.getUTCHours(), origStart.getUTCMinutes(), origStart.getUTCSeconds(), 0);
     const instanceEnd = new Date(instanceStart.getTime() + durationMs);
 
@@ -1059,11 +1078,11 @@ export async function toggleEventConfirmed(id: string, confirmed: boolean) {
   if (!userId) throw new Error('Unauthorized');
 
   // Check if this is a recurring instance (id_YYYY-MM-DD)
-  const isInstance = id.includes('_') && /\d{4}-\d{2}-\d{2}$/.test(id);
+  const parsedInstance = parseInstanceId(id);
 
-  if (isInstance) {
+  if (parsedInstance) {
     // Recurring instance — we need to materialize it as a real record
-    const parentId = id.split('_').slice(0, -1).join('_');
+    const parentId = parsedInstance.parentId;
 
     const { data: parent } = await supabaseAdmin
       .from('calendar_events')
@@ -1090,7 +1109,7 @@ export async function toggleEventConfirmed(id: string, confirmed: boolean) {
           .eq('id', id);
       } else {
         // Parse instance date from the ID suffix
-        const dateStr = id.split('_').pop()!;
+        const dateStr = parsedInstance.dateStr;
         const origStart = new Date(parent.start_time);
         const origEnd = new Date(parent.end_time);
         const durationMs = origEnd.getTime() - origStart.getTime();
@@ -1154,6 +1173,7 @@ export async function toggleEventConfirmed(id: string, confirmed: boolean) {
 }
 
 export async function settleWeekAction(weekStart: string, weekEnd: string) {
+  if (!isValidISODate(weekStart) || !isValidISODate(weekEnd)) throw new Error('Invalid date range');
   const userId = await getUserId();
   if (!userId) throw new Error('Unauthorized');
 
@@ -1217,19 +1237,8 @@ export async function settleWeekAction(weekStart: string, weekEnd: string) {
   }
 
   // Stwórz transakcje income i zaktualizuj salda
+  // First: insert all transactions
   for (const [walletId, totalEarnings] of Array.from(walletEarnings.entries())) {
-    const { data: wallet } = await supabaseAdmin
-      .from('wallets')
-      .select('*')
-      .eq('id', walletId)
-      .single();
-
-    if (!wallet) continue;
-
-    const currentBalance = decryptNumber(wallet.balance, dek);
-    const amountInPLN = totalEarnings; // Stawki są w PLN
-
-    // Dodaj transakcję income
     await supabaseAdmin
       .from('transactions')
       .insert({
@@ -1243,12 +1252,22 @@ export async function settleWeekAction(weekStart: string, weekEnd: string) {
         currency: 'PLN',
         created_at: new Date().toISOString(),
       });
+  }
 
-    // Zaktualizuj saldo portfela
-    const newBalance = currentBalance + amountInPLN;
+  // Then: read-and-update balances in tight sequence to minimize race window
+  for (const [walletId, totalEarnings] of Array.from(walletEarnings.entries())) {
+    const { data: wallet } = await supabaseAdmin
+      .from('wallets')
+      .select('balance')
+      .eq('id', walletId)
+      .single();
+
+    if (!wallet) continue;
+
+    const currentBalance = decryptNumber(wallet.balance, dek);
     await supabaseAdmin
       .from('wallets')
-      .update({ balance: encryptNumber(newBalance, dek) })
+      .update({ balance: encryptNumber(currentBalance + totalEarnings, dek) })
       .eq('id', walletId);
   }
 
@@ -1264,6 +1283,7 @@ export async function settleWeekAction(weekStart: string, weekEnd: string) {
 }
 
 export async function getWeeklySummary(weekStart: string, weekEnd: string) {
+  if (!isValidISODate(weekStart) || !isValidISODate(weekEnd)) throw new Error('Invalid date range');
   const userId = await getUserId();
   if (!userId) return null;
 
@@ -1363,6 +1383,7 @@ export async function getWeeklySummary(weekStart: string, weekEnd: string) {
 }
 
 export async function getMonthlySummary(monthStart: string, monthEnd: string) {
+  if (!isValidISODate(monthStart) || !isValidISODate(monthEnd)) throw new Error('Invalid date range');
   const userId = await getUserId();
   if (!userId) return null;
 
@@ -1477,14 +1498,15 @@ export async function getMonthlySummary(monthStart: string, monthEnd: string) {
 
 function getISOWeekLabel(date: Date): string {
   const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
-  d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
-  const week1 = new Date(d.getFullYear(), 0, 4);
-  const weekNum = 1 + Math.round(((d.getTime() - week1.getTime()) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7);
+  d.setUTCHours(0, 0, 0, 0);
+  d.setUTCDate(d.getUTCDate() + 3 - ((d.getUTCDay() + 6) % 7));
+  const week1 = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
+  const weekNum = 1 + Math.round(((d.getTime() - week1.getTime()) / 86400000 - 3 + ((week1.getUTCDay() + 6) % 7)) / 7);
   return `Tydzień ${weekNum}`;
 }
 
 export async function settleMonthAction(monthStart: string, monthEnd: string) {
+  if (!isValidISODate(monthStart) || !isValidISODate(monthEnd)) throw new Error('Invalid date range');
   const userId = await getUserId();
   if (!userId) throw new Error('Unauthorized');
 
@@ -1544,17 +1566,8 @@ export async function settleMonthAction(monthStart: string, monthEnd: string) {
     );
   }
 
+  // First: insert all transactions
   for (const [walletId, totalEarnings] of Array.from(walletEarnings.entries())) {
-    const { data: wallet } = await supabaseAdmin
-      .from('wallets')
-      .select('*')
-      .eq('id', walletId)
-      .single();
-
-    if (!wallet) continue;
-
-    const currentBalance = decryptNumber(wallet.balance, dek);
-
     await supabaseAdmin
       .from('transactions')
       .insert({
@@ -1568,11 +1581,22 @@ export async function settleMonthAction(monthStart: string, monthEnd: string) {
         currency: 'PLN',
         created_at: new Date().toISOString(),
       });
+  }
 
-    const newBalance = currentBalance + totalEarnings;
+  // Then: read-and-update balances in tight sequence to minimize race window
+  for (const [walletId, totalEarnings] of Array.from(walletEarnings.entries())) {
+    const { data: wallet } = await supabaseAdmin
+      .from('wallets')
+      .select('balance')
+      .eq('id', walletId)
+      .single();
+
+    if (!wallet) continue;
+
+    const currentBalance = decryptNumber(wallet.balance, dek);
     await supabaseAdmin
       .from('wallets')
-      .update({ balance: encryptNumber(newBalance, dek) })
+      .update({ balance: encryptNumber(currentBalance + totalEarnings, dek) })
       .eq('id', walletId);
   }
 

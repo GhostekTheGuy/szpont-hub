@@ -63,8 +63,15 @@ export async function GET(request: NextRequest) {
     const encryptedAccessToken = encryptString(tokens.access_token, dek);
     const encryptedRefreshToken = encryptString(tokens.refresh_token, dek);
 
-    // Upsert connection
-    const connectionId = nanoid();
+    // Check if connection already exists (preserve ID to avoid orphaning mappings)
+    const { data: existingConn } = await supabaseAdmin
+      .from('google_calendar_connections')
+      .select('id')
+      .eq('user_id', user.id)
+      .single();
+
+    const connectionId = existingConn?.id || nanoid();
+
     const { error: connError } = await supabaseAdmin
       .from('google_calendar_connections')
       .upsert({
@@ -84,14 +91,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL('/calendar?google_error=save_failed', request.url));
     }
 
-    // Get the actual connection ID (may differ if upserted)
-    const { data: connection } = await supabaseAdmin
-      .from('google_calendar_connections')
-      .select('id')
-      .eq('user_id', user.id)
-      .single();
-
-    const actualConnectionId = connection?.id || connectionId;
+    const actualConnectionId = connectionId;
 
     // Fetch calendars and save as mappings
     const calendars = await listCalendars(tokens.access_token, tokens.refresh_token);

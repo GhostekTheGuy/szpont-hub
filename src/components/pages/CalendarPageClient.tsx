@@ -10,7 +10,7 @@ import { InvoiceModal } from '@/components/InvoiceModal';
 import { ScanTogglModal } from '@/components/ScanTogglModal';
 import { TimerWidget } from '@/components/TimerWidget';
 import { GoogleCalendarSettings } from '@/components/GoogleCalendarSettings';
-import { BarChart3, Timer, AlertTriangle } from 'lucide-react';
+import { BarChart3, Timer, AlertTriangle, Loader2 } from 'lucide-react';
 import {
   format,
   startOfWeek,
@@ -83,7 +83,10 @@ export function CalendarPageClient({ initialEvents, initialWallets, googleConnec
     }
   }, [setCalendarEvents]);
 
-  const syncGoogleCalendar = useCallback(async () => {
+  const [autoSyncing, setAutoSyncing] = useState(false);
+
+  const syncGoogleCalendar = useCallback(async ({ silent = false } = {}) => {
+    if (silent) setAutoSyncing(true);
     try {
       const res = await fetch('/api/google-calendar/sync', { method: 'POST' });
       if (!res.ok) throw new Error('Sync failed');
@@ -91,6 +94,8 @@ export function CalendarPageClient({ initialEvents, initialWallets, googleConnec
       await loadMonth(currentMonth);
     } catch (err) {
       console.error('Google Calendar sync error:', err);
+    } finally {
+      if (silent) setAutoSyncing(false);
     }
   }, [currentMonth, loadMonth]);
 
@@ -99,7 +104,7 @@ export function CalendarPageClient({ initialEvents, initialWallets, googleConnec
     if (googleConn?.connected) {
       const now = Date.now();
       if (now - lastSyncRef.current >= SYNC_COOLDOWN_MS) {
-        syncGoogleCalendar();
+        syncGoogleCalendar({ silent: true });
       }
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -219,6 +224,16 @@ export function CalendarPageClient({ initialEvents, initialWallets, googleConnec
             <AlertTriangle className="w-4 h-4 text-yellow-500 shrink-0" />
             <span className="text-sm text-foreground">Nie można zatwierdzić wydarzenia z przyszłości</span>
             <button onClick={() => setFutureWarning(false)} className="text-muted-foreground hover:text-foreground ml-2 text-lg leading-none">&times;</button>
+          </div>
+        </div>
+      )}
+
+      {/* Auto-sync indicator */}
+      {autoSyncing && (
+        <div className="fixed top-4 right-4 z-[90] animate-in fade-in duration-200">
+          <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-2 shadow-lg">
+            <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">Synchronizacja Google...</span>
           </div>
         </div>
       )}
