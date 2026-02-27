@@ -27,7 +27,8 @@
       "Bash(git commit:*)",
       "Bash(xargs cat:*)",
       "Bash(find:*)",
-      "Bash(pnpm build:*)"
+      "Bash(pnpm build:*)",
+      "WebFetch(domain:kugaru.com)"
     ]
   }
 }

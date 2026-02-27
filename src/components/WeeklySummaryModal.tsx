@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, TrendingUp, TrendingDown, Minus, Loader2, Sparkles, FileText, Calculator } from 'lucide-react';
+import { X, TrendingUp, TrendingDown, Minus, Loader2, Sparkles, FileText, Calculator, ExternalLink, ClipboardCheck } from 'lucide-react';
+import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { settleWeekAction, settleMonthAction, getWeeklySummary, getMonthlySummary } from '@/app/actions';
 import { calculatePIT } from '@/lib/tax-calculator';
@@ -54,6 +55,35 @@ export function WeeklySummaryModal({ isOpen, onClose, weekStart, weekEnd, monthS
   const [aiInsight, setAiInsight] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [showTaxCalc, setShowTaxCalc] = useState(false);
+  const [kugaruCopied, setKugaruCopied] = useState(false);
+
+  const handleOpenKugaru = async () => {
+    if (!summary) return;
+
+    const lines = summary.byWallet.map(w => {
+      const rate = w.hours > 0 ? w.earnings / w.hours : 0;
+      return `- ${w.name}: ${w.hours.toFixed(1)}h × ${rate.toFixed(2)} PLN/h = ${w.earnings.toFixed(2)} PLN`;
+    }).join('\n');
+
+    const text = [
+      `Wartość zlecenia: ${summary.totalEarnings.toFixed(2)} PLN`,
+      '',
+      'Opis dzieła:',
+      lines,
+      '',
+      `Łącznie: ${summary.totalHours.toFixed(1)}h, ${summary.totalEarnings.toFixed(2)} PLN`,
+    ].join('\n');
+
+    try {
+      await navigator.clipboard.writeText(text);
+      setKugaruCopied(true);
+      setTimeout(() => setKugaruCopied(false), 4000);
+    } catch {
+      // clipboard may fail silently
+    }
+
+    window.open('https://kugaru.com/wystaw-fakture/#rozliczprace', '_blank', 'noopener,noreferrer');
+  };
 
   const loadSummary = async (m: SummaryMode) => {
     setLoading(true);
@@ -320,14 +350,25 @@ export function WeeklySummaryModal({ isOpen, onClose, weekStart, weekEnd, monthS
                     Wszystkie potwierdzone wydarzenia rozliczone
                   </div>
                 )}
-                {mode === 'month' && onGenerateInvoice && summary.totalEarnings > 0 && (
-                  <button
-                    onClick={onGenerateInvoice}
-                    className="w-full flex items-center justify-center gap-2 bg-secondary hover:bg-accent text-secondary-foreground font-medium py-2.5 rounded-lg transition-colors border border-border"
-                  >
-                    <FileText className="w-4 h-4" />
-                    Generuj dokument
-                  </button>
+                {mode === 'month' && summary.totalEarnings > 0 && (
+                  <div className="flex gap-2">
+                    {onGenerateInvoice && (
+                      <button
+                        onClick={onGenerateInvoice}
+                        className="flex-1 flex items-center justify-center gap-2 bg-secondary hover:bg-accent text-secondary-foreground font-medium py-2.5 rounded-lg transition-colors border border-border"
+                      >
+                        <FileText className="w-4 h-4" />
+                        Generuj dokument
+                      </button>
+                    )}
+                    <button
+                      onClick={handleOpenKugaru}
+                      className="flex-1 flex items-center justify-center gap-2 bg-[#1a1a2e] hover:bg-[#252542] text-white font-medium py-2.5 rounded-lg transition-colors border border-[#333]"
+                    >
+                      <Image src="/kugaru_logo.svg" alt="Kugaru" width={80} height={16} className="h-4 w-auto" />
+                      <ExternalLink className="w-3.5 h-3.5 opacity-60" />
+                    </button>
+                  </div>
                 )}
 
                 {summary.confirmedCount < summary.eventCount && (
@@ -411,6 +452,20 @@ export function WeeklySummaryModal({ isOpen, onClose, weekStart, weekEnd, monthS
                 Brak danych za ten {mode === 'week' ? 'tydzień' : 'miesiąc'}
               </div>
             )}
+            {/* Kugaru copy toast */}
+            <AnimatePresence>
+              {kugaruCopied && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 10 }}
+                  className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-2 bg-green-600 text-white px-4 py-2.5 rounded-lg shadow-lg text-sm font-medium"
+                >
+                  <ClipboardCheck className="w-4 h-4" />
+                  Dane skopiowane — wklej je na stronie Kugaru
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
         </motion.div>
       )}
