@@ -43,6 +43,18 @@ export function WalletsPageClient({ initialWallets, initialTransactions, exchang
     return wallets.find(w => w.id === activeWalletId);
   }, [wallets, activeWalletId]);
 
+  const hasOutcomes = useMemo(() => {
+    return filteredTransactions.some(t => t.type === 'outcome');
+  }, [filteredTransactions]);
+
+  const totalBalance = useMemo(() => {
+    return wallets.reduce((sum, w) => sum + w.balance, 0);
+  }, [wallets]);
+
+  const hasAnyOutcomes = useMemo(() => {
+    return transactions.some(t => t.type === 'outcome');
+  }, [transactions]);
+
   const handleDeleteTransaction = async (id: string) => {
     if (confirm('Czy na pewno?')) await deleteTransactionAction(id);
   };
@@ -145,8 +157,8 @@ export function WalletsPageClient({ initialWallets, initialTransactions, exchang
         </div>
       )}
 
-      {/* Transactions + Pie Chart */}
-      <div className={`grid gap-6 px-4 lg:px-0 ${activeWalletId ? 'grid-cols-1 lg:grid-cols-[1fr_auto]' : ''}`}>
+      {/* Transactions + Side Panel */}
+      <div className={`grid gap-6 px-4 lg:px-0 ${activeWalletId || hasAnyOutcomes ? 'grid-cols-1 lg:grid-cols-[1fr_auto]' : ''}`}>
         <div className="card-responsive min-w-0">
           <div className="px-4 py-4 lg:px-6 lg:py-6 pb-0 flex items-center justify-between">
             <h2 className="text-xl font-bold text-card-foreground">
@@ -170,17 +182,41 @@ export function WalletsPageClient({ initialWallets, initialTransactions, exchang
 
         {activeWalletId && (
           <div className="space-y-3 lg:w-[340px]">
+            {hasOutcomes && (
+              <div className="bg-card border border-border rounded-xl overflow-hidden h-fit">
+                <ExpensePieChart
+                  transactions={filteredTransactions}
+                  displayCurrency={displayCurrency}
+                  exchangeRates={exchangeRates}
+                />
+              </div>
+            )}
+            {hasAnyOutcomes && (
+              <div className="bg-card border border-border rounded-xl overflow-hidden h-fit">
+                <FinancialCushion
+                  transactions={transactions}
+                  walletBalance={activeWallet?.balance ?? 0}
+                  displayCurrency={displayCurrency}
+                  exchangeRates={exchangeRates}
+                />
+              </div>
+            )}
+          </div>
+        )}
+
+        {!activeWalletId && hasAnyOutcomes && (
+          <div className="space-y-3 lg:w-[340px]">
             <div className="bg-card border border-border rounded-xl overflow-hidden h-fit">
               <ExpensePieChart
-                transactions={filteredTransactions}
+                transactions={transactions}
                 displayCurrency={displayCurrency}
                 exchangeRates={exchangeRates}
               />
             </div>
             <div className="bg-card border border-border rounded-xl overflow-hidden h-fit">
               <FinancialCushion
-                transactions={filteredTransactions}
-                walletBalance={activeWallet?.balance ?? 0}
+                transactions={transactions}
+                walletBalance={totalBalance}
                 displayCurrency={displayCurrency}
                 exchangeRates={exchangeRates}
               />
