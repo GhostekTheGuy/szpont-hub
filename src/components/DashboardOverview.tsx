@@ -2,19 +2,24 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { WalletCard } from '@/components/WalletCard';
 import { TransactionList } from '@/components/TransactionList';
-import { AssetList } from '@/components/AssetList';
 import { FinancialChart } from '@/components/FinancialChart';
-import { MonthlyIncomeChart } from '@/components/MonthlyIncomeChart';
-import { ProfitChart } from '@/components/ProfitChart';
-import { PLNBTCChart } from '@/components/PLNBTCChart';
-import { ProjectedNetWorthChart } from '@/components/ProjectedNetWorthChart';
-import { TransactionModal } from '@/components/TransactionModal';
-import { WalletModal } from '@/components/WalletModal';
 import { useFinanceStore, Transaction, Wallet, Asset, Goal } from '@/hooks/useFinanceStore';
 import { GoalCard } from '@/components/GoalCard';
-import { GoalModal } from '@/components/GoalModal';
+
+// Lazy load AssetList (imports @token-icons/react — heavy)
+const AssetList = dynamic(() => import('@/components/AssetList').then(m => ({ default: m.AssetList })), { ssr: false });
+
+// Lazy load heavy components below the fold
+const MonthlyIncomeChart = dynamic(() => import('@/components/MonthlyIncomeChart').then(m => ({ default: m.MonthlyIncomeChart })), { ssr: false });
+const ProfitChart = dynamic(() => import('@/components/ProfitChart').then(m => ({ default: m.ProfitChart })), { ssr: false });
+const PLNBTCChart = dynamic(() => import('@/components/PLNBTCChart').then(m => ({ default: m.PLNBTCChart })), { ssr: false });
+const ProjectedNetWorthChart = dynamic(() => import('@/components/ProjectedNetWorthChart').then(m => ({ default: m.ProjectedNetWorthChart })), { ssr: false });
+const TransactionModal = dynamic(() => import('@/components/TransactionModal').then(m => ({ default: m.TransactionModal })));
+const WalletModal = dynamic(() => import('@/components/WalletModal').then(m => ({ default: m.WalletModal })));
+const GoalModal = dynamic(() => import('@/components/GoalModal').then(m => ({ default: m.GoalModal })));
 import { TrendingUp, Wallet as WalletIcon, ArrowUpRight, ArrowDownRight, Plus, ArrowRight, Target, Sparkles } from 'lucide-react';
 import { subDays, format } from 'date-fns';
 import { pl } from 'date-fns/locale';

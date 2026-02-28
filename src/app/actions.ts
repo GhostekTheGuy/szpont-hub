@@ -157,15 +157,19 @@ export async function getDashboardData() {
 
   const dek = await getDEK();
 
-  // Równoległe pobieranie wszystkich danych
-  const [{ wallets, transactions }, rates, { data: assets, error: assetsError }] = await Promise.all([
+  // Równoległe pobieranie wszystkich danych (w tym goals — unika dodatkowego getUserId+getDEK)
+  const [{ wallets, transactions }, rates, { data: assets, error: assetsError }, { data: goals, error: goalsError }] = await Promise.all([
     fetchWalletsAndTransactions(userId, dek),
     getExchangeRates(),
     supabaseAdmin.from('assets').select('*').eq('user_id', userId),
+    supabaseAdmin.from('goals').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
   ]);
 
   if (assetsError) {
     console.error('Error fetching assets:', assetsError);
+  }
+  if (goalsError) {
+    console.error('Error fetching goals:', goalsError);
   }
 
   // Deszyfruj pola assets
@@ -182,7 +186,19 @@ export async function getDashboardData() {
     asset_type: (a.asset_type || 'crypto') as 'crypto' | 'stock',
   }));
 
-  return { wallets, transactions, assets: decryptedAssets, exchangeRates: rates };
+  // Deszyfruj pola goals
+  const decryptedGoals = (goals || []).map(g => ({
+    id: g.id,
+    name: decryptString(g.name, dek) || g.name,
+    target_amount: decryptNumber(g.target_amount, dek),
+    current_amount: decryptNumber(g.current_amount, dek),
+    target_date: g.target_date,
+    category: g.category,
+    icon: g.icon,
+    wallet_id: g.wallet_id,
+  }));
+
+  return { wallets, transactions, assets: decryptedAssets, goals: decryptedGoals, exchangeRates: rates };
 }
 
 export async function getWalletsWithTransactions() {
@@ -695,6 +711,43 @@ export async function resetPasswordByEmailAction(email: string) {
 }
 
 // --- PREFERENCJE UŻYTKOWNIKA ---
+
+export async function getUserPreferences() {
+  const userId = await getUserId();
+  if (!userId) return {
+    balanceMasked: false,
+    preferredCurrency: 'PLN' as Currency,
+    onboardingDone: false,
+    lastWeeklyReport: null as string | null,
+    isPro: false,
+    subscription: null as { status: string; price_id: string | null; current_period_end: string | null; cancel_at_period_end: boolean } | null,
+  };
+
+  // Single parallel fetch: user prefs + subscription (eliminates separate isProUser call)
+  const [{ data: userData }, { data: subData }] = await Promise.all([
+    supabaseAdmin
+      .from('users')
+      .select('balance_masked, preferred_currency, onboarding_done, last_weekly_report')
+      .eq('id', userId)
+      .single(),
+    supabaseAdmin
+      .from('subscriptions')
+      .select('status, price_id, current_period_end, cancel_at_period_end')
+      .eq('user_id', userId)
+      .single(),
+  ]);
+
+  const isPro = subData?.status === 'active' || subData?.status === 'trialing';
+
+  return {
+    balanceMasked: userData?.balance_masked ?? false,
+    preferredCurrency: (userData?.preferred_currency as Currency) ?? 'PLN',
+    onboardingDone: userData?.onboarding_done ?? false,
+    lastWeeklyReport: userData?.last_weekly_report ?? null,
+    isPro,
+    subscription: subData,
+  };
+}
 
 export async function getBalanceMasked(): Promise<boolean> {
   const userId = await getUserId();
