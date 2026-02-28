@@ -1,5 +1,6 @@
 'use client';
 
+import { useId } from 'react';
 import type { Habit, HabitEntry } from '@/hooks/useFinanceStore';
 
 interface Props {
@@ -62,12 +63,13 @@ export function HabitRadarChart({ habits, entries }: Props) {
   });
   const dataPath = dataPoints.map(p => `${p.x},${p.y}`).join(' ');
 
-  // Gradient ID
-  const gradientId = 'radar-gradient';
+  // Gradient ID — useId() avoids clashes & fixes url(#id) on mobile
+  const reactId = useId();
+  const gradientId = `radar-gradient-${reactId.replace(/:/g, '')}`;
 
   return (
     <div className="flex flex-col items-center">
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      <svg className="w-full h-auto max-w-[336px]" viewBox={`0 0 ${size} ${size}`}>
         <defs>
           <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#6366f1" stopOpacity="0.6" />

@@ -351,11 +351,13 @@ export function HabitTracker({ weekStart, onPrevWeek, onNextWeek, onToday, isCur
                       </div>
 
                       {/* Dot matrix */}
+                      <div className="overflow-x-auto -mx-4 px-4 pb-1">
                       <div
-                        className="grid w-full"
+                        className="grid"
                         style={{
-                          gridTemplateColumns: `16px repeat(${overallGrid.length}, 1fr)`,
+                          gridTemplateColumns: `16px repeat(${overallGrid.length}, minmax(10px, 1fr))`,
                           gap: '3px',
+                          minWidth: '100%',
                         }}
                       >
                         {/* Render row by row (day of week) */}
@@ -386,6 +388,7 @@ export function HabitTracker({ weekStart, onPrevWeek, onNextWeek, onToday, isCur
                             })}
                           </>
                         ))}
+                      </div>
                       </div>
                     </div>
                   );
