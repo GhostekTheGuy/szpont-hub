@@ -27,9 +27,10 @@ interface AssetModalProps {
   isOpen: boolean;
   onClose: () => void;
   editingAsset?: Asset | null;
+  onDelete?: (id: string) => void;
 }
 
-export function AssetModal({ isOpen, onClose, editingAsset }: AssetModalProps) {
+export function AssetModal({ isOpen, onClose, editingAsset, onDelete }: AssetModalProps) {
   const router = useRouter();
 
   const [assetType, setAssetType] = useState<AssetType>('crypto');
@@ -421,13 +422,29 @@ export function AssetModal({ isOpen, onClose, editingAsset }: AssetModalProps) {
                 </div>
               </div>
 
-              <button
-                type="submit"
-                disabled={loading || !hasSelection || !quantity}
-                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-medium py-2.5 rounded-lg transition-colors mt-6 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? 'Zapisywanie...' : (editingAsset ? 'Zapisz zmiany' : 'Dodaj aktywo')}
-              </button>
+              <div className={`flex gap-2 mt-6 ${editingAsset && onDelete ? '' : ''}`}>
+                {editingAsset && onDelete && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm('Czy na pewno chcesz usunąć to aktywo?')) {
+                        onDelete(editingAsset.id);
+                        onClose();
+                      }
+                    }}
+                    className="px-4 py-2.5 bg-destructive/10 hover:bg-destructive/20 text-destructive font-medium rounded-lg transition-colors"
+                  >
+                    Usuń
+                  </button>
+                )}
+                <button
+                  type="submit"
+                  disabled={loading || !hasSelection || !quantity}
+                  className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground font-medium py-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? 'Zapisywanie...' : (editingAsset ? 'Zapisz zmiany' : 'Dodaj aktywo')}
+                </button>
+              </div>
             </form>
           </motion.div>
         </motion.div>

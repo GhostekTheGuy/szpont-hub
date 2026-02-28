@@ -3,6 +3,7 @@
 import { useRef, useCallback } from 'react';
 import { Wallet, useFinanceStore } from '@/hooks/useFinanceStore';
 import { Edit2, Trash2, Banknote, Bitcoin, TrendingUp, Wallet as WalletIcon, CreditCard, PiggyBank } from 'lucide-react';
+import { convertAmount, formatCurrency, type ExchangeRates } from '@/lib/exchange-rates';
 import dynamic from 'next/dynamic';
 
 const Plasma = dynamic(() => import('@/components/Plasma').then(m => m.Plasma), { ssr: false });
@@ -43,14 +44,19 @@ export function parseWalletColor(color: string): {
 
 interface WalletCardProps {
   wallet: Wallet;
+  exchangeRates?: ExchangeRates;
   onEdit?: (wallet: Wallet) => void;
   onDelete?: (id: string) => void;
 }
 
-export function WalletCard({ wallet, onEdit, onDelete }: WalletCardProps) {
+export function WalletCard({ wallet, exchangeRates, onEdit, onDelete }: WalletCardProps) {
   const IconComponent = iconMap[wallet.icon] || WalletIcon;
   const parsed = parseWalletColor(wallet.color);
   const balanceMasked = useFinanceStore(s => s.balanceMasked);
+  const displayCurrency = useFinanceStore(s => s.displayCurrency);
+  const convertedBalance = exchangeRates
+    ? convertAmount(wallet.balance, 'PLN', displayCurrency, exchangeRates)
+    : wallet.balance;
   const cardRef = useRef<HTMLDivElement>(null);
   const glareRef = useRef<HTMLDivElement>(null);
   const rafRef = useRef<number>(0);
@@ -199,9 +205,8 @@ export function WalletCard({ wallet, onEdit, onDelete }: WalletCardProps) {
             <p className="text-sm font-medium text-white/70 mb-0.5 truncate">{wallet.name}</p>
             <div className="flex items-baseline gap-1">
               <h3 className="text-2xl font-bold text-white tracking-tight">
-                <span className={balanceMasked ? 'blur-md select-none' : ''}>{wallet.balance.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <span className={balanceMasked ? 'blur-md select-none' : ''}>{formatCurrency(convertedBalance, displayCurrency)}</span>
               </h3>
-              <span className="text-sm font-medium text-white/60">PLN</span>
             </div>
           </div>
 

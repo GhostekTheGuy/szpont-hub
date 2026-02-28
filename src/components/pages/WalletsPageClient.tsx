@@ -12,7 +12,7 @@ import { ScanReceiptModal } from '@/components/ScanReceiptModal';
 import { useFinanceStore, Transaction, Wallet } from '@/hooks/useFinanceStore';
 import { Plus, Camera } from 'lucide-react';
 import { deleteTransactionAction, deleteWalletAction } from '@/app/actions';
-import { type Currency, type ExchangeRates } from '@/lib/exchange-rates';
+import { type ExchangeRates } from '@/lib/exchange-rates';
 
 interface Props {
   initialWallets: Wallet[];
@@ -26,9 +26,8 @@ export function WalletsPageClient({ initialWallets, initialTransactions, exchang
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [editingWallet, setEditingWallet] = useState<Wallet | null>(null);
-  const [displayCurrency, setDisplayCurrency] = useState<Currency>('PLN');
 
-  const { wallets, transactions, activeWalletId, setWallets, setTransactions, setActiveWallet } = useFinanceStore();
+  const { wallets, transactions, activeWalletId, setWallets, setTransactions, setActiveWallet, displayCurrency } = useFinanceStore();
 
   useEffect(() => {
     setWallets(initialWallets);
@@ -70,21 +69,6 @@ export function WalletsPageClient({ initialWallets, initialTransactions, exchang
           )}
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex gap-0.5 bg-secondary rounded-lg p-0.5">
-            {(['PLN', 'USD', 'EUR'] as const).map((c) => (
-              <button
-                key={c}
-                onClick={() => setDisplayCurrency(c)}
-                className={`px-2.5 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                  displayCurrency === c
-                    ? 'bg-card text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                {c}
-              </button>
-            ))}
-          </div>
           <button
             onClick={() => setIsScanModalOpen(true)}
             className="flex items-center gap-2 px-4 py-2 bg-secondary hover:bg-accent text-secondary-foreground rounded-lg transition-all"
@@ -110,6 +94,7 @@ export function WalletsPageClient({ initialWallets, initialTransactions, exchang
             >
               <WalletCard
                 wallet={wallet}
+                exchangeRates={exchangeRates}
                 onEdit={(w) => { setEditingWallet(w); setIsWalletModalOpen(true); }}
                 onDelete={handleDeleteWallet}
               />
@@ -151,15 +136,17 @@ export function WalletsPageClient({ initialWallets, initialTransactions, exchang
 
       {/* Wallet Chart */}
       {activeWalletId && activeWallet && (
-        <WalletChart
-          walletId={activeWalletId}
-          walletName={activeWallet.name}
-          displayCurrency={displayCurrency}
-        />
+        <div className="px-4 lg:px-0">
+          <WalletChart
+            walletId={activeWalletId}
+            walletName={activeWallet.name}
+            displayCurrency={displayCurrency}
+          />
+        </div>
       )}
 
       {/* Transactions + Pie Chart */}
-      <div className={`grid gap-6 ${activeWalletId ? 'grid-cols-1 lg:grid-cols-[1fr_auto]' : ''}`}>
+      <div className={`grid gap-6 px-4 lg:px-0 ${activeWalletId ? 'grid-cols-1 lg:grid-cols-[1fr_auto]' : ''}`}>
         <div className="card-responsive min-w-0">
           <div className="px-4 py-4 lg:px-6 lg:py-6 pb-0 flex items-center justify-between">
             <h2 className="text-xl font-bold text-card-foreground">
@@ -183,14 +170,14 @@ export function WalletsPageClient({ initialWallets, initialTransactions, exchang
 
         {activeWalletId && (
           <div className="space-y-3 lg:w-[340px]">
-            <div className="card-responsive h-fit">
+            <div className="bg-card border border-border rounded-xl overflow-hidden h-fit">
               <ExpensePieChart
                 transactions={filteredTransactions}
                 displayCurrency={displayCurrency}
                 exchangeRates={exchangeRates}
               />
             </div>
-            <div className="card-responsive h-fit">
+            <div className="bg-card border border-border rounded-xl overflow-hidden h-fit">
               <FinancialCushion
                 transactions={filteredTransactions}
                 walletBalance={activeWallet?.balance ?? 0}
@@ -206,6 +193,7 @@ export function WalletsPageClient({ initialWallets, initialTransactions, exchang
         isOpen={isTransModalOpen}
         onClose={() => setIsTransModalOpen(false)}
         editingTransaction={editingTransaction}
+        onDelete={handleDeleteTransaction}
       />
 
       <WalletModal

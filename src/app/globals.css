@@ -60,6 +60,7 @@
   }
 
   .dark {
+    color-scheme: dark;
     --background: oklch(0.2011 0.0039 286.0396);
     --foreground: oklch(0.9551 0 0);
     --card: oklch(0.2568 0.0076 286.7462);
@@ -340,7 +341,7 @@ html {
 
 @layer components {
   .card-responsive {
-    @apply lg:bg-card lg:border lg:border-border lg:rounded-xl lg:overflow-hidden;
+    @apply bg-card border border-border rounded-xl overflow-hidden;
   }
 }
 

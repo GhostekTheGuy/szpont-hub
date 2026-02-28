@@ -18,9 +18,11 @@ interface TransactionModalProps {
   isOpen: boolean;
   onClose: () => void;
   editingTransaction?: Transaction | null;
+  defaultType?: 'income' | 'outcome';
+  onDelete?: (id: string) => void;
 }
 
-export function TransactionModal({ isOpen, onClose, editingTransaction }: TransactionModalProps) {
+export function TransactionModal({ isOpen, onClose, editingTransaction, defaultType, onDelete }: TransactionModalProps) {
   const { wallets } = useFinanceStore();
 
   const [amount, setAmount] = useState('');
@@ -51,7 +53,7 @@ export function TransactionModal({ isOpen, onClose, editingTransaction }: Transa
       if (wallets.length > 0) setWalletId(wallets[0].id);
       setToWalletId(wallets.length > 1 ? wallets[1].id : '');
       setDate(new Date());
-      setType('outcome');
+      setType(defaultType || 'outcome');
       setCurrency('PLN');
     }
   }, [editingTransaction, isOpen, wallets]);
@@ -321,13 +323,29 @@ export function TransactionModal({ isOpen, onClose, editingTransaction }: Transa
             </Popover>
           </div>
 
-          <button
-            type="submit"
-            disabled={loading || wallets.length === 0}
-            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-medium py-2.5 rounded-lg transition-colors mt-6 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? 'Zapisywanie...' : (editingTransaction ? 'Zapisz zmiany' : 'Dodaj transakcję')}
-          </button>
+          <div className="flex gap-2 mt-6">
+            {editingTransaction && onDelete && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirm('Czy na pewno chcesz usunąć tę transakcję?')) {
+                    onDelete(editingTransaction.id);
+                    onClose();
+                  }
+                }}
+                className="px-4 py-2.5 bg-destructive/10 hover:bg-destructive/20 text-destructive font-medium rounded-lg transition-colors"
+              >
+                Usuń
+              </button>
+            )}
+            <button
+              type="submit"
+              disabled={loading || wallets.length === 0}
+              className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground font-medium py-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? 'Zapisywanie...' : (editingTransaction ? 'Zapisz zmiany' : 'Dodaj transakcję')}
+            </button>
+          </div>
         </form>
           </motion.div>
         </motion.div>

@@ -15,8 +15,9 @@ import {
   ExternalLink,
   GraduationCap,
 } from 'lucide-react';
-import { signOutAction, resetPasswordAction, setBalanceMasked, setOnboardingDone } from '@/app/actions';
+import { signOutAction, resetPasswordAction, setBalanceMasked, setOnboardingDone, setPreferredCurrency } from '@/app/actions';
 import { useFinanceStore } from '@/hooks/useFinanceStore';
+import type { Currency } from '@/lib/exchange-rates';
 
 interface Subscription {
   status: string;
@@ -34,7 +35,7 @@ interface UserPanelProps {
 
 export function UserPanel({ userName, userEmail, avatarUrl, subscription }: UserPanelProps) {
   const { theme, setTheme } = useTheme();
-  const { balanceMasked, toggleBalanceMask, setShowOnboarding } = useFinanceStore();
+  const { balanceMasked, toggleBalanceMask, setShowOnboarding, displayCurrency, setDisplayCurrency } = useFinanceStore();
   const [uploading, setUploading] = useState(false);
   const [resetSent, setResetSent] = useState(false);
   const [currentAvatar, setCurrentAvatar] = useState(avatarUrl);
@@ -214,6 +215,30 @@ export function UserPanel({ userName, userEmail, avatarUrl, subscription }: User
                 <div className="w-5 h-5 rounded-full bg-white shadow-sm" />
               </div>
             </button>
+
+            <div className="flex items-center justify-between w-full px-3 py-3">
+              <span className="flex items-center gap-3 text-sm">
+                Domyślna waluta
+              </span>
+              <div className="flex gap-0.5 bg-secondary rounded-md p-0.5">
+                {(['PLN', 'USD', 'EUR'] as Currency[]).map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => {
+                      setDisplayCurrency(c);
+                      setPreferredCurrency(c).catch(console.error);
+                    }}
+                    className={`px-2 py-0.5 text-xs font-medium rounded transition-colors ${
+                      displayCurrency === c
+                        ? 'bg-card text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            </div>
 
             <button
               onClick={() => {

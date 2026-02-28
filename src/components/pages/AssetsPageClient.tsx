@@ -106,14 +106,13 @@ export function AssetsPageClient({ initialAssets, initialWallets, initialTransac
       </div>
 
       <div className="px-4 lg:px-0">
-        <div className="bg-card border border-border rounded-xl">
-          <AssetList
-            assets={assets}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-            onSell={handleSell}
-          />
-        </div>
+        <AssetList
+          assets={assets}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          onSell={handleSell}
+          standalone
+        />
       </div>
 
       <div className="px-4 lg:px-0">
@@ -122,7 +121,7 @@ export function AssetsPageClient({ initialAssets, initialWallets, initialTransac
 
       {/* Podsumowanie podatkowe */}
       {taxSummary && taxSummary.salesCount > 0 && (
-        <div className="mt-6 bg-card border border-border rounded-xl p-6">
+        <div className="mt-6 mx-4 lg:mx-0 bg-card border border-border rounded-xl p-4 lg:p-6">
           <h2 className="text-xl font-bold text-card-foreground mb-4 flex items-center gap-2">
             <Calculator className="w-5 h-5" />
             Podsumowanie podatkowe ({new Date().getFullYear()})
@@ -192,6 +191,7 @@ export function AssetsPageClient({ initialAssets, initialWallets, initialTransac
         isOpen={modalOpen}
         onClose={() => { setModalOpen(false); setEditingAsset(null); }}
         editingAsset={editingAsset}
+        onDelete={handleDelete}
       />
 
       <SellAssetModal

@@ -719,6 +719,29 @@ export async function setBalanceMasked(masked: boolean) {
     .eq('id', userId);
 }
 
+export async function getPreferredCurrency(): Promise<Currency> {
+  const userId = await getUserId();
+  if (!userId) return 'PLN';
+
+  const { data } = await supabaseAdmin
+    .from('users')
+    .select('preferred_currency')
+    .eq('id', userId)
+    .single();
+
+  return (data?.preferred_currency as Currency) ?? 'PLN';
+}
+
+export async function setPreferredCurrency(currency: Currency) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  await supabaseAdmin
+    .from('users')
+    .update({ preferred_currency: currency })
+    .eq('id', userId);
+}
+
 export async function getOnboardingDone(): Promise<boolean> {
   const userId = await getUserId();
   if (!userId) return false;

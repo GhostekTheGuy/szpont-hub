@@ -85,6 +85,9 @@ async function main() {
       (await supabase.from('habits').select('id').eq('user_id', uid)).data?.map((h: any) => h.id) || []
     );
     await supabase.from('habits').delete().eq('user_id', uid);
+    await supabase.from('scan_logs').delete().eq('user_id', uid);
+    await supabase.from('subscriptions').delete().eq('user_id', uid);
+    await supabase.from('goals').delete().eq('user_id', uid);
     await supabase.from('calendar_events').delete().eq('user_id', uid);
     await supabase.from('asset_sales').delete().eq('user_id', uid);
     await supabase.from('assets').delete().eq('user_id', uid);
@@ -132,6 +135,8 @@ async function main() {
     name: 'Kacper Szpont',
     encryption_salt: salt.toString('base64'),
     encrypted_dek: encryptedDek,
+    onboarding_done: true,
+    balance_masked: false,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   });
@@ -146,11 +151,11 @@ async function main() {
   // ── Step 2: Wallets ──
   console.log('\n2. Creating wallets...');
   const wallets = [
-    { id: nanoid(), name: 'mBank',        type: 'fiat',   balance: 8740,   color: '#6366f1', icon: 'wallet',     currency: 'PLN' },
-    { id: nanoid(), name: 'Oszczędności',  type: 'fiat',   balance: 34200,  color: '#22c55e', icon: 'piggy-bank', currency: 'PLN' },
-    { id: nanoid(), name: 'Revolut',       type: 'fiat',   balance: 2150,   color: '#0ea5e9', icon: 'credit-card', currency: 'PLN' },
-    { id: nanoid(), name: 'Binance',       type: 'crypto', balance: 18900,  color: '#f59e0b', icon: 'bitcoin',    currency: 'PLN' },
-    { id: nanoid(), name: 'Gotówka',       type: 'fiat',   balance: 420,    color: '#a3a3a3', icon: 'banknote',   currency: 'PLN' },
+    { id: nanoid(), name: 'mBank',        type: 'fiat',   balance: 8740,   color: '#6366f1', icon: 'wallet',      currency: 'PLN', track_from: '2024-09-01', initial_balance: 3200 },
+    { id: nanoid(), name: 'Oszczędności',  type: 'fiat',   balance: 34200,  color: '#22c55e', icon: 'piggy-bank',  currency: 'PLN', track_from: '2024-09-01', initial_balance: 15000 },
+    { id: nanoid(), name: 'Revolut',       type: 'fiat',   balance: 2150,   color: '#0ea5e9', icon: 'credit-card', currency: 'PLN', track_from: '2024-11-01', initial_balance: 800 },
+    { id: nanoid(), name: 'Binance',       type: 'crypto', balance: 18900,  color: '#f59e0b', icon: 'bitcoin',     currency: 'PLN', track_from: '2025-01-01', initial_balance: 5000 },
+    { id: nanoid(), name: 'Gotówka',       type: 'fiat',   balance: 420,    color: '#a3a3a3', icon: 'banknote',    currency: 'PLN', track_from: '2024-09-01', initial_balance: 500 },
   ];
 
   for (const w of wallets) {
@@ -159,14 +164,16 @@ async function main() {
       name: encryptString(w.name, dek),
       balance: encryptNumber(w.balance, dek),
       icon: w.icon, color: w.color, type: w.type, currency: w.currency,
+      track_from: encryptString(w.track_from, dek),
+      initial_balance: encryptNumber(w.initial_balance, dek),
       created_at: new Date().toISOString(),
     });
-    console.log(`   ${w.name} — ${w.balance} PLN`);
+    console.log(`   ${w.name} — ${w.balance} PLN (track from ${w.track_from}, initial: ${w.initial_balance})`);
   }
 
   const [mbankId, oszczId, revolutId, binanceId, gotowkaId] = wallets.map(w => w.id);
 
-  // ── Step 3: Transactions (~200, last 12 months) ──
+  // ── Step 3: Transactions (~300+, last 18 months) ──
   console.log('\n3. Creating transactions...');
   const now = new Date();
   let txCount = 0;
@@ -191,6 +198,7 @@ async function main() {
     { cat: 'Zdrowie',     descs: ['Apteka', 'Wizyta lekarz', 'Suplementy'], min: 30, max: 200 },
     { cat: 'Jedzenie',    descs: ['Makro', 'Auchan', 'Carrefour'], min: 150, max: 400 },
     { cat: 'Edukacja',    descs: ['Udemy kurs', 'Książka tech', 'Konferencja'], min: 40, max: 300 },
+    { cat: 'Prezenty',    descs: ['Prezent urodzinowy', 'Prezent świąteczny', 'Kwiaty', 'Voucher'], min: 50, max: 400 },
   ];
 
   const freelanceGigs = [
@@ -206,7 +214,7 @@ async function main() {
 
   let freelanceIdx = 0;
 
-  for (let monthsAgo = 11; monthsAgo >= 0; monthsAgo--) {
+  for (let monthsAgo = 17; monthsAgo >= 0; monthsAgo--) {
     const monthDate = new Date(now.getFullYear(), now.getMonth() - monthsAgo, 1);
     const year = monthDate.getFullYear();
     const month = monthDate.getMonth();
@@ -286,6 +294,53 @@ async function main() {
       txCount++;
     }
 
+    // Quarterly tax payment (months: Jan, Apr, Jul, Oct)
+    if ([0, 3, 6, 9].includes(month)) {
+      const taxAmount = randomInt(1800, 2400);
+      const txDate = new Date(year, month, 20);
+      await supabase.from('transactions').insert({
+        id: nanoid(), wallet_id: mbankId,
+        amount: encryptNumber(-taxAmount, dek),
+        category: encryptString('Podatki', dek),
+        description: encryptString('Zaliczka PIT — kwartalny', dek),
+        type: 'outcome', date: dateStr(txDate),
+        currency: 'PLN', created_at: isoStr(txDate),
+      });
+      txCount++;
+    }
+
+    // Monthly savings transfer
+    {
+      const savingsAmount = randomPick([2000, 2500, 3000, 3500]);
+      const day = randomInt(1, 5);
+      const txDate = new Date(year, month, Math.min(day, daysInMonth));
+      await supabase.from('transactions').insert({
+        id: nanoid(), wallet_id: oszczId,
+        amount: encryptNumber(savingsAmount, dek),
+        category: encryptString('Oszczędności', dek),
+        description: encryptString('Przelew na oszczędności', dek),
+        type: 'income', date: dateStr(txDate),
+        currency: 'PLN', created_at: isoStr(txDate),
+      });
+      txCount++;
+    }
+
+    // Occasional investment purchase (ETF/stocks)
+    if (Math.random() < 0.4) {
+      const investAmount = randomPick([500, 1000, 1500, 2000, 3000]);
+      const day = randomInt(5, 20);
+      const txDate = new Date(year, month, Math.min(day, daysInMonth));
+      await supabase.from('transactions').insert({
+        id: nanoid(), wallet_id: mbankId,
+        amount: encryptNumber(-investAmount, dek),
+        category: encryptString('Inwestycje', dek),
+        description: encryptString(randomPick(['Zakup ETF VWCE', 'Zakup ETF S&P500', 'Zakup akcji AAPL', 'Zakup akcji NVDA', 'DCA ETF globalny']), dek),
+        type: 'outcome', date: dateStr(txDate),
+        currency: 'PLN', created_at: isoStr(txDate),
+      });
+      txCount++;
+    }
+
     // Occasional crypto buy
     if (Math.random() < 0.3) {
       const amount = randomPick([500, 1000, 1500, 2000]);
@@ -340,6 +395,10 @@ async function main() {
     { asset_name: 'Dogecoin', asset_symbol: 'DOGE', quantity_sold: 8000, sale_price_per_unit: 1.45, cost_basis_per_unit: 0.90, total_proceeds: 11600, total_cost: 7200, profit: 4400, tax_amount: 836, sale_date: dateStr(new Date(now.getFullYear(), now.getMonth() - 3, 22)) },
     { asset_name: 'Polkadot', asset_symbol: 'DOT', quantity_sold: 150, sale_price_per_unit: 28, cost_basis_per_unit: 38, total_proceeds: 4200, total_cost: 5700, profit: -1500, tax_amount: 0, sale_date: dateStr(new Date(now.getFullYear(), now.getMonth() - 2, 8)) },
     { asset_name: 'Cardano', asset_symbol: 'ADA', quantity_sold: 5000, sale_price_per_unit: 2.85, cost_basis_per_unit: 1.60, total_proceeds: 14250, total_cost: 8000, profit: 6250, tax_amount: 1187, sale_date: dateStr(new Date(now.getFullYear(), now.getMonth() - 1, 14)) },
+    { asset_name: 'Polygon', asset_symbol: 'MATIC', quantity_sold: 3000, sale_price_per_unit: 3.20, cost_basis_per_unit: 2.10, total_proceeds: 9600, total_cost: 6300, profit: 3300, tax_amount: 627, sale_date: dateStr(new Date(now.getFullYear(), now.getMonth() - 5, 10)) },
+    { asset_name: 'Solana', asset_symbol: 'SOL', quantity_sold: 10, sale_price_per_unit: 780, cost_basis_per_unit: 540, total_proceeds: 7800, total_cost: 5400, profit: 2400, tax_amount: 456, sale_date: dateStr(new Date(now.getFullYear(), now.getMonth() - 4, 18)) },
+    { asset_name: 'Apple', asset_symbol: 'AAPL', quantity_sold: 3, sale_price_per_unit: 950, cost_basis_per_unit: 780, total_proceeds: 2850, total_cost: 2340, profit: 510, tax_amount: 97, sale_date: dateStr(new Date(now.getFullYear(), now.getMonth() - 6, 5)) },
+    { asset_name: 'Uniswap', asset_symbol: 'UNI', quantity_sold: 200, sale_price_per_unit: 28, cost_basis_per_unit: 42, total_proceeds: 5600, total_cost: 8400, profit: -2800, tax_amount: 0, sale_date: dateStr(new Date(now.getFullYear(), now.getMonth() - 7, 22)) },
   ];
 
   for (const s of sales) {
@@ -714,6 +773,77 @@ async function main() {
   }
   console.log(`   Created ${entryCount} habit entries.`);
 
+  // ── Step 8: Financial Goals ──
+  console.log('\n8. Creating financial goals...');
+  const goals = [
+    { name: 'Wakacje w Japonii',           target: 12000, current: 7800,  target_date: '2026-08-01', icon: 'plane',          category: 'travel' },
+    { name: 'MacBook Pro M4',              target: 8500,  current: 8200,  target_date: '2026-04-15', icon: 'laptop',         category: 'purchase' },
+    { name: 'Fundusz awaryjny',            target: 20000, current: 14500, target_date: null,         icon: 'shield',         category: 'savings' },
+    { name: 'Kurs AWS Solutions Architect', target: 2500,  current: 800,   target_date: '2026-06-01', icon: 'graduation-cap', category: 'education' },
+    { name: 'Samochód',                    target: 45000, current: 12000, target_date: '2027-06-01', icon: 'car',            category: 'purchase' },
+  ];
+
+  for (const g of goals) {
+    await supabase.from('goals').insert({
+      id: nanoid(), user_id: userId,
+      name: encryptString(g.name, dek),
+      target_amount: encryptNumber(g.target, dek),
+      current_amount: encryptNumber(g.current, dek),
+      target_date: g.target_date,
+      icon: g.icon, category: g.category,
+      wallet_id: oszczId,
+      created_at: new Date().toISOString(),
+    });
+    const pct = Math.round((g.current / g.target) * 100);
+    console.log(`   ${g.name} — ${g.current}/${g.target} PLN (${pct}%)`);
+  }
+
+  // ── Step 9: Subscription (Pro) ──
+  console.log('\n9. Creating Pro subscription...');
+  const periodEnd = new Date(now);
+  periodEnd.setDate(periodEnd.getDate() + 30);
+
+  await supabase.from('subscriptions').insert({
+    user_id: userId,
+    stripe_customer_id: 'cus_demo_kacper',
+    stripe_subscription_id: 'sub_demo_kacper',
+    price_id: 'price_demo',
+    status: 'active',
+    current_period_end: isoStr(periodEnd),
+    cancel_at_period_end: false,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  });
+  console.log(`   Pro subscription active until ${dateStr(periodEnd)}`);
+
+  // ── Step 10: Scan Logs ──
+  console.log('\n10. Creating scan logs...');
+  const scanLogs: Array<{ user_id: string; scan_type: string; created_at: string }> = [];
+
+  // 5-8 receipt scans in the last 4 weeks
+  const receiptCount = randomInt(5, 8);
+  for (let i = 0; i < receiptCount; i++) {
+    const daysAgo = randomInt(1, 28);
+    const scanDate = new Date(now);
+    scanDate.setDate(scanDate.getDate() - daysAgo);
+    scanDate.setHours(randomInt(9, 21), randomInt(0, 59), 0, 0);
+    scanLogs.push({ user_id: userId, scan_type: 'receipt', created_at: isoStr(scanDate) });
+  }
+
+  // 3-4 toggl scans in the last 4 weeks
+  const togglCount = randomInt(3, 4);
+  for (let i = 0; i < togglCount; i++) {
+    const daysAgo = randomInt(1, 28);
+    const scanDate = new Date(now);
+    scanDate.setDate(scanDate.getDate() - daysAgo);
+    scanDate.setHours(randomInt(8, 18), randomInt(0, 59), 0, 0);
+    scanLogs.push({ user_id: userId, scan_type: 'toggl', created_at: isoStr(scanDate) });
+  }
+
+  const { error: scanError } = await supabase.from('scan_logs').insert(scanLogs);
+  if (scanError) console.error('   Scan logs error:', scanError);
+  console.log(`   Created ${scanLogs.length} scan logs (${receiptCount} receipt, ${togglCount} toggl).`);
+
   // ── Summary ──
   console.log('\n════════════════════════════════════');
   console.log('  Demo seed complete!');
@@ -725,9 +855,12 @@ async function main() {
   console.log(`  Transactions:  ${txCount}`);
   console.log(`  Assets:        ${assets.length}`);
   console.log(`  Asset Sales:   ${sales.length}`);
+  console.log(`  Goals:         ${goals.length}`);
   console.log(`  Calendar:      ${eventCount}`);
   console.log(`  Habits:        ${habitsData.length}`);
   console.log(`  Habit Entries: ${entryCount}`);
+  console.log(`  Scan Logs:     ${scanLogs.length}`);
+  console.log(`  Subscription:  Pro (active)`);
   console.log('════════════════════════════════════\n');
 }
 

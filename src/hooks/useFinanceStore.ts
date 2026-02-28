@@ -109,6 +109,7 @@ interface FinanceState {
   habitEntries: HabitEntry[];
   activeWalletId: string | null;
   balanceMasked: boolean;
+  displayCurrency: Currency;
   showOnboarding: boolean;
   showWeeklyReport: boolean;
 
@@ -124,6 +125,7 @@ interface FinanceState {
   setActiveWallet: (id: string | null) => void;
   setBalanceMasked: (masked: boolean) => void;
   toggleBalanceMask: () => void;
+  setDisplayCurrency: (currency: Currency) => void;
   setShowOnboarding: (show: boolean) => void;
   setShowWeeklyReport: (show: boolean) => void;
 }
@@ -140,6 +142,7 @@ export const useFinanceStore = create<FinanceState>()(
     habitEntries: [],
     activeWalletId: null,
     balanceMasked: false,
+    displayCurrency: 'PLN' as Currency,
     showOnboarding: false,
     showWeeklyReport: false,
 
@@ -156,6 +159,7 @@ export const useFinanceStore = create<FinanceState>()(
     toggleBalanceMask: () => {
       set((state) => ({ balanceMasked: !state.balanceMasked }));
     },
+    setDisplayCurrency: (currency) => set({ displayCurrency: currency }),
     setShowOnboarding: (show) => set({ showOnboarding: show }),
     setShowWeeklyReport: (show) => set({ showWeeklyReport: show }),
   })

@@ -1,8 +1,9 @@
 import { redirect } from "next/navigation";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { getUser } from "@/lib/supabase/cached";
-import { getBalanceMasked, getOnboardingDone, isProUser, getLastWeeklyReport } from "@/app/actions";
+import { getBalanceMasked, getOnboardingDone, isProUser, getLastWeeklyReport, getPreferredCurrency } from "@/app/actions";
 import { BalanceMaskInit } from "@/components/BalanceMaskInit";
+import { CurrencyInit } from "@/components/CurrencyInit";
 import { OnboardingInit } from "@/components/OnboardingInit";
 import { OnboardingTutorial } from "@/components/OnboardingTutorial";
 import { WeeklyReportInit } from "@/components/WeeklyReportInit";
@@ -21,16 +22,18 @@ export default async function DashboardGroupLayout({
 
   const userName = user.user_metadata?.name || user.email?.split('@')[0] || 'Użytkownik';
   const avatarUrl = user.user_metadata?.avatar_url || null;
-  const [balanceMasked, onboardingDone, isPro, lastWeeklyReport] = await Promise.all([
+  const [balanceMasked, onboardingDone, isPro, lastWeeklyReport, preferredCurrency] = await Promise.all([
     getBalanceMasked(),
     getOnboardingDone(),
     isProUser(),
     getLastWeeklyReport(),
+    getPreferredCurrency(),
   ]);
 
   return (
     <>
       <BalanceMaskInit value={balanceMasked} />
+      <CurrencyInit value={preferredCurrency} />
       <OnboardingInit done={onboardingDone} />
       <OnboardingTutorial />
       <WeeklyReportInit lastReport={lastWeeklyReport} />

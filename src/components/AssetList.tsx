@@ -47,15 +47,24 @@ interface AssetListProps {
   onEdit?: (asset: Asset) => void;
   onDelete?: (id: string) => void;
   onSell?: (asset: Asset) => void;
+  standalone?: boolean;
 }
 
-export function AssetList({ assets, onEdit, onDelete, onSell }: AssetListProps) {
+export function AssetList({ assets, onEdit, onDelete, onSell, standalone }: AssetListProps) {
   const balanceMasked = useFinanceStore(s => s.balanceMasked);
   const totalValue = assets.reduce((sum, asset) => sum + asset.total_value, 0);
 
+  const cardClass = standalone
+    ? 'p-4 bg-card rounded-xl border border-border hover:bg-accent/50 transition-colors group'
+    : 'p-4 bg-muted/50 rounded-lg border border-border hover:bg-muted transition-colors group';
+
   return (
-    <div className="px-4 py-4 lg:px-6 lg:py-6">
-      <div className="flex items-center justify-between mb-6">
+    <div className={standalone ? '' : 'px-4 py-4 lg:px-6 lg:py-6'}>
+      {/* Header */}
+      <div className={standalone
+        ? 'bg-card border border-border rounded-xl p-4 lg:p-6 mb-3 flex items-center justify-between'
+        : 'flex items-center justify-between mb-6'
+      }>
         <div>
           <h2 className="text-xl font-bold text-card-foreground mb-1">Aktywa</h2>
           <p className="text-muted-foreground text-sm">Portfel inwestycyjny</p>
@@ -70,7 +79,7 @@ export function AssetList({ assets, onEdit, onDelete, onSell }: AssetListProps) 
 
       <div className="space-y-3">
         {assets.length === 0 ? (
-          <div className="flex flex-col items-center py-8 gap-3">
+          <div className={`flex flex-col items-center py-8 gap-3 ${standalone ? 'bg-card border border-border rounded-xl' : ''}`}>
             <img src="/Home element.gif" alt="" className="w-24 h-24 opacity-70" />
             <p className="text-muted-foreground text-sm">Brak aktywów</p>
           </div>
@@ -85,67 +94,62 @@ export function AssetList({ assets, onEdit, onDelete, onSell }: AssetListProps) 
             return (
               <div
                 key={asset.id}
-                className="p-4 bg-muted/50 rounded-lg border border-border hover:bg-muted transition-colors group"
+                className={`${cardClass} ${onEdit ? 'cursor-pointer' : ''}`}
+                onClick={() => onEdit?.(asset)}
               >
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center">
-                      {(() => {
-                        const IconComponent = cryptoIconMap[asset.symbol.toUpperCase()];
-                        if (IconComponent) {
-                          return <IconComponent size={24} variant="branded" />;
-                        }
-                        return asset.asset_type === 'stock'
-                          ? <TrendingUp className="w-5 h-5 text-muted-foreground" />
-                          : <Coins className="w-5 h-5 text-muted-foreground" />;
-                      })()}
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-card-foreground font-medium">{asset.name}</h3>
-                        <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded">
-                          {asset.symbol}
-                        </span>
-                      </div>
-                      <p className="text-sm text-muted-foreground mt-0.5">
-                        {asset.quantity} × <span className={balanceMasked ? 'blur-md select-none' : ''}>{formatCurrency(asset.current_price)}</span>
-                      </p>
-                      {asset.cost_basis > 0 && (
-                        <p className={`text-xs text-muted-foreground mt-0.5 ${balanceMasked ? 'blur-md select-none' : ''}`}>
-                          Zakup: {formatCurrency(asset.cost_basis)} · P/L:{' '}
-                          <span className={plPositive ? 'text-green-500' : 'text-red-500'}>
-                            {plPositive ? '+' : ''}{formatCurrency(unrealizedPL)}
-                          </span>
-                        </p>
-                      )}
-                    </div>
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center shrink-0 mt-0.5">
+                    {(() => {
+                      const IconComponent = cryptoIconMap[asset.symbol.toUpperCase()];
+                      if (IconComponent) {
+                        return <IconComponent size={24} variant="branded" />;
+                      }
+                      return asset.asset_type === 'stock'
+                        ? <TrendingUp className="w-5 h-5 text-muted-foreground" />
+                        : <Coins className="w-5 h-5 text-muted-foreground" />;
+                    })()}
                   </div>
-
-                  <div className="flex items-center gap-2">
-                    <div className="text-right">
-                      <p className="text-lg font-bold text-card-foreground">
-                        <span className={balanceMasked ? 'blur-md select-none' : ''}>{formatCurrency(asset.total_value)}</span>
-                      </p>
-                      <div className={`flex items-center justify-end gap-1 mt-1 ${
-                        isPositive ? 'text-green-500' : 'text-red-500'
-                      }`}>
-                        {isPositive ? (
-                          <TrendingUp className="w-3 h-3" />
-                        ) : (
-                          <TrendingDown className="w-3 h-3" />
-                        )}
-                        <span className="text-sm font-medium">
-                          {isPositive ? '+' : ''}{asset.change_24h.toFixed(2)}%
-                        </span>
-                      </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-card-foreground font-medium">{asset.name}</h3>
+                      <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded">
+                        {asset.symbol}
+                      </span>
                     </div>
-
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                      {asset.quantity} × <span className={balanceMasked ? 'blur-md select-none' : ''}>{formatCurrency(asset.current_price)}</span>
+                    </p>
+                    {asset.cost_basis > 0 && (
+                      <p className={`text-xs text-muted-foreground mt-0.5 ${balanceMasked ? 'blur-md select-none' : ''}`}>
+                        Zakup: {formatCurrency(asset.cost_basis)} · P/L:{' '}
+                        <span className={plPositive ? 'text-green-500' : 'text-red-500'}>
+                          {plPositive ? '+' : ''}{formatCurrency(unrealizedPL)}
+                        </span>
+                      </p>
+                    )}
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-lg font-bold text-card-foreground whitespace-nowrap">
+                      <span className={balanceMasked ? 'blur-md select-none' : ''}>{formatCurrency(asset.total_value)}</span>
+                    </p>
+                    <div className={`flex items-center justify-end gap-1 mt-0.5 ${
+                      isPositive ? 'text-green-500' : 'text-red-500'
+                    }`}>
+                      {isPositive ? (
+                        <TrendingUp className="w-3 h-3" />
+                      ) : (
+                        <TrendingDown className="w-3 h-3" />
+                      )}
+                      <span className="text-sm font-medium">
+                        {isPositive ? '+' : ''}{asset.change_24h.toFixed(2)}%
+                      </span>
+                    </div>
                     {(onEdit || onDelete || onSell) && (
-                      <div className="flex gap-1 opacity-0 lg:group-hover:opacity-100 transition-opacity">
+                      <div className="flex gap-1 justify-end mt-1 opacity-0 lg:group-hover:opacity-100 transition-opacity">
                         {onSell && (
                           <button
-                            onClick={() => onSell(asset)}
-                            className="p-2 hover:bg-red-500/20 text-muted-foreground hover:text-red-500 rounded-md transition-colors"
+                            onClick={(e) => { e.stopPropagation(); onSell(asset); }}
+                            className="p-1.5 hover:bg-red-500/20 text-muted-foreground hover:text-red-500 rounded-md transition-colors"
                             title="Sprzedaj"
                           >
                             <BadgeDollarSign className="w-4 h-4" />
@@ -153,16 +157,16 @@ export function AssetList({ assets, onEdit, onDelete, onSell }: AssetListProps) 
                         )}
                         {onEdit && (
                           <button
-                            onClick={() => onEdit(asset)}
-                            className="p-2 hover:bg-accent text-muted-foreground hover:text-accent-foreground rounded-md transition-colors"
+                            onClick={(e) => { e.stopPropagation(); onEdit(asset); }}
+                            className="p-1.5 hover:bg-accent text-muted-foreground hover:text-accent-foreground rounded-md transition-colors"
                           >
                             <Edit2 className="w-4 h-4" />
                           </button>
                         )}
                         {onDelete && (
                           <button
-                            onClick={() => onDelete(asset.id)}
-                            className="p-2 hover:bg-destructive/20 text-muted-foreground hover:text-destructive rounded-md transition-colors"
+                            onClick={(e) => { e.stopPropagation(); onDelete(asset.id); }}
+                            className="p-1.5 hover:bg-destructive/20 text-muted-foreground hover:text-destructive rounded-md transition-colors"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>

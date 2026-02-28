@@ -150,7 +150,7 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
           transition={{ duration: 0.2 }}
         >
           <motion.div
-            className="bg-card border border-border rounded-xl p-6 w-full max-w-md shadow-xl"
+            className="bg-card border border-border rounded-xl p-6 w-full max-w-md shadow-xl max-h-[90dvh] overflow-y-auto"
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}

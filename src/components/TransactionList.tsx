@@ -95,7 +95,10 @@ export function TransactionList({ transactions, onDelete, onEdit, limit, showSee
         ) : (
           visible.map((transaction, i) => (
             <AnimatedRow key={transaction.id} index={i}>
-              <div className="flex items-center justify-between p-3 sm:p-4 bg-muted/50 rounded-lg border border-border hover:bg-muted transition-colors group">
+              <div
+                className="flex items-center justify-between p-3 sm:p-4 bg-muted/50 rounded-lg border border-border hover:bg-muted transition-colors group cursor-pointer"
+                onClick={() => onEdit(transaction)}
+              >
                 <div className="flex items-center gap-3 sm:gap-4 min-w-0">
                   <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center shrink-0 ${
                     transaction.type === 'transfer' ? 'bg-blue-500/20 text-blue-500' : transaction.type === 'income' ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'
@@ -120,13 +123,13 @@ export function TransactionList({ transactions, onDelete, onEdit, limit, showSee
 
                   <div className="hidden lg:flex gap-1 opacity-0 lg:group-hover:opacity-100 transition-opacity">
                     <button
-                      onClick={() => onEdit(transaction)}
+                      onClick={(e) => { e.stopPropagation(); onEdit(transaction); }}
                       className="p-2 hover:bg-accent text-muted-foreground hover:text-accent-foreground rounded-md transition-colors"
                     >
                       <Edit2 className="w-4 h-4" />
                     </button>
                     <button
-                      onClick={() => onDelete(transaction.id)}
+                      onClick={(e) => { e.stopPropagation(); onDelete(transaction.id); }}
                       className="p-2 hover:bg-destructive/20 text-muted-foreground hover:text-destructive rounded-md transition-colors"
                     >
                       <Trash2 className="w-4 h-4" />

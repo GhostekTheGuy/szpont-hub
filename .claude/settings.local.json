@@ -28,7 +28,11 @@
       "Bash(xargs cat:*)",
       "Bash(find:*)",
       "Bash(pnpm build:*)",
-      "WebFetch(domain:kugaru.com)"
+      "WebFetch(domain:kugaru.com)",
+      "Bash(npx tsx:*)",
+      "Bash(npx next:*)",
+      "Bash(cat:*)",
+      "Bash(wc:*)"
     ]
   }
 }
