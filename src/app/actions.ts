@@ -208,6 +208,31 @@ export async function getWalletsWithTransactions() {
   return fetchWalletsAndTransactions(userId);
 }
 
+// Lightweight version — fetches only wallets without transactions (for calendar, etc.)
+export async function getWallets() {
+  const userId = await getUserId();
+  if (!userId) return null;
+
+  const [dek, { data: wallets, error }] = await Promise.all([
+    getDEK(),
+    supabaseAdmin.from('wallets').select('*').eq('user_id', userId),
+  ]);
+
+  if (error) {
+    console.error('Error fetching wallets:', error);
+  }
+
+  const decryptedWallets = (wallets || []).map(w => ({
+    ...w,
+    name: decryptString(w.name, dek) || w.name,
+    balance: decryptNumber(w.balance, dek),
+    track_from: w.track_from ? decryptString(w.track_from, dek) : undefined,
+    initial_balance: w.initial_balance ? decryptNumber(w.initial_balance, dek) : 0,
+  }));
+
+  return { wallets: decryptedWallets };
+}
+
 export async function getAssetsData() {
   const userId = await getUserId();
   if (!userId) return null;
@@ -257,13 +282,27 @@ export async function getWalletChartData(
   const startStr = startDate.toISOString().split('T')[0];
   const endStr = today.toISOString().split('T')[0];
 
-  const { transactions } = await fetchWalletsAndTransactions(userId);
+  const { wallets, transactions } = await fetchWalletsAndTransactions(userId);
+  const wallet = wallets.find(w => w.id === walletId);
+  if (!wallet) return null;
+
   const walletTransactions = transactions.filter(t => t.wallet === walletId);
 
   const [historicalRates, currentRates] = await Promise.all([
     getHistoricalRates(startStr, endStr),
     getExchangeRates(),
   ]);
+
+  // Rzeczywiste saldo portfela (w PLN) przeliczone na walutę wyświetlania
+  const realBalance = convertAmount(wallet.balance, 'PLN', displayCurrency, currentRates);
+
+  // Suma transakcji (nie uwzględnia initial_balance ani ręcznych korekt)
+  const transactionSum = walletTransactions.reduce((acc, t) => {
+    return acc + convertAmount(t.amount, t.currency || 'PLN', displayCurrency, currentRates);
+  }, 0);
+
+  // Offset korygujący: różnica między rzeczywistym saldem a sumą transakcji
+  const offset = realBalance - transactionSum;
 
   // Dla każdego dnia w zakresie: oblicz saldo portfela z kursem Z TEGO DNIA
   const data: { date: string; value: number }[] = [];
@@ -273,23 +312,18 @@ export async function getWalletChartData(
     const dateStr = current.toISOString().split('T')[0];
     const ratesForDay = historicalRates[dateStr] || currentRates;
 
-    // Zsumuj transakcje do tego dnia, przeliczając kursem tego dnia
+    // Zsumuj transakcje do tego dnia, przeliczając kursem tego dnia + offset
     const balance = walletTransactions
       .filter(t => t.date <= dateStr)
       .reduce((acc, t) => {
         return acc + convertAmount(t.amount, t.currency || 'PLN', displayCurrency, ratesForDay);
       }, 0);
 
-    data.push({ date: dateStr, value: balance });
+    data.push({ date: dateStr, value: balance + offset });
     current.setDate(current.getDate() + 1);
   }
 
-  // Live saldo = suma transakcji przeliczona DZISIEJSZYM kursem
-  const currentBalance = walletTransactions.reduce((acc, t) => {
-    return acc + convertAmount(t.amount, t.currency || 'PLN', displayCurrency, currentRates);
-  }, 0);
-
-  return { data, currentBalance };
+  return { data, currentBalance: realBalance };
 }
 
 // --- HISTORYCZNE KURSY DLA DASHBOARDU ---
