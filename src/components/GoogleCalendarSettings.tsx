@@ -14,7 +14,7 @@ interface GoogleCalendarSettingsProps {
   isOpen: boolean;
   onClose: () => void;
   connectionEmail: string;
-  onSync: () => Promise<void>;
+  onSync: () => Promise<{ error?: string }>;
   onDisconnected: () => void;
 }
 
@@ -43,6 +43,7 @@ export function GoogleCalendarSettings({
   const [syncing, setSyncing] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   const loadMappings = useCallback(async () => {
     setLoading(true);
@@ -102,9 +103,15 @@ export function GoogleCalendarSettings({
 
   const handleSync = async () => {
     setSyncing(true);
+    setSyncError(null);
     try {
-      await onSync();
+      const result = await onSync();
+      if (result?.error) {
+        setSyncError('Synchronizacja nie powiodła się.');
+      }
       await loadMappings();
+    } catch {
+      setSyncError('Błąd podczas synchronizacji.');
     } finally {
       setSyncing(false);
     }
@@ -193,6 +200,13 @@ export function GoogleCalendarSettings({
                 Synchronizuj
               </button>
             </div>
+
+            {/* Sync error */}
+            {syncError && (
+              <div className="flex items-center gap-2 bg-destructive/10 border border-destructive/20 rounded-lg px-4 py-3 mb-4">
+                <span className="text-sm text-destructive">{syncError}</span>
+              </div>
+            )}
 
             {/* Calendar mappings */}
             <div className="space-y-3">

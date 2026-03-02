@@ -26,7 +26,7 @@ export async function POST() {
   const cookieStore = await cookies();
   const encryptedCookie = cookieStore.get('encryption_dek')?.value;
   if (!encryptedCookie) {
-    return NextResponse.json({ error: 'Encryption session expired' }, { status: 401 });
+    return NextResponse.json({ error: 'encryption_expired' }, { status: 401 });
   }
 
   const dek = decryptFromCookie(encryptedCookie);
@@ -54,7 +54,7 @@ export async function POST() {
       refreshToken = refreshed.refreshToken;
 
       // Re-encrypt and save new tokens
-      await supabaseAdmin
+      const { error: tokenSaveError } = await supabaseAdmin
         .from('google_calendar_connections')
         .update({
           access_token: encryptString(refreshed.accessToken, dek),
@@ -63,9 +63,19 @@ export async function POST() {
           updated_at: new Date().toISOString(),
         })
         .eq('id', connection.id);
+
+      if (tokenSaveError) {
+        console.error('[Google Sync] Failed to save refreshed tokens:', tokenSaveError);
+        return NextResponse.json({ error: 'Failed to save refreshed tokens' }, { status: 500 });
+      }
     }
   } catch (err) {
-    console.error('Token refresh failed:', err);
+    const message = err instanceof Error ? err.message : String(err);
+    if (message.startsWith('REVOKED:')) {
+      console.error('[Google Sync] Token revoked:', message);
+      return NextResponse.json({ error: 'RECONNECT_REQUIRED' }, { status: 401 });
+    }
+    console.error('[Google Sync] Token refresh failed:', err);
     return NextResponse.json({ error: 'Token refresh failed' }, { status: 401 });
   }
 
@@ -79,14 +89,16 @@ export async function POST() {
   console.log(`[Google Sync] Found ${mappings?.length || 0} enabled mappings`);
 
   if (!mappings || mappings.length === 0) {
-    return NextResponse.json({ synced: 0, message: 'No enabled calendars' });
+    return NextResponse.json({ synced: 0, errors: [], message: 'No enabled calendars' });
   }
 
   let totalSynced = 0;
+  const errors: Array<{ calendarId: string; error: string }> = [];
 
   for (const mapping of mappings) {
     console.log(`[Google Sync] Syncing calendar, syncToken: ${mapping.sync_token ? 'yes' : 'no'}`);
-    try {
+
+    const syncCalendar = async (): Promise<boolean> => {
       // Use syncToken for incremental sync, or time range for full sync
       const now = new Date();
       const threeMonthsAgo = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 3, 1));
@@ -111,11 +123,15 @@ export async function POST() {
 
       // Batch delete cancelled events
       if (cancelledIds.length > 0) {
-        await supabaseAdmin
+        const { error: deleteError } = await supabaseAdmin
           .from('calendar_events')
           .delete()
           .eq('user_id', user.id)
           .in('google_event_id', cancelledIds);
+
+        if (deleteError) {
+          console.error('[Google Sync] Failed to delete cancelled events:', deleteError);
+        }
       }
 
       if (activeEvents.length > 0) {
@@ -136,7 +152,7 @@ export async function POST() {
         for (const event of activeEvents) {
           if (existingMap.has(event.id)) {
             // Update existing — must be individual (different fields per row)
-            await supabaseAdmin
+            const { error: updateError } = await supabaseAdmin
               .from('calendar_events')
               .update({
                 title: encryptString(event.summary, dek),
@@ -144,6 +160,10 @@ export async function POST() {
                 end_time: event.end,
               })
               .eq('id', existingMap.get(event.id)!);
+
+            if (updateError) {
+              console.error('[Google Sync] Failed to update event:', updateError);
+            }
           } else {
             toInsert.push({
               id: nanoid(),
@@ -167,16 +187,20 @@ export async function POST() {
 
         // Batch insert new events
         if (toInsert.length > 0) {
-          await supabaseAdmin
+          const { error: insertError } = await supabaseAdmin
             .from('calendar_events')
             .insert(toInsert);
+
+          if (insertError) {
+            console.error('[Google Sync] Failed to insert events:', insertError);
+          }
         }
 
         totalSynced += activeEvents.length;
       }
 
       // Save sync token and last synced time
-      await supabaseAdmin
+      const { error: syncTokenError } = await supabaseAdmin
         .from('google_calendar_mappings')
         .update({
           sync_token: result.nextSyncToken || mapping.sync_token,
@@ -184,10 +208,29 @@ export async function POST() {
         })
         .eq('id', mapping.id);
 
+      if (syncTokenError) {
+        console.error('[Google Sync] Failed to save sync token:', syncTokenError);
+      }
+
+      return true;
+    };
+
+    // Try with 1 retry for transient Google API errors
+    try {
+      await syncCalendar();
     } catch (err) {
-      console.error('[Google Sync] Sync failed for calendar:', err);
+      console.error('[Google Sync] First attempt failed for calendar:', err);
+      try {
+        await syncCalendar();
+      } catch (retryErr) {
+        console.error('[Google Sync] Retry also failed for calendar:', retryErr);
+        errors.push({
+          calendarId: mapping.google_calendar_id,
+          error: retryErr instanceof Error ? retryErr.message : 'Sync failed',
+        });
+      }
     }
   }
 
-  return NextResponse.json({ synced: totalSynced });
+  return NextResponse.json({ synced: totalSynced, errors });
 }

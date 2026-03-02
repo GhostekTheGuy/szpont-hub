@@ -97,7 +97,7 @@ export async function GET(request: NextRequest) {
     const calendars = await listCalendars(tokens.access_token, tokens.refresh_token);
 
     for (const cal of calendars) {
-      await supabaseAdmin
+      const { error: mappingError } = await supabaseAdmin
         .from('google_calendar_mappings')
         .upsert({
           id: nanoid(),
@@ -110,6 +110,10 @@ export async function GET(request: NextRequest) {
           onConflict: 'user_id,google_calendar_id',
           ignoreDuplicates: false,
         });
+
+      if (mappingError) {
+        console.error(`Error saving calendar mapping for ${cal.id}:`, mappingError);
+      }
     }
 
     return NextResponse.redirect(new URL('/calendar?google_connected=true', request.url));

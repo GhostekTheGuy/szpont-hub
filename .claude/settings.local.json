@@ -32,7 +32,8 @@
       "Bash(npx tsx:*)",
       "Bash(npx next:*)",
       "Bash(cat:*)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(npm run:*)"
     ]
   }
 }

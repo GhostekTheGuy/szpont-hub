@@ -58,6 +58,8 @@ export function CalendarPageClient({ initialEvents, initialWallets, googleConnec
   const futureWarningTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [googleConn, setGoogleConn] = useState<GoogleConnection | null>(googleConnection || null);
   const lastSyncRef = useRef<number>(0);
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const syncErrorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
@@ -85,19 +87,58 @@ export function CalendarPageClient({ initialEvents, initialWallets, googleConnec
 
   const [autoSyncing, setAutoSyncing] = useState(false);
 
-  const syncGoogleCalendar = useCallback(async ({ silent = false } = {}) => {
+  const showSyncError = useCallback((msg: string, duration = 5000) => {
+    if (syncErrorTimer.current) clearTimeout(syncErrorTimer.current);
+    setSyncError(msg);
+    syncErrorTimer.current = setTimeout(() => setSyncError(null), duration);
+  }, []);
+
+  const syncGoogleCalendar = useCallback(async ({ silent = false } = {}): Promise<{ error?: string }> => {
     if (silent) setAutoSyncing(true);
     try {
       const res = await fetch('/api/google-calendar/sync', { method: 'POST' });
-      if (!res.ok) throw new Error('Sync failed');
+
+      if (res.status === 429) {
+        const msg = 'Zbyt wiele synchronizacji. Spróbuj ponownie za kilka minut.';
+        if (!silent) showSyncError(msg);
+        return { error: 'rate_limited' };
+      }
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+
+        if (data.error === 'RECONNECT_REQUIRED') {
+          showSyncError('Połączenie z Google wygasło. Połącz konto ponownie.');
+          setGoogleConn(null);
+          return { error: 'RECONNECT_REQUIRED' };
+        }
+
+        if (data.error === 'encryption_expired') {
+          window.location.href = '/login';
+          return { error: 'encryption_expired' };
+        }
+
+        if (!silent) showSyncError('Synchronizacja nie powiodła się. Spróbuj ponownie.');
+        return { error: data.error || 'unknown' };
+      }
+
+      const data = await res.json();
       lastSyncRef.current = Date.now();
       await loadMonth(currentMonth);
+
+      if (data.errors?.length > 0) {
+        showSyncError(`Zsynchronizowano ${data.synced} wydarzeń, ale ${data.errors.length} kalendarz(y) miał(y) błędy.`);
+      }
+
+      return {};
     } catch (err) {
       console.error('Google Calendar sync error:', err);
+      if (!silent) showSyncError('Błąd połączenia z serwerem.');
+      return { error: 'network' };
     } finally {
       if (silent) setAutoSyncing(false);
     }
-  }, [currentMonth, loadMonth]);
+  }, [currentMonth, loadMonth, showSyncError]);
 
   // Auto-sync on mount if Google connected (with cooldown)
   useEffect(() => {
@@ -224,6 +265,17 @@ export function CalendarPageClient({ initialEvents, initialWallets, googleConnec
             <AlertTriangle className="w-4 h-4 text-yellow-500 shrink-0" />
             <span className="text-sm text-foreground">Nie można zatwierdzić wydarzenia z przyszłości</span>
             <button onClick={() => setFutureWarning(false)} className="text-muted-foreground hover:text-foreground ml-2 text-lg leading-none">&times;</button>
+          </div>
+        </div>
+      )}
+
+      {/* Sync error popup */}
+      {syncError && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center gap-2 bg-card border border-destructive/30 rounded-lg px-4 py-3 shadow-lg">
+            <AlertTriangle className="w-4 h-4 text-destructive shrink-0" />
+            <span className="text-sm text-foreground">{syncError}</span>
+            <button onClick={() => setSyncError(null)} className="text-muted-foreground hover:text-foreground ml-2 text-lg leading-none">&times;</button>
           </div>
         </div>
       )}
