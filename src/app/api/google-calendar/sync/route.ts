@@ -177,7 +177,7 @@ export async function POST() {
               recurrence_rule: null,
               is_settled: false,
               is_confirmed: false,
-              event_type: 'work',
+              event_type: 'personal',
               google_event_id: event.id,
               google_calendar_id: mapping.google_calendar_id,
               created_at: new Date().toISOString(),
