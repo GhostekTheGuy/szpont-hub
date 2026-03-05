@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans, Lora, IBM_Plex_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { AnimatedFavicon } from "@/components/AnimatedFavicon";
 import "./globals.css";
 
 const plusJakarta = Plus_Jakarta_Sans({
@@ -49,6 +50,7 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
+          <AnimatedFavicon />
           {children}
         </ThemeProvider>
       </body>
