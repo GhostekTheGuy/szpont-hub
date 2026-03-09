@@ -505,11 +505,27 @@ export async function addTransferAction(data: {
     },
   ]);
 
-  // Zaktualizuj salda obu portfeli
-  await Promise.all([
-    supabaseAdmin.from('wallets').update({ balance: encryptNumber(fromBalance - amountInPLN, dek) }).eq('id', data.fromWalletId),
-    supabaseAdmin.from('wallets').update({ balance: encryptNumber(toBalance + amountInPLN, dek) }).eq('id', data.toWalletId),
-  ]);
+  // Zaktualizuj salda obu portfeli sekwencyjnie (rollback przy błędzie)
+  const { error: fromError } = await supabaseAdmin
+    .from('wallets')
+    .update({ balance: encryptNumber(fromBalance - amountInPLN, dek) })
+    .eq('id', data.fromWalletId);
+
+  if (fromError) throw new Error('Transfer failed: source wallet update error');
+
+  const { error: toError } = await supabaseAdmin
+    .from('wallets')
+    .update({ balance: encryptNumber(toBalance + amountInPLN, dek) })
+    .eq('id', data.toWalletId);
+
+  if (toError) {
+    // Rollback: przywróć saldo portfela źródłowego
+    await supabaseAdmin
+      .from('wallets')
+      .update({ balance: encryptNumber(fromBalance, dek) })
+      .eq('id', data.fromWalletId);
+    throw new Error('Transfer failed: destination wallet update error');
+  }
 
   revalidatePath('/', 'layout');
 }
@@ -610,16 +626,17 @@ export async function editTransactionAction(id: string, data: any) {
     .from('wallets')
     .select('*')
     .eq('id', data.wallet)
+    .eq('user_id', userId)
     .single();
 
-  if (newWallet) {
-    const newWalletBalance = decryptNumber(newWallet.balance, dek);
-    const updatedBalance = newWalletBalance + newAmountInPLN;
-    await supabaseAdmin
-      .from('wallets')
-      .update({ balance: encryptNumber(updatedBalance, dek) })
-      .eq('id', newWallet.id);
-  }
+  if (!newWallet) throw new Error('Wallet not found');
+
+  const newWalletBalance = decryptNumber(newWallet.balance, dek);
+  const updatedBalance = newWalletBalance + newAmountInPLN;
+  await supabaseAdmin
+    .from('wallets')
+    .update({ balance: encryptNumber(updatedBalance, dek) })
+    .eq('id', newWallet.id);
 
   revalidatePath('/', 'layout');
 }
@@ -1461,8 +1478,14 @@ export async function settleWeekAction(weekStart: string, weekEnd: string) {
     );
   }
 
+  // Najpierw oznacz eventy jako settled (zapobiega podwójnemu rozliczeniu)
+  const eventIds = filteredEvents.map(e => e.id);
+  await supabaseAdmin
+    .from('calendar_events')
+    .update({ is_settled: true })
+    .in('id', eventIds);
+
   // Stwórz transakcje income i zaktualizuj salda
-  // First: insert all transactions
   for (const [walletId, totalEarnings] of Array.from(walletEarnings.entries())) {
     await supabaseAdmin
       .from('transactions')
@@ -1477,10 +1500,8 @@ export async function settleWeekAction(weekStart: string, weekEnd: string) {
         currency: 'PLN',
         created_at: new Date().toISOString(),
       });
-  }
 
-  // Then: read-and-update balances in tight sequence to minimize race window
-  for (const [walletId, totalEarnings] of Array.from(walletEarnings.entries())) {
+    // Fresh read + update salda w jednej sekwencji per portfel
     const { data: wallet } = await supabaseAdmin
       .from('wallets')
       .select('balance')
@@ -1490,18 +1511,15 @@ export async function settleWeekAction(weekStart: string, weekEnd: string) {
     if (!wallet) continue;
 
     const currentBalance = decryptNumber(wallet.balance, dek);
-    await supabaseAdmin
+    const { error: updateError } = await supabaseAdmin
       .from('wallets')
       .update({ balance: encryptNumber(currentBalance + totalEarnings, dek) })
       .eq('id', walletId);
-  }
 
-  // Oznacz eventy jako settled
-  const eventIds = filteredEvents.map(e => e.id);
-  await supabaseAdmin
-    .from('calendar_events')
-    .update({ is_settled: true })
-    .in('id', eventIds);
+    if (updateError) {
+      console.error(`Settlement balance update failed for wallet ${walletId}:`, updateError);
+    }
+  }
 
   revalidatePath('/', 'layout');
   return { settled: filteredEvents.length };
@@ -1772,7 +1790,14 @@ export async function settleMonthAction(monthStart: string, monthEnd: string) {
     );
   }
 
-  // First: insert all transactions
+  // Najpierw oznacz eventy jako settled (zapobiega podwójnemu rozliczeniu)
+  const eventIds = filteredMonthEvents.map(e => e.id);
+  await supabaseAdmin
+    .from('calendar_events')
+    .update({ is_settled: true })
+    .in('id', eventIds);
+
+  // Stwórz transakcje income i zaktualizuj salda
   for (const [walletId, totalEarnings] of Array.from(walletEarnings.entries())) {
     await supabaseAdmin
       .from('transactions')
@@ -1787,10 +1812,7 @@ export async function settleMonthAction(monthStart: string, monthEnd: string) {
         currency: 'PLN',
         created_at: new Date().toISOString(),
       });
-  }
 
-  // Then: read-and-update balances in tight sequence to minimize race window
-  for (const [walletId, totalEarnings] of Array.from(walletEarnings.entries())) {
     const { data: wallet } = await supabaseAdmin
       .from('wallets')
       .select('balance')
@@ -1800,17 +1822,15 @@ export async function settleMonthAction(monthStart: string, monthEnd: string) {
     if (!wallet) continue;
 
     const currentBalance = decryptNumber(wallet.balance, dek);
-    await supabaseAdmin
+    const { error: updateError } = await supabaseAdmin
       .from('wallets')
       .update({ balance: encryptNumber(currentBalance + totalEarnings, dek) })
       .eq('id', walletId);
-  }
 
-  const eventIds = filteredMonthEvents.map(e => e.id);
-  await supabaseAdmin
-    .from('calendar_events')
-    .update({ is_settled: true })
-    .in('id', eventIds);
+    if (updateError) {
+      console.error(`Settlement balance update failed for wallet ${walletId}:`, updateError);
+    }
+  }
 
   revalidatePath('/', 'layout');
   return { settled: filteredMonthEvents.length };
@@ -2141,17 +2161,31 @@ export async function sellAssetAction(data: {
   const assetName = decryptString(asset.name, dek) || asset.name;
   const assetSymbol = decryptString(asset.symbol, dek) || asset.symbol;
 
+  if (data.quantityToSell <= 0) {
+    throw new Error('Invalid quantity');
+  }
+
   if (data.quantityToSell > quantity) {
     throw new Error('Insufficient quantity');
   }
 
-  // 2. Oblicz: proceeds, cost, profit, tax
+  // 2. Sprawdź portfel PRZED modyfikacją assetu
+  const { data: wallet } = await supabaseAdmin
+    .from('wallets')
+    .select('*')
+    .eq('id', data.walletId)
+    .eq('user_id', userId)
+    .single();
+
+  if (!wallet) throw new Error('Wallet not found');
+
+  // 3. Oblicz: proceeds, cost, profit, tax
   const totalProceeds = data.quantityToSell * currentPrice;
   const totalCost = data.quantityToSell * costBasis;
   const profit = totalProceeds - totalCost;
   const taxAmount = Math.max(0, profit) * 0.19;
 
-  // 3. Insert do asset_sales (encrypted)
+  // 4. Insert do asset_sales (encrypted)
   const { error: saleError } = await supabaseAdmin
     .from('asset_sales')
     .insert({
@@ -2176,7 +2210,7 @@ export async function sellAssetAction(data: {
     throw new Error(saleError.message);
   }
 
-  // 4. Update or delete asset
+  // 5. Update or delete asset
   const remainingQuantity = quantity - data.quantityToSell;
 
   if (remainingQuantity <= 0) {
@@ -2192,17 +2226,8 @@ export async function sellAssetAction(data: {
       .eq('id', data.assetId);
   }
 
-  // 5. Utwórz transakcję income w wybranym portfelu (kwota netto po podatku)
+  // 6. Utwórz transakcję income w wybranym portfelu (kwota netto po podatku)
   const netProceeds = totalProceeds - taxAmount;
-
-  const { data: wallet } = await supabaseAdmin
-    .from('wallets')
-    .select('*')
-    .eq('id', data.walletId)
-    .eq('user_id', userId)
-    .single();
-
-  if (!wallet) throw new Error('Wallet not found');
 
   await supabaseAdmin
     .from('transactions')
