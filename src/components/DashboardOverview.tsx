@@ -34,6 +34,7 @@ interface Props {
   initialGoals: Goal[];
   exchangeRates: ExchangeRates;
   userName: string;
+  workEarningsByDate: Record<string, number>;
 }
 
 function getGreeting(): string {
@@ -44,7 +45,7 @@ function getGreeting(): string {
   return 'Dobrej nocy';
 }
 
-export function DashboardOverview({ initialWallets, initialTransactions, initialAssets, initialGoals, exchangeRates, userName }: Props) {
+export function DashboardOverview({ initialWallets, initialTransactions, initialAssets, initialGoals, exchangeRates, userName, workEarningsByDate }: Props) {
   const [isTransModalOpen, setIsTransModalOpen] = useState(false);
   const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
@@ -309,7 +310,7 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
                   </div>
                 </div>
                 {ratesReady ? (
-                  <FinancialChart transactions={transactions} range={range} setRange={setRange} displayCurrency={displayCurrency} exchangeRates={exchangeRates} historicalRates={historicalRates} currentNetWorth={stats.totalNetWorth} />
+                  <FinancialChart transactions={transactions} range={range} setRange={setRange} displayCurrency={displayCurrency} exchangeRates={exchangeRates} historicalRates={historicalRates} currentNetWorth={stats.totalNetWorth} workEarningsByDate={workEarningsByDate} />
                 ) : (
                   <div className="p-6">
                     <div className="flex items-center justify-between mb-6">

@@ -15,66 +15,65 @@ interface FinancialChartProps {
   exchangeRates: ExchangeRates;
   historicalRates?: HistoricalRates;
   currentNetWorth: number;
+  workEarningsByDate?: Record<string, number>;
 }
 
-export const FinancialChart = memo(function FinancialChart({ transactions, range, setRange, displayCurrency, exchangeRates, historicalRates, currentNetWorth }: FinancialChartProps) {
+export const FinancialChart = memo(function FinancialChart({ transactions, range, setRange, displayCurrency, exchangeRates, historicalRates, currentNetWorth, workEarningsByDate }: FinancialChartProps) {
   const balanceMasked = useFinanceStore(s => s.balanceMasked);
 
   const chartData = useMemo(() => {
     const days = range === '1W' ? 7 : range === '1M' ? 30 : range === '3M' ? 90 : 365;
     const today = new Date();
-    const startDate = subDays(today, days);
-    const startDateStr = format(startDate, 'yyyy-MM-dd');
+    const todayStr = format(today, 'yyyy-MM-dd');
 
-    // Only count income & outcome (transfers are internal movements)
-    // Note: income amounts are positive, outcome amounts are already negative
-    const relevant = transactions.filter(t => t.type === 'income' || t.type === 'outcome');
+    // Odfiltruj transakcje "Praca" (settle/cofnięcia) — zastąpimy je dziennymi zarobkami z kalendarza
+    const relevant = transactions.filter(t =>
+      (t.type === 'income' || t.type === 'outcome') && t.category !== 'Praca'
+    );
     const sorted = [...relevant].sort((a, b) => a.date.localeCompare(b.date));
 
     function txDelta(t: Transaction, rates: ExchangeRates) {
-      return convertAmount(t.amount, t.currency || 'PLN', displayCurrency, rates);
+      const converted = convertAmount(t.amount, t.currency || 'PLN', displayCurrency, rates);
+      // Handle legacy 'expense' type with positive amounts
+      if ((t.type as string) === 'expense' && converted > 0) return -converted;
+      return converted;
     }
 
-    // Compute total net cash flow for ALL transactions in the range to anchor to currentNetWorth
-    let totalNetFlow = 0;
-    for (const t of sorted) {
-      if (t.date.slice(0, 10) > startDateStr) {
-        const ratesForDay = historicalRates?.[t.date.slice(0, 10)] || exchangeRates;
-        totalNetFlow += txDelta(t, ratesForDay);
-      }
-    }
-
-    // Starting value = current net worth minus all net flow in the range
-    let runningBalance = currentNetWorth - totalNetFlow;
-    let txIndex = 0;
-
-    // Skip transactions before the range
-    for (; txIndex < sorted.length; txIndex++) {
-      if (sorted[txIndex].date > startDateStr) break;
-    }
-
-    // Walk day-by-day
+    // Liczymy wstecz od aktualnego net worth
+    // Oblicz sumę przyszłych zmian dla każdego dnia
     const data = [];
     for (let i = days; i >= 0; i--) {
       const date = subDays(today, i);
       const dateStr = format(date, 'yyyy-MM-dd');
 
-      for (; txIndex < sorted.length; txIndex++) {
-        const t = sorted[txIndex];
-        if (t.date.slice(0, 10) > dateStr) break;
-        const ratesForDay = historicalRates?.[t.date.slice(0, 10)] || exchangeRates;
-        runningBalance += txDelta(t, ratesForDay);
+      // Suma transakcji (nie-pracowych) po tym dniu
+      let futureFlow = 0;
+      for (const t of sorted) {
+        if (t.date.slice(0, 10) > dateStr) {
+          const ratesForDay = historicalRates?.[t.date.slice(0, 10)] || exchangeRates;
+          futureFlow += txDelta(t, ratesForDay);
+        }
+      }
+
+      // Suma zarobków z kalendarza po tym dniu
+      let futureWorkEarnings = 0;
+      if (workEarningsByDate) {
+        for (const [evDate, earnings] of Object.entries(workEarningsByDate)) {
+          if (evDate > dateStr) {
+            futureWorkEarnings += convertAmount(earnings, 'PLN', displayCurrency, exchangeRates);
+          }
+        }
       }
 
       data.push({
         date: format(date, 'dd MMM', { locale: pl }),
-        value: runningBalance,
+        value: currentNetWorth - futureFlow - futureWorkEarnings,
         fullDate: dateStr
       });
     }
 
     return data;
-  }, [transactions, range, displayCurrency, exchangeRates, historicalRates, currentNetWorth]);
+  }, [transactions, range, displayCurrency, exchangeRates, historicalRates, currentNetWorth, workEarningsByDate]);
 
   const yDomain = useMemo((): [(min: number) => number, (max: number) => number] => {
     return [

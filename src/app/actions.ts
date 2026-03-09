@@ -158,11 +158,12 @@ export async function getDashboardData() {
   const dek = await getDEK();
 
   // Równoległe pobieranie wszystkich danych (w tym goals — unika dodatkowego getUserId+getDEK)
-  const [{ wallets, transactions }, rates, { data: assets, error: assetsError }, { data: goals, error: goalsError }] = await Promise.all([
+  const [{ wallets, transactions }, rates, { data: assets, error: assetsError }, { data: goals, error: goalsError }, { data: calendarEventsRaw }] = await Promise.all([
     fetchWalletsAndTransactions(userId, dek),
     getExchangeRates(),
     supabaseAdmin.from('assets').select('*').eq('user_id', userId),
     supabaseAdmin.from('goals').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
+    supabaseAdmin.from('calendar_events').select('*').eq('user_id', userId).eq('is_confirmed', true).neq('event_type', 'personal'),
   ]);
 
   if (assetsError) {
@@ -198,7 +199,19 @@ export async function getDashboardData() {
     wallet_id: g.wallet_id,
   }));
 
-  return { wallets, transactions, assets: decryptedAssets, goals: decryptedGoals, exchangeRates: rates };
+  // Oblicz dzienne zarobki z wydarzeń kalendarza (data → kwota w PLN)
+  const workEarningsByDate: Record<string, number> = {};
+  for (const ev of calendarEventsRaw || []) {
+    const eventDate = ev.start_time.split('T')[0];
+    const hourlyRate = decryptNumber(ev.hourly_rate, dek);
+    const start = new Date(ev.start_time);
+    const end = new Date(ev.end_time);
+    const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+    const earnings = hours * hourlyRate;
+    workEarningsByDate[eventDate] = (workEarningsByDate[eventDate] || 0) + earnings;
+  }
+
+  return { wallets, transactions, assets: decryptedAssets, goals: decryptedGoals, exchangeRates: rates, workEarningsByDate };
 }
 
 export async function getWalletsWithTransactions() {
