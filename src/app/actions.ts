@@ -341,7 +341,7 @@ export async function getWalletChartData(
 
     // Suma zarobków z kalendarza po tym dniu
     let futureCalendarEarnings = 0;
-    for (const [evDate, earnings] of dailyEarnings.entries()) {
+    for (const [evDate, earnings] of Array.from(dailyEarnings.entries())) {
       if (evDate > dateStr) {
         futureCalendarEarnings += convertAmount(earnings, 'PLN', displayCurrency, currentRates);
       }
