@@ -28,9 +28,9 @@ const gradientOptions = [
 ];
 
 const effectOptions: { value: CardEffect; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { value: 'gradient', label: 'Gradient', icon: Palette },
+  { value: 'gradient', label: 'Jednolity', icon: Palette },
   { value: 'plasma', label: 'Plasma', icon: Waves },
-  { value: 'grainient', label: 'Grainient', icon: Sparkles },
+  { value: 'grainient', label: 'Gradient', icon: Sparkles },
 ];
 
 interface WalletModalProps {

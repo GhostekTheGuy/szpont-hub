@@ -142,13 +142,33 @@ function GoogleIcon({ className = "w-3 h-3" }: { className?: string }) {
 
 const PERSONAL_EVENT_COLOR = '#22c55e';
 
+const tailwindColorMap: Record<string, string> = {
+  'violet-600': '#7c3aed',
+  'purple-500': '#a855f7',
+  'indigo-500': '#6366f1',
+  'blue-600': '#2563eb',
+  'blue-500': '#3b82f6',
+  'cyan-500': '#06b6d4',
+  'emerald-500': '#10b981',
+  'teal-600': '#0d9488',
+  'amber-500': '#f59e0b',
+  'orange-600': '#ea580c',
+  'rose-500': '#f43f5e',
+  'pink-600': '#db2777',
+  'fuchsia-500': '#d946ef',
+  'slate-700': '#334155',
+  'zinc-800': '#27272a',
+};
+
 function getIndicatorColor(walletColor: string): string {
   if (!walletColor) return 'hsl(var(--primary))';
   if (walletColor.startsWith('plasma:')) return walletColor.slice(7);
   if (walletColor.startsWith('grainient:')) return walletColor.slice(10).split(':')[0];
-  // Try to extract a hex-like or tailwind color — fallback to primary
   const hexMatch = walletColor.match(/#[0-9a-fA-F]{3,8}/);
   if (hexMatch) return hexMatch[0];
+  // Extract first Tailwind color from gradient class (e.g. "from-violet-600 to-purple-500")
+  const twMatch = walletColor.match(/from-([a-z]+-\d+)/);
+  if (twMatch && tailwindColorMap[twMatch[1]]) return tailwindColorMap[twMatch[1]];
   return 'hsl(var(--primary))';
 }
 
