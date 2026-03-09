@@ -46,7 +46,6 @@ export function WalletModal({ isOpen, onClose, editingWallet }: WalletModalProps
   const [loading, setLoading] = useState(false);
 
   const [balance, setBalance] = useState('');
-  const [initialBalance, setInitialBalance] = useState('');
   const [trackFrom, setTrackFrom] = useState('');
 
   const [effect, setEffect] = useState<CardEffect>('gradient');
@@ -62,7 +61,6 @@ export function WalletModal({ isOpen, onClose, editingWallet }: WalletModalProps
       setType(editingWallet.type);
       setIcon(editingWallet.icon || 'wallet');
       setBalance(String(editingWallet.balance));
-      setInitialBalance(editingWallet.initial_balance ? String(editingWallet.initial_balance) : '');
       setTrackFrom(editingWallet.track_from || '');
 
       const parsed = parseWalletColor(editingWallet.color);
@@ -79,7 +77,6 @@ export function WalletModal({ isOpen, onClose, editingWallet }: WalletModalProps
       setType('fiat');
       setIcon('wallet');
       setBalance('');
-      setInitialBalance('');
       setTrackFrom(new Date().toISOString().split('T')[0]);
       setEffect('gradient');
       setGradient('from-violet-600 to-purple-500');
@@ -104,19 +101,17 @@ export function WalletModal({ isOpen, onClose, editingWallet }: WalletModalProps
     const color = buildColor();
 
     try {
-      const parsedInitialBalance = parseFloat(initialBalance);
-      const initialBalanceValue = !isNaN(parsedInitialBalance) ? parsedInitialBalance : 0;
+      const parsedBalance = parseFloat(balance);
+      const balanceValue = !isNaN(parsedBalance) ? parsedBalance : 0;
 
       if (editingWallet) {
-        await editWalletAction(editingWallet.id, { name, type, color, icon, track_from: trackFrom || undefined, initial_balance: initialBalanceValue });
+        await editWalletAction(editingWallet.id, { name, type, color, icon, track_from: trackFrom || undefined, initial_balance: balanceValue });
 
-        // Jeśli saldo się zmieniło, zaktualizuj bez tworzenia transakcji
-        const newBalance = parseFloat(balance);
-        if (!isNaN(newBalance) && newBalance !== editingWallet.balance) {
-          await adjustBalanceAction(editingWallet.id, newBalance);
+        if (balanceValue !== editingWallet.balance) {
+          await adjustBalanceAction(editingWallet.id, balanceValue);
         }
       } else {
-        await addWalletAction({ name, type, color, icon, track_from: trackFrom || undefined, initial_balance: initialBalanceValue });
+        await addWalletAction({ name, type, color, icon, track_from: trackFrom || undefined, initial_balance: balanceValue });
       }
       onClose();
     } catch (error) {
@@ -137,7 +132,7 @@ export function WalletModal({ isOpen, onClose, editingWallet }: WalletModalProps
           transition={{ duration: 0.2 }}
         >
           <motion.div
-            className="bg-card border border-border rounded-xl p-6 w-full max-w-md shadow-xl"
+            className="bg-card border border-border rounded-xl p-6 w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto"
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
@@ -202,32 +197,17 @@ export function WalletModal({ isOpen, onClose, editingWallet }: WalletModalProps
                 </div>
               </div>
 
-              {editingWallet && (
-                <div>
-                  <label className="block text-sm text-muted-foreground mb-2">Aktualne saldo (PLN)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={balance}
-                    onChange={(e) => setBalance(e.target.value)}
-                    className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
-                    placeholder="0.00"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">Zmiana salda bez tworzenia transakcji</p>
-                </div>
-              )}
-
               <div>
-                <label className="block text-sm text-muted-foreground mb-2">Kwota początkowa (PLN)</label>
+                <label className="block text-sm text-muted-foreground mb-2">Saldo (PLN)</label>
                 <input
                   type="number"
                   step="0.01"
-                  value={initialBalance}
-                  onChange={(e) => setInitialBalance(e.target.value)}
+                  value={balance}
+                  onChange={(e) => setBalance(e.target.value)}
                   className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
                   placeholder="0.00"
                 />
-                <p className="text-xs text-muted-foreground mt-1">Saldo portfela przed rozpoczęciem śledzenia</p>
+                <p className="text-xs text-muted-foreground mt-1">Aktualne saldo portfela</p>
               </div>
 
               <div>
