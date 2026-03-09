@@ -14,9 +14,10 @@ interface WalletChartProps {
   walletId: string;
   walletName: string;
   displayCurrency: Currency;
+  refreshKey?: number;
 }
 
-export function WalletChart({ walletId, walletName, displayCurrency }: WalletChartProps) {
+export function WalletChart({ walletId, walletName, displayCurrency, refreshKey }: WalletChartProps) {
   const balanceMasked = useFinanceStore(s => s.balanceMasked);
   const [range, setRange] = useState<'1W' | '1M' | '3M' | '1Y'>('1M');
   const [chartData, setChartData] = useState<{ date: string; value: number }[]>([]);
@@ -31,7 +32,7 @@ export function WalletChart({ walletId, walletName, displayCurrency }: WalletCha
         setCurrentBalance(result.currentBalance);
       }
     });
-  }, [walletId, range, displayCurrency]);
+  }, [walletId, range, displayCurrency, refreshKey]);
 
   const formattedData = chartData.map(d => ({
     date: format(new Date(d.date), 'dd MMM', { locale: pl }),

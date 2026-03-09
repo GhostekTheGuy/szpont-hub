@@ -26,6 +26,7 @@ export function WalletsPageClient({ initialWallets, initialTransactions, exchang
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [editingWallet, setEditingWallet] = useState<Wallet | null>(null);
+  const [chartRefreshKey, setChartRefreshKey] = useState(0);
 
   const { wallets, transactions, activeWalletId, setWallets, setTransactions, setActiveWallet, displayCurrency } = useFinanceStore();
 
@@ -56,7 +57,10 @@ export function WalletsPageClient({ initialWallets, initialTransactions, exchang
   }, [transactions]);
 
   const handleDeleteTransaction = async (id: string) => {
-    if (confirm('Czy na pewno?')) await deleteTransactionAction(id);
+    if (confirm('Czy na pewno?')) {
+      await deleteTransactionAction(id);
+      setChartRefreshKey(k => k + 1);
+    }
   };
 
   const handleDeleteWallet = async (id: string) => {
@@ -153,6 +157,7 @@ export function WalletsPageClient({ initialWallets, initialTransactions, exchang
             walletId={activeWalletId}
             walletName={activeWallet.name}
             displayCurrency={displayCurrency}
+            refreshKey={chartRefreshKey}
           />
         </div>
       )}
@@ -227,14 +232,14 @@ export function WalletsPageClient({ initialWallets, initialTransactions, exchang
 
       <TransactionModal
         isOpen={isTransModalOpen}
-        onClose={() => setIsTransModalOpen(false)}
+        onClose={() => { setIsTransModalOpen(false); setChartRefreshKey(k => k + 1); }}
         editingTransaction={editingTransaction}
         onDelete={handleDeleteTransaction}
       />
 
       <WalletModal
         isOpen={isWalletModalOpen}
-        onClose={() => setIsWalletModalOpen(false)}
+        onClose={() => { setIsWalletModalOpen(false); setChartRefreshKey(k => k + 1); }}
         editingWallet={editingWallet}
       />
 

@@ -286,40 +286,68 @@ export async function getWalletChartData(
   const wallet = wallets.find(w => w.id === walletId);
   if (!wallet) return null;
 
-  const walletTransactions = transactions.filter(t => t.wallet === walletId);
+  // Odfiltruj transakcje z kategorii "Praca" (settle/cofnięcia) — zastąpimy je dziennymi zarobkami z kalendarza
+  const nonWorkTransactions = transactions.filter(t => t.wallet === walletId && t.category !== 'Praca');
+
+  const dek = await getDEK();
+
+  // Pobierz potwierdzone wydarzenia z kalendarza dla tego portfela
+  const { data: calendarEvents } = await supabaseAdmin
+    .from('calendar_events')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('wallet_id', walletId)
+    .eq('is_confirmed', true)
+    .neq('event_type', 'personal');
+
+  // Oblicz dzienne zarobki z wydarzeń kalendarza
+  const dailyEarnings = new Map<string, number>();
+  for (const ev of calendarEvents || []) {
+    const eventDate = ev.start_time.split('T')[0];
+    const hourlyRate = decryptNumber(ev.hourly_rate, dek);
+    const start = new Date(ev.start_time);
+    const end = new Date(ev.end_time);
+    const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+    const earnings = hours * hourlyRate;
+    dailyEarnings.set(eventDate, (dailyEarnings.get(eventDate) || 0) + earnings);
+  }
 
   const [historicalRates, currentRates] = await Promise.all([
     getHistoricalRates(startStr, endStr),
     getExchangeRates(),
   ]);
 
-  // Rzeczywiste saldo portfela (w PLN) przeliczone na walutę wyświetlania
   const realBalance = convertAmount(wallet.balance, 'PLN', displayCurrency, currentRates);
 
-  // Suma transakcji (nie uwzględnia initial_balance ani ręcznych korekt)
-  const transactionSum = walletTransactions.reduce((acc, t) => {
-    return acc + convertAmount(t.amount, t.currency || 'PLN', displayCurrency, currentRates);
-  }, 0);
+  // Normalizuj kwoty transakcji
+  function getSignedAmount(t: { amount: number; type: string; currency: string }) {
+    const converted = convertAmount(t.amount, t.currency || 'PLN', displayCurrency, currentRates);
+    if (t.type === 'expense' && converted > 0) return -converted;
+    return converted;
+  }
 
-  // Offset korygujący: różnica między rzeczywistym saldem a sumą transakcji
-  const offset = realBalance - transactionSum;
-
-  // Dla każdego dnia w zakresie: oblicz saldo portfela z kursem Z TEGO DNIA
+  // Liczymy wstecz od aktualnego salda.
+  // futureSum = suma transakcji PO dniu + suma zarobków z kalendarza PO dniu
   const data: { date: string; value: number }[] = [];
   const current = new Date(startDate);
 
   while (current <= today) {
     const dateStr = current.toISOString().split('T')[0];
-    const ratesForDay = historicalRates[dateStr] || currentRates;
 
-    // Zsumuj transakcje do tego dnia, przeliczając kursem tego dnia + offset
-    const balance = walletTransactions
-      .filter(t => t.date <= dateStr)
-      .reduce((acc, t) => {
-        return acc + convertAmount(t.amount, t.currency || 'PLN', displayCurrency, ratesForDay);
-      }, 0);
+    // Suma nie-pracowych transakcji po tym dniu
+    const futureNonWork = nonWorkTransactions
+      .filter(t => t.date > dateStr)
+      .reduce((acc, t) => acc + getSignedAmount(t), 0);
 
-    data.push({ date: dateStr, value: balance + offset });
+    // Suma zarobków z kalendarza po tym dniu
+    let futureCalendarEarnings = 0;
+    for (const [evDate, earnings] of dailyEarnings.entries()) {
+      if (evDate > dateStr) {
+        futureCalendarEarnings += convertAmount(earnings, 'PLN', displayCurrency, currentRates);
+      }
+    }
+
+    data.push({ date: dateStr, value: realBalance - futureNonWork - futureCalendarEarnings });
     current.setDate(current.getDate() + 1);
   }
 
@@ -1025,17 +1053,57 @@ export async function editCalendarEvent(id: string, data: {
   revalidatePath('/', 'layout');
 }
 
-export async function deleteCalendarEvent(id: string) {
+export async function deleteCalendarEvent(id: string, reverseTransaction = false) {
   const userId = await getUserId();
   if (!userId) throw new Error('Unauthorized');
 
   const { data: event } = await supabaseAdmin
     .from('calendar_events')
-    .select('user_id')
+    .select('*')
     .eq('id', id)
     .single();
 
   if (!event || event.user_id !== userId) return;
+
+  // Reverse the wallet balance if requested (settled event)
+  if (reverseTransaction && event.is_settled && event.wallet_id) {
+    const dek = await getDEK();
+    const hourlyRate = decryptNumber(event.hourly_rate, dek);
+    const start = new Date(event.start_time);
+    const end = new Date(event.end_time);
+    const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+    const earnings = hours * hourlyRate;
+
+    const { data: wallet } = await supabaseAdmin
+      .from('wallets')
+      .select('balance')
+      .eq('id', event.wallet_id)
+      .single();
+
+    if (wallet) {
+      const currentBalance = decryptNumber(wallet.balance, dek);
+      await supabaseAdmin
+        .from('wallets')
+        .update({ balance: encryptNumber(currentBalance - earnings, dek) })
+        .eq('id', event.wallet_id);
+
+      // Create a reversal transaction
+      const eventDate = event.start_time.split('T')[0];
+      await supabaseAdmin
+        .from('transactions')
+        .insert({
+          id: nanoid(),
+          amount: encryptNumber(-earnings, dek),
+          category: encryptString('Praca', dek),
+          description: encryptString(`Cofnięcie rozliczenia: ${decryptString(event.title, dek)}`, dek),
+          type: 'outcome',
+          date: eventDate,
+          wallet_id: event.wallet_id,
+          currency: 'PLN',
+          created_at: new Date().toISOString(),
+        });
+    }
+  }
 
   await supabaseAdmin
     .from('calendar_events')
@@ -1183,7 +1251,7 @@ export async function deleteRecurringInstance(instanceId: string) {
   revalidatePath('/', 'layout');
 }
 
-export async function toggleEventConfirmed(id: string, confirmed: boolean) {
+export async function toggleEventConfirmed(id: string, confirmed: boolean, reverseTransaction = false) {
   const userId = await getUserId();
   if (!userId) throw new Error('Unauthorized');
 
@@ -1248,38 +1316,91 @@ export async function toggleEventConfirmed(id: string, confirmed: boolean) {
           });
       }
     } else {
-      // Unconfirm — toggle is_confirmed to false (preserve user edits on materialized instance)
+      // Unconfirm — check if we need to reverse transaction
       const { data: existing } = await supabaseAdmin
         .from('calendar_events')
-        .select('id')
+        .select('*')
         .eq('id', id)
         .single();
 
       if (existing) {
+        if (reverseTransaction && existing.is_settled && existing.wallet_id) {
+          await reverseSettledEvent(existing);
+        }
+
         await supabaseAdmin
           .from('calendar_events')
-          .update({ is_confirmed: false })
+          .update({ is_confirmed: false, is_settled: false })
           .eq('id', id)
           .eq('user_id', userId);
       }
     }
   } else {
-    // Regular (non-recurring) event — simple toggle
+    // Regular (non-recurring) event
     const { data: event } = await supabaseAdmin
       .from('calendar_events')
-      .select('user_id')
+      .select('*')
       .eq('id', id)
       .single();
 
     if (!event || event.user_id !== userId) return;
 
-    await supabaseAdmin
-      .from('calendar_events')
-      .update({ is_confirmed: confirmed })
-      .eq('id', id);
+    if (confirmed) {
+      await supabaseAdmin
+        .from('calendar_events')
+        .update({ is_confirmed: true })
+        .eq('id', id);
+    } else {
+      if (reverseTransaction && event.is_settled && event.wallet_id) {
+        await reverseSettledEvent(event);
+      }
+
+      await supabaseAdmin
+        .from('calendar_events')
+        .update({ is_confirmed: false, is_settled: false })
+        .eq('id', id);
+    }
   }
 
   revalidatePath('/', 'layout');
+}
+
+async function reverseSettledEvent(event: { wallet_id: string; hourly_rate: string; start_time: string; end_time: string; title: string }) {
+  const dek = await getDEK();
+  const hourlyRate = decryptNumber(event.hourly_rate, dek);
+  const start = new Date(event.start_time);
+  const end = new Date(event.end_time);
+  const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+  const earnings = hours * hourlyRate;
+
+  const { data: wallet } = await supabaseAdmin
+    .from('wallets')
+    .select('balance')
+    .eq('id', event.wallet_id)
+    .single();
+
+  if (wallet) {
+    const currentBalance = decryptNumber(wallet.balance, dek);
+    await supabaseAdmin
+      .from('wallets')
+      .update({ balance: encryptNumber(currentBalance - earnings, dek) })
+      .eq('id', event.wallet_id);
+
+    const eventDate = event.start_time.split('T')[0];
+    await supabaseAdmin
+      .from('transactions')
+      .insert({
+        id: nanoid(),
+        amount: encryptNumber(-earnings, dek),
+        category: encryptString('Praca', dek),
+        description: encryptString(`Cofnięcie rozliczenia: ${decryptString(event.title, dek)}`, dek),
+        type: 'outcome',
+        date: eventDate,
+        wallet_id: event.wallet_id,
+        currency: 'PLN',
+        created_at: new Date().toISOString(),
+      });
+  }
 }
 
 export async function settleWeekAction(weekStart: string, weekEnd: string) {
@@ -1306,26 +1427,7 @@ export async function settleWeekAction(weekStart: string, weekEnd: string) {
   const workEvents = events.filter(e => (e.event_type || 'work') === 'work');
   if (workEvents.length === 0) return { settled: 0 };
 
-  // Pobierz portfele z track_from do filtrowania
-  const walletIds = Array.from(new Set(workEvents.filter(e => e.wallet_id).map(e => e.wallet_id)));
-  const { data: walletsRaw } = await supabaseAdmin
-    .from('wallets')
-    .select('id, track_from')
-    .in('id', walletIds);
-
-  const walletTrackFrom = new Map<string, string | undefined>();
-  for (const w of walletsRaw || []) {
-    walletTrackFrom.set(w.id, w.track_from ? decryptString(w.track_from, dek) || undefined : undefined);
-  }
-
-  // Filtruj eventy: odrzuć te przed track_from portfela
-  const filteredEvents = workEvents.filter(event => {
-    if (!event.wallet_id) return false;
-    const trackFrom = walletTrackFrom.get(event.wallet_id);
-    if (!trackFrom) return true;
-    const eventDate = event.start_time.split('T')[0];
-    return eventDate >= trackFrom;
-  });
+  const filteredEvents = workEvents.filter(event => !!event.wallet_id);
 
   if (filteredEvents.length === 0) return { settled: 0 };
 
@@ -1637,26 +1739,7 @@ export async function settleMonthAction(monthStart: string, monthEnd: string) {
   const workMonthEvents = events.filter(e => (e.event_type || 'work') === 'work');
   if (workMonthEvents.length === 0) return { settled: 0 };
 
-  // Pobierz portfele z track_from do filtrowania
-  const mWalletIds = Array.from(new Set(workMonthEvents.filter(e => e.wallet_id).map(e => e.wallet_id)));
-  const { data: mWalletsRaw } = await supabaseAdmin
-    .from('wallets')
-    .select('id, track_from')
-    .in('id', mWalletIds);
-
-  const mWalletTrackFrom = new Map<string, string | undefined>();
-  for (const w of mWalletsRaw || []) {
-    mWalletTrackFrom.set(w.id, w.track_from ? decryptString(w.track_from, dek) || undefined : undefined);
-  }
-
-  // Filtruj eventy: odrzuć te przed track_from portfela
-  const filteredMonthEvents = workMonthEvents.filter(event => {
-    if (!event.wallet_id) return false;
-    const trackFrom = mWalletTrackFrom.get(event.wallet_id);
-    if (!trackFrom) return true;
-    const eventDate = event.start_time.split('T')[0];
-    return eventDate >= trackFrom;
-  });
+  const filteredMonthEvents = workMonthEvents.filter(event => !!event.wallet_id);
 
   if (filteredMonthEvents.length === 0) return { settled: 0 };
 

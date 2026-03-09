@@ -198,12 +198,22 @@ export function CalendarPageClient({ initialEvents, initialWallets, googleConnec
       return;
     }
 
+    // When unchecking a settled work event, ask about reversing the transaction
+    if (!confirmed && event.is_settled && event.event_type !== 'personal') {
+      const shouldReverse = confirm(
+        `To wydarzenie zostało już rozliczone — kwota została dodana do portfela "${event.walletName}". Czy chcesz odjąć tę kwotę z portfela i odznaczyć wydarzenie?`
+      );
+      if (!shouldReverse) return; // Anuluj — nic nie rób
+    }
+
+    const reverseTransaction = !confirmed && event.is_settled && event.event_type !== 'personal';
+
     const snapshot = useFinanceStore.getState().calendarEvents;
     setCalendarEvents(
-      snapshot.map(e => e.id === event.id ? { ...e, is_confirmed: confirmed } : e)
+      snapshot.map(e => e.id === event.id ? { ...e, is_confirmed: confirmed, is_settled: !confirmed ? false : e.is_settled } : e)
     );
     try {
-      await toggleEventConfirmed(event.id, confirmed);
+      await toggleEventConfirmed(event.id, confirmed, reverseTransaction);
     } catch {
       setCalendarEvents(snapshot);
     }

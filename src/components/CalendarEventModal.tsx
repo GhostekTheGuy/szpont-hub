@@ -122,14 +122,27 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
   };
 
   const handleDelete = async () => {
-    if (!editingEvent || !confirm('Usunąć wydarzenie?')) return;
+    if (!editingEvent) return;
+
+    let reverseTransaction = false;
+
+    if (editingEvent.is_settled && editingEvent.event_type !== 'personal') {
+      const choice = confirm(
+        'To wydarzenie zostało już rozliczone. Czy chcesz również odjąć przydzieloną kwotę z portfela?'
+      );
+      reverseTransaction = choice;
+      // Confirm deletion regardless
+      if (!confirm('Usunąć wydarzenie?')) return;
+    } else {
+      if (!confirm('Usunąć wydarzenie?')) return;
+    }
+
     setLoading(true);
     try {
       if (isRecurringInstance) {
-        // Instancja cykliczna — usuń tylko tę instancję (zmaterializowaną)
         await deleteRecurringInstance(editingEvent.id);
       } else {
-        await deleteCalendarEvent(editingEvent.id);
+        await deleteCalendarEvent(editingEvent.id, reverseTransaction);
       }
       onClose(true);
     } catch (error) {
