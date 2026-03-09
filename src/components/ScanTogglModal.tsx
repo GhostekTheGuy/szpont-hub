@@ -189,6 +189,7 @@ export function ScanTogglModal({ isOpen, onClose }: ScanTogglModalProps) {
           end_time: endDt.toISOString(),
           is_recurring: false,
           recurrence_rule: null,
+          event_type: 'work',
         });
         setSavedCount(i + 1);
       }

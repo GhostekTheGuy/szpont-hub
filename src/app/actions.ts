@@ -952,7 +952,7 @@ export async function getCalendarEvents(weekStart: string, weekEnd: string) {
     recurrence_rule: e.recurrence_rule,
     is_settled: e.is_settled,
     is_confirmed: e.is_confirmed ?? false,
-    event_type: (e.event_type || 'work') as 'work' | 'personal',
+    event_type: (e.event_type || (e.google_event_id ? 'personal' : 'work')) as 'work' | 'personal',
     google_event_id: e.google_event_id || null,
     google_calendar_id: e.google_calendar_id || null,
   }));
