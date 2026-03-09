@@ -43,29 +43,40 @@ export const ProjectedNetWorthChart = memo(function ProjectedNetWorthChart({
       return converted;
     }
 
-    // Oblicz net worth na koniec każdego z ostatnich 12 miesięcy
-    // Podejście: liczymy wstecz od currentNetWorth
+    // Znajdź najwcześniejszą datę aktywności (transakcja, wydarzenie kalendarza lub track_from portfela)
+    const allDates: string[] = [];
+    for (const t of nonWorkTx) { if (t.date) allDates.push(t.date); }
+    if (workEarningsByDate) {
+      for (const d of Object.keys(workEarningsByDate)) allDates.push(d);
+    }
+    for (const w of wallets) {
+      if (w.track_from) allDates.push(w.track_from);
+    }
+    allDates.sort();
+    const earliestDate = allDates.length > 0 ? allDates[0] : format(today, 'yyyy-MM-dd');
+    const earliestMonth = earliestDate.substring(0, 7); // yyyy-MM
+
+    // Buduj listę miesięcy od najwcześniejszego do obecnego
     const months: { key: string; label: string; endDate: string }[] = [];
-    for (let i = 11; i >= 0; i--) {
-      const d = subMonths(today, i);
-      const end = i === 0 ? today : endOfMonth(d);
+    let cursor = new Date(earliestMonth + '-01');
+    while (format(cursor, 'yyyy-MM') <= format(today, 'yyyy-MM')) {
+      const isCurrentMonth = format(cursor, 'yyyy-MM') === format(today, 'yyyy-MM');
       months.push({
-        key: format(d, 'yyyy-MM'),
-        label: format(d, 'LLL', { locale: pl }),
-        endDate: format(end, 'yyyy-MM-dd'),
+        key: format(cursor, 'yyyy-MM'),
+        label: format(cursor, 'LLL', { locale: pl }),
+        endDate: isCurrentMonth ? format(today, 'yyyy-MM-dd') : format(endOfMonth(cursor), 'yyyy-MM-dd'),
       });
+      cursor = addMonths(cursor, 1);
     }
 
     // Dla każdego miesiąca: netWorth = currentNetWorth - (suma zmian po końcu tego miesiąca)
     const actualPoints: { month: string; actual: number; projected: number | null }[] = [];
 
     for (const { label, endDate } of months) {
-      // Suma nie-pracowych transakcji po endDate
       const futureTxSum = nonWorkTx
         .filter(t => t.date > endDate)
         .reduce((acc, t) => acc + getSignedAmount(t), 0);
 
-      // Suma zarobków z kalendarza po endDate
       let futureWorkSum = 0;
       if (workEarningsByDate) {
         for (const [evDate, earnings] of Object.entries(workEarningsByDate)) {
@@ -79,14 +90,23 @@ export const ProjectedNetWorthChart = memo(function ProjectedNetWorthChart({
       actualPoints.push({ month: label, actual: netWorth, projected: null });
     }
 
-    // Oblicz średni miesięczny zysk (skumulowany przyrost)
-    const monthlyGains: number[] = [];
-    for (let i = 1; i < actualPoints.length; i++) {
-      monthlyGains.push(actualPoints[i].actual - actualPoints[i - 1].actual);
+    // Oblicz średni miesięczny zysk
+    // Jeśli mamy 1 miesiąc lub jesteśmy w trakcie pierwszego:
+    // zysk = zmiana od początku do teraz (currentNetWorth - netWorth pierwszego miesiąca)
+    let avgMonthlyGain: number;
+    if (actualPoints.length <= 1) {
+      // Pierwszy miesiąc — zysk = currentNetWorth - initial balance
+      const initialBalancePLN = wallets.reduce((sum, w) => sum + (w.initial_balance || 0), 0);
+      const initialBalance = convertAmount(initialBalancePLN, 'PLN', displayCurrency, exchangeRates);
+      avgMonthlyGain = currentNetWorth - initialBalance;
+    } else {
+      // Mamy kilka miesięcy — średnia ze zmian między miesiącami
+      const monthlyGains: number[] = [];
+      for (let i = 1; i < actualPoints.length; i++) {
+        monthlyGains.push(actualPoints[i].actual - actualPoints[i - 1].actual);
+      }
+      avgMonthlyGain = monthlyGains.reduce((a, b) => a + b, 0) / monthlyGains.length;
     }
-    const avgMonthlyGain = monthlyGains.length > 0
-      ? monthlyGains.reduce((a, b) => a + b, 0) / monthlyGains.length
-      : 0;
 
     // Prognoza na 6 miesięcy w przód
     const projectedPoints: { month: string; actual: number | null; projected: number }[] = [];
@@ -149,7 +169,7 @@ export const ProjectedNetWorthChart = memo(function ProjectedNetWorthChart({
     <div className="px-4 py-4 lg:px-6 lg:py-6">
       <div className="mb-6">
         <h2 className="text-xl font-bold text-card-foreground mb-1">Prognozowany Net Worth</h2>
-        <p className="text-muted-foreground text-sm">Prognoza na 6 miesięcy (średni miesięczny zysk)</p>
+        <p className="text-muted-foreground text-sm">Prognoza na 6 miesięcy na podstawie średniego miesięcznego zysku</p>
       </div>
 
       <ResponsiveContainer width="100%" height={300}>
