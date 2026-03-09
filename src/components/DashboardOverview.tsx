@@ -369,6 +369,7 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
               assets={assets}
               displayCurrency={displayCurrency}
               exchangeRates={exchangeRates}
+              workEarningsByDate={workEarningsByDate}
             />
           </div>
 
