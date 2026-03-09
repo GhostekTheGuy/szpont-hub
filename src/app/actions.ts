@@ -320,7 +320,7 @@ export async function getWalletChartData(
   const realBalance = convertAmount(wallet.balance, 'PLN', displayCurrency, currentRates);
 
   // Normalizuj kwoty transakcji
-  function getSignedAmount(t: { amount: number; type: string; currency: string }) {
+  function getSignedAmount(t: { amount: number; type: string; currency: Currency }) {
     const converted = convertAmount(t.amount, t.currency || 'PLN', displayCurrency, currentRates);
     if (t.type === 'expense' && converted > 0) return -converted;
     return converted;
