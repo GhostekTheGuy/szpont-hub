@@ -694,7 +694,7 @@ export async function editWalletAction(id: string, data: any) {
   // Sprawdź czy portfel należy do użytkownika
   const { data: wallet } = await supabaseAdmin
     .from('wallets')
-    .select('user_id')
+    .select('user_id, balance, initial_balance')
     .eq('id', id)
     .single();
 
@@ -714,6 +714,12 @@ export async function editWalletAction(id: string, data: any) {
   }
 
   if (typeof data.initial_balance === 'number') {
+    const oldInitialBalance = wallet.initial_balance ? decryptNumber(wallet.initial_balance, dek) : 0;
+    const delta = data.initial_balance - oldInitialBalance;
+    if (delta !== 0) {
+      const currentBalance = wallet.balance ? decryptNumber(wallet.balance, dek) : 0;
+      updateData.balance = encryptNumber(currentBalance + delta, dek);
+    }
     updateData.initial_balance = encryptNumber(data.initial_balance, dek);
   }
 
