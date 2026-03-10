@@ -199,9 +199,10 @@ export async function getDashboardData() {
     wallet_id: g.wallet_id,
   }));
 
-  // Oblicz dzienne zarobki z wydarzeń kalendarza (data → kwota w PLN)
+  // Oblicz dzienne zarobki z rozliczonych wydarzeń kalendarza (data → kwota w PLN)
   const workEarningsByDate: Record<string, number> = {};
   for (const ev of calendarEventsRaw || []) {
+    if (!ev.is_settled) continue;
     const eventDate = ev.start_time.split('T')[0];
     const hourlyRate = decryptNumber(ev.hourly_rate, dek);
     const start = new Date(ev.start_time);
@@ -313,9 +314,10 @@ export async function getWalletChartData(
     .eq('is_confirmed', true)
     .neq('event_type', 'personal');
 
-  // Oblicz dzienne zarobki z wydarzeń kalendarza
+  // Oblicz dzienne zarobki z rozliczonych wydarzeń kalendarza
   const dailyEarnings = new Map<string, number>();
   for (const ev of calendarEvents || []) {
+    if (!ev.is_settled) continue;
     const eventDate = ev.start_time.split('T')[0];
     const hourlyRate = decryptNumber(ev.hourly_rate, dek);
     const start = new Date(ev.start_time);

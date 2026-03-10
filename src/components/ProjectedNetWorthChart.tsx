@@ -6,6 +6,7 @@ import { Transaction, Wallet, Asset } from '@/hooks/useFinanceStore';
 import { subMonths, addMonths, format, startOfMonth, endOfMonth } from 'date-fns';
 import { pl } from 'date-fns/locale';
 import { convertAmount, formatCurrency, type Currency, type ExchangeRates } from '@/lib/exchange-rates';
+import { getNiceYTicks } from '@/lib/chart-utils';
 
 interface ProjectedNetWorthChartProps {
   transactions: Transaction[];
@@ -131,13 +132,9 @@ export const ProjectedNetWorthChart = memo(function ProjectedNetWorthChart({
     return [...actualPoints, ...projectedPoints];
   }, [transactions, wallets, assets, displayCurrency, exchangeRates, workEarningsByDate]);
 
-  const yDomain = useMemo(() => {
+  const yTicks = useMemo(() => {
     const values = chartData.map((d) => d.actual ?? d.projected ?? 0);
-    const min = Math.min(...values);
-    const max = Math.max(...values);
-    const range = max - min;
-    const padding = range > 0 ? range * 0.1 : Math.abs(max) * 0.05 || 100;
-    return [Math.floor(min - padding), Math.ceil(max + padding)];
+    return getNiceYTicks(Math.min(...values), Math.max(...values));
   }, [chartData]);
 
   const formatYTick = useCallback((value: number) => {
@@ -188,7 +185,8 @@ export const ProjectedNetWorthChart = memo(function ProjectedNetWorthChart({
             tickFormatter={formatYTick}
             axisLine={false}
             tickLine={false}
-            domain={yDomain}
+            domain={[yTicks[0], yTicks[yTicks.length - 1]]}
+            ticks={yTicks}
           />
           <Tooltip content={<CustomTooltip />} />
           <Line
