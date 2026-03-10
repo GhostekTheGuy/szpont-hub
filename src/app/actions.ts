@@ -667,7 +667,7 @@ export async function addWalletAction(data: any) {
       type: data.type,
       color: data.color,
       icon: data.icon,
-      balance: encryptNumber(0, dek),
+      balance: encryptNumber(initialBalance, dek),
       track_from: encryptString(trackFrom, dek),
       initial_balance: encryptNumber(initialBalance, dek),
       currency: 'PLN',
@@ -1079,6 +1079,110 @@ export async function editCalendarEvent(id: string, data: {
       event_type: data.event_type || 'work',
     })
     .eq('id', id);
+
+  revalidatePath('/', 'layout');
+}
+
+export async function moveCalendarEvent(id: string, start_time: string, end_time: string) {
+  if (!isValidISODate(start_time) || !isValidISODate(end_time)) throw new Error('Invalid date');
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  const { data: event } = await supabaseAdmin
+    .from('calendar_events')
+    .select('user_id, google_event_id, is_recurring')
+    .eq('id', id)
+    .single();
+
+  if (!event || event.user_id !== userId) return;
+  if (event.google_event_id || event.is_recurring) return;
+
+  await supabaseAdmin
+    .from('calendar_events')
+    .update({ start_time, end_time })
+    .eq('id', id);
+
+  revalidatePath('/', 'layout');
+}
+
+export async function moveRecurringEvent(
+  id: string,
+  newStartTime: string,
+  newEndTime: string,
+  mode: 'all' | 'this'
+) {
+  if (!isValidISODate(newStartTime) || !isValidISODate(newEndTime)) throw new Error('Invalid date');
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  const parsedInstance = parseInstanceId(id);
+  const parentId = parsedInstance ? parsedInstance.parentId : id;
+
+  const { data: parent } = await supabaseAdmin
+    .from('calendar_events')
+    .select('*')
+    .eq('id', parentId)
+    .eq('user_id', userId)
+    .single();
+
+  if (!parent) throw new Error('Event not found');
+
+  if (mode === 'all') {
+    // Update parent's time portion (keep original date anchor)
+    const newStart = new Date(newStartTime);
+    const newEnd = new Date(newEndTime);
+    const origStart = new Date(parent.start_time);
+    const origEnd = new Date(parent.end_time);
+    const durationMs = origEnd.getTime() - origStart.getTime();
+
+    origStart.setUTCHours(newStart.getUTCHours(), newStart.getUTCMinutes(), 0, 0);
+    const updatedEnd = new Date(origStart.getTime() + durationMs);
+
+    await supabaseAdmin
+      .from('calendar_events')
+      .update({ start_time: origStart.toISOString(), end_time: updatedEnd.toISOString() })
+      .eq('id', parentId);
+  } else {
+    // "this" mode — materialize this specific instance
+    if (parsedInstance) {
+      const { data: existing } = await supabaseAdmin
+        .from('calendar_events')
+        .select('id')
+        .eq('id', id)
+        .single();
+
+      if (existing) {
+        await supabaseAdmin
+          .from('calendar_events')
+          .update({ start_time: newStartTime, end_time: newEndTime })
+          .eq('id', id);
+      } else {
+        await supabaseAdmin
+          .from('calendar_events')
+          .insert({
+            id,
+            user_id: userId,
+            title: parent.title,
+            wallet_id: parent.wallet_id,
+            hourly_rate: parent.hourly_rate,
+            start_time: newStartTime,
+            end_time: newEndTime,
+            is_recurring: false,
+            recurrence_rule: null,
+            is_settled: false,
+            is_confirmed: parent.is_confirmed || false,
+            event_type: parent.event_type || 'work',
+            created_at: new Date().toISOString(),
+          });
+      }
+    } else {
+      // Moving the parent directly (unlikely in UI but safe fallback)
+      await supabaseAdmin
+        .from('calendar_events')
+        .update({ start_time: newStartTime, end_time: newEndTime })
+        .eq('id', parentId);
+    }
+  }
 
   revalidatePath('/', 'layout');
 }

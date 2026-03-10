@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { X, Wallet as WalletIcon, Banknote, Bitcoin, TrendingUp, CreditCard, PiggyBank, Sparkles, Waves, Palette } from 'lucide-react';
-import { addWalletAction, editWalletAction, adjustBalanceAction } from '@/app/actions';
+import { addWalletAction, editWalletAction } from '@/app/actions';
 import { Wallet } from '@/hooks/useFinanceStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { parseWalletColor, type CardEffect } from '@/components/WalletCard';
@@ -60,7 +60,7 @@ export function WalletModal({ isOpen, onClose, editingWallet }: WalletModalProps
       setName(editingWallet.name);
       setType(editingWallet.type);
       setIcon(editingWallet.icon || 'wallet');
-      setBalance(String(editingWallet.balance));
+      setBalance(String(editingWallet.initial_balance ?? 0));
       setTrackFrom(editingWallet.track_from || '');
 
       const parsed = parseWalletColor(editingWallet.color);
@@ -106,10 +106,6 @@ export function WalletModal({ isOpen, onClose, editingWallet }: WalletModalProps
 
       if (editingWallet) {
         await editWalletAction(editingWallet.id, { name, type, color, icon, track_from: trackFrom || undefined, initial_balance: balanceValue });
-
-        if (balanceValue !== editingWallet.balance) {
-          await adjustBalanceAction(editingWallet.id, balanceValue);
-        }
       } else {
         await addWalletAction({ name, type, color, icon, track_from: trackFrom || undefined, initial_balance: balanceValue });
       }
@@ -198,7 +194,7 @@ export function WalletModal({ isOpen, onClose, editingWallet }: WalletModalProps
               </div>
 
               <div>
-                <label className="block text-sm text-muted-foreground mb-2">Saldo (PLN)</label>
+                <label className="block text-sm text-muted-foreground mb-2">Saldo początkowe (PLN)</label>
                 <input
                   type="number"
                   step="0.01"
@@ -207,7 +203,7 @@ export function WalletModal({ isOpen, onClose, editingWallet }: WalletModalProps
                   className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
                   placeholder="0.00"
                 />
-                <p className="text-xs text-muted-foreground mt-1">Aktualne saldo portfela</p>
+                <p className="text-xs text-muted-foreground mt-1">Saldo portfela na dzień rozpoczęcia śledzenia</p>
               </div>
 
               <div>

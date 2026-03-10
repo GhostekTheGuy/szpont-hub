@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useFinanceStore, type Wallet, type CalendarEvent } from '@/hooks/useFinanceStore';
-import { getCalendarEvents, toggleEventConfirmed } from '@/app/actions';
+import { getCalendarEvents, toggleEventConfirmed, moveCalendarEvent, moveRecurringEvent } from '@/app/actions';
 import { WeeklyCalendar } from '@/components/WeeklyCalendar';
 import { CalendarEventModal } from '@/components/CalendarEventModal';
 import { WeeklySummaryModal } from '@/components/WeeklySummaryModal';
@@ -57,6 +57,7 @@ export function CalendarPageClient({ initialEvents, initialWallets, googleConnec
   const [futureWarning, setFutureWarning] = useState(false);
   const futureWarningTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [googleConn, setGoogleConn] = useState<GoogleConnection | null>(googleConnection || null);
+  const [recurringMoveData, setRecurringMoveData] = useState<{ event: CalendarEvent; newStart: string; newEnd: string } | null>(null);
   const lastSyncRef = useRef<number>(0);
   const [syncError, setSyncError] = useState<string | null>(null);
   const syncErrorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -219,6 +220,35 @@ export function CalendarPageClient({ initialEvents, initialWallets, googleConnec
     }
   }, [setCalendarEvents]);
 
+  const handleEventMove = useCallback(async (event: CalendarEvent, newStart: string, newEnd: string) => {
+    if (event.is_recurring) {
+      setRecurringMoveData({ event, newStart, newEnd });
+      return;
+    }
+    // Optimistic update
+    const snapshot = useFinanceStore.getState().calendarEvents;
+    setCalendarEvents(
+      snapshot.map(e => e.id === event.id ? { ...e, start_time: newStart, end_time: newEnd } : e)
+    );
+    try {
+      await moveCalendarEvent(event.id, newStart, newEnd);
+    } catch {
+      setCalendarEvents(snapshot);
+    }
+  }, [setCalendarEvents]);
+
+  const handleRecurringMoveChoice = useCallback(async (mode: 'all' | 'this') => {
+    if (!recurringMoveData) return;
+    const { event, newStart, newEnd } = recurringMoveData;
+    setRecurringMoveData(null);
+    try {
+      await moveRecurringEvent(event.id, newStart, newEnd, mode);
+      await loadMonth(currentMonth);
+    } catch (err) {
+      console.error('Error moving recurring event:', err);
+    }
+  }, [recurringMoveData, currentMonth, loadMonth]);
+
   const handleModalClose = (didChange?: boolean) => {
     setIsEventModalOpen(false);
     setEditingEvent(null);
@@ -315,6 +345,7 @@ export function CalendarPageClient({ initialEvents, initialWallets, googleConnec
           onEventClick={handleEventClick}
           onSlotClick={handleSlotClick}
           onToggleConfirmed={handleToggleConfirmed}
+          onEventMove={handleEventMove}
           onPrevMonth={goToPrevMonth}
           onNextMonth={goToNextMonth}
           onToday={goToToday}
@@ -418,6 +449,38 @@ export function CalendarPageClient({ initialEvents, initialWallets, googleConnec
             loadMonth(currentMonth);
           }}
         />
+      )}
+
+      {/* Recurring event move dialog */}
+      {recurringMoveData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-card border border-border rounded-xl p-6 w-full max-w-sm shadow-xl">
+            <h3 className="text-lg font-bold text-card-foreground mb-2">Przenieś wydarzenie cykliczne</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Czy chcesz zmienić godzinę we wszystkich wystąpieniach, czy tylko wyjątkowo w tym tygodniu?
+            </p>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => handleRecurringMoveChoice('all')}
+                className="w-full px-4 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground font-medium rounded-lg transition-colors"
+              >
+                Zmień we wszystkich
+              </button>
+              <button
+                onClick={() => handleRecurringMoveChoice('this')}
+                className="w-full px-4 py-2.5 bg-secondary hover:bg-accent text-secondary-foreground font-medium rounded-lg transition-colors"
+              >
+                Tylko w tym tygodniu
+              </button>
+              <button
+                onClick={() => setRecurringMoveData(null)}
+                className="w-full px-4 py-2.5 text-muted-foreground hover:text-foreground font-medium rounded-lg transition-colors"
+              >
+                Anuluj
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

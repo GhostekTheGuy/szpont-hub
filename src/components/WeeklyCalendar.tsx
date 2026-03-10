@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useEffect, useRef, useState } from 'react';
+import { useMemo, useEffect, useRef, useState, useCallback } from 'react';
 import {
   format,
   isToday,
@@ -22,6 +22,148 @@ const HOUR_HEIGHT = 56;
 const DAY_START_HOUR = 0;
 const DAY_END_HOUR = 24;
 const HOURS = Array.from({ length: DAY_END_HOUR - DAY_START_HOUR }, (_, i) => DAY_START_HOUR + i);
+const SNAP_MINUTES = 10;
+
+function isDraggableEvent(event: CalendarEvent): boolean {
+  return !event.google_event_id;
+}
+
+interface DragInfo {
+  eventId: string;
+  event: CalendarEvent;
+  startY: number;
+  originalStartMin: number;
+  currentStartMin: number;
+  durationMin: number;
+  active: boolean;
+  originalDayIndex: number;
+  currentDayIndex: number;
+}
+
+function useEventDrag(
+  onEventMove?: (event: CalendarEvent, newStart: string, newEnd: string) => void,
+  gridRef?: React.RefObject<HTMLDivElement | null>,
+  weekDaysRef?: React.MutableRefObject<Date[]>,
+) {
+  const dragRef = useRef<DragInfo | null>(null);
+  const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const didDragRef = useRef(false);
+  const [, setTick] = useState(0);
+  const rerender = useCallback(() => setTick(t => t + 1), []);
+
+  const handlePointerDown = useCallback((
+    e: React.PointerEvent,
+    event: CalendarEvent,
+    startMin: number,
+    durationMin: number,
+    dayIndex: number = 0,
+  ) => {
+    if (!isDraggableEvent(event) || e.button !== 0 || e.pointerType === 'touch') return;
+    dragRef.current = {
+      eventId: event.id,
+      event,
+      startY: e.clientY,
+      originalStartMin: startMin,
+      currentStartMin: startMin,
+      durationMin,
+      active: false,
+      originalDayIndex: dayIndex,
+      currentDayIndex: dayIndex,
+    };
+    didDragRef.current = false;
+    longPressRef.current = setTimeout(() => {
+      if (!dragRef.current) return;
+      dragRef.current.active = true;
+      didDragRef.current = true;
+      document.body.style.userSelect = 'none';
+      document.body.style.cursor = 'grabbing';
+      rerender();
+    }, 300);
+  }, [rerender]);
+
+  useEffect(() => {
+    const handleMove = (e: PointerEvent) => {
+      const info = dragRef.current;
+      if (!info) return;
+      if (!info.active) {
+        if (Math.abs(e.clientY - info.startY) > 15) {
+          if (longPressRef.current) clearTimeout(longPressRef.current);
+          longPressRef.current = null;
+          dragRef.current = null;
+        }
+        return;
+      }
+      e.preventDefault();
+      const dy = e.clientY - info.startY;
+      const deltaMin = Math.round((dy / HOUR_HEIGHT) * 60 / SNAP_MINUTES) * SNAP_MINUTES;
+      const newMin = Math.max(0, Math.min(24 * 60 - info.durationMin, info.originalStartMin + deltaMin));
+
+      let dayChanged = false;
+      if (gridRef?.current && weekDaysRef?.current) {
+        const rect = gridRef.current.getBoundingClientRect();
+        const relX = e.clientX - rect.left;
+        const colWidth = rect.width / weekDaysRef.current.length;
+        const colIndex = Math.max(0, Math.min(weekDaysRef.current.length - 1, Math.floor(relX / colWidth)));
+        if (colIndex !== info.currentDayIndex) {
+          info.currentDayIndex = colIndex;
+          dayChanged = true;
+        }
+      }
+
+      if (newMin !== info.currentStartMin || dayChanged) {
+        info.currentStartMin = newMin;
+        setTick(t => t + 1);
+      }
+    };
+
+    const handleUp = () => {
+      const info = dragRef.current;
+      if (longPressRef.current) {
+        clearTimeout(longPressRef.current);
+        longPressRef.current = null;
+      }
+      if (info?.active && onEventMove) {
+        const timeChanged = info.currentStartMin !== info.originalStartMin;
+        const dayChanged = info.currentDayIndex !== info.originalDayIndex;
+
+        if (timeChanged || dayChanged) {
+          let baseDate: Date;
+          if (weekDaysRef?.current) {
+            baseDate = weekDaysRef.current[info.currentDayIndex];
+          } else {
+            baseDate = parseISO(info.event.start_time);
+          }
+          const durationMs = parseISO(info.event.end_time).getTime() - parseISO(info.event.start_time).getTime();
+          const newStart = new Date(baseDate);
+          newStart.setHours(Math.floor(info.currentStartMin / 60), info.currentStartMin % 60, 0, 0);
+          const newEnd = new Date(newStart.getTime() + durationMs);
+          onEventMove(info.event, newStart.toISOString(), newEnd.toISOString());
+        }
+      }
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+      dragRef.current = null;
+      setTick(t => t + 1);
+    };
+
+    window.addEventListener('pointermove', handleMove, { passive: false });
+    window.addEventListener('pointerup', handleUp);
+    return () => {
+      window.removeEventListener('pointermove', handleMove);
+      window.removeEventListener('pointerup', handleUp);
+    };
+  }, [onEventMove, gridRef, weekDaysRef]);
+
+  return {
+    handlePointerDown,
+    activeDrag: dragRef.current?.active ? dragRef.current : null,
+    didDragRef,
+  };
+}
+
+function formatMinutes(min: number): string {
+  return `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+}
 
 const DAY_LABELS = ['Pon', 'Wt', 'Śr', 'Czw', 'Pt', 'Sob', 'Niedz'];
 const DAY_LABELS_FULL = ['pon.', 'wt.', 'śr.', 'czw.', 'pt.', 'sob.', 'niedz.'];
@@ -121,6 +263,7 @@ interface WeeklyCalendarProps {
   onEventClick: (event: CalendarEvent) => void;
   onSlotClick: (date: Date, hour: number) => void;
   onToggleConfirmed?: (event: CalendarEvent, confirmed: boolean) => void;
+  onEventMove?: (event: CalendarEvent, newStartTime: string, newEndTime: string) => void;
   onPrevMonth: () => void;
   onNextMonth: () => void;
   onToday: () => void;
@@ -185,6 +328,7 @@ export function WeeklyCalendar({
   onEventClick,
   onSlotClick,
   onToggleConfirmed,
+  onEventMove,
   onPrevMonth,
   onNextMonth,
   onToday,
@@ -399,6 +543,7 @@ export function WeeklyCalendar({
                   onSlotClick={onSlotClick}
                   onEventClick={onEventClick}
                   onToggleConfirmed={onToggleConfirmed}
+                  onEventMove={onEventMove}
                 />
               ) : (
                 <WeekTimeGrid
@@ -409,6 +554,7 @@ export function WeeklyCalendar({
                   onEventClick={onEventClick}
                   onSelectDate={onSelectDate}
                   onToggleConfirmed={onToggleConfirmed}
+                  onEventMove={onEventMove}
                 />
               )}
             </div>
@@ -514,14 +660,17 @@ function DayTimeGrid({
   onSlotClick,
   onEventClick,
   onToggleConfirmed,
+  onEventMove,
 }: {
   selectedDate: Date;
   events: CalendarEvent[];
   onSlotClick: (date: Date, hour: number) => void;
   onEventClick: (event: CalendarEvent) => void;
   onToggleConfirmed?: (event: CalendarEvent, confirmed: boolean) => void;
+  onEventMove?: (event: CalendarEvent, newStart: string, newEnd: string) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const { handlePointerDown, activeDrag, didDragRef } = useEventDrag(onEventMove);
 
   // Scroll to first event or current hour on mount / date change
   useEffect(() => {
@@ -576,6 +725,11 @@ function DayTimeGrid({
             />
           ))}
 
+          {/* Drag overlay */}
+          {activeDrag && (
+            <div className="fixed inset-0 z-20 cursor-grabbing" />
+          )}
+
           {/* Events */}
           {layoutEvents(events).map(({ event, col, totalCols }) => {
             const start = parseISO(event.start_time);
@@ -583,18 +737,24 @@ function DayTimeGrid({
             const startMin = start.getHours() * 60 + start.getMinutes();
             const endMin = end.getHours() * 60 + end.getMinutes();
             const effectiveEndMin = endMin <= startMin ? 24 * 60 : endMin;
-            const top = ((startMin - DAY_START_HOUR * 60) / 60) * HOUR_HEIGHT;
-            const height = Math.max(((effectiveEndMin - startMin) / 60) * HOUR_HEIGHT, 24);
+            const durationMin = effectiveEndMin - startMin;
+            const dragged = activeDrag?.eventId === event.id;
+            const displayStartMin = dragged ? activeDrag.currentStartMin : startMin;
+            const displayEndMin = displayStartMin + durationMin;
+            const top = ((displayStartMin - DAY_START_HOUR * 60) / 60) * HOUR_HEIGHT;
+            const height = Math.max((durationMin / 60) * HOUR_HEIGHT, 24);
             const eventHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
             const earnings = eventHours * event.hourly_rate;
             const color = getEventColor(event);
+            const draggable = isDraggableEvent(event);
 
             return (
               <div
                 key={event.id}
-                className={`absolute px-3 py-1.5 cursor-pointer overflow-hidden transition-opacity hover:opacity-90 z-10 ${
-                  event.is_settled ? 'opacity-60' : ''
-                }`}
+                className={`absolute px-3 py-1.5 transition-opacity hover:opacity-90 ${
+                  dragged ? 'overflow-visible' : 'overflow-hidden'
+                } ${event.is_settled ? 'opacity-60' : ''
+                } ${dragged ? 'z-30 shadow-lg ring-2 ring-primary/30' : 'z-10'} ${draggable ? 'cursor-grab' : 'cursor-pointer'}`}
                 style={{
                   top,
                   height,
@@ -602,9 +762,23 @@ function DayTimeGrid({
                   width: `calc(${(1 / totalCols) * 100}% - 6px)`,
                   backgroundColor: color + '22',
                   borderLeft: `3px solid ${color}`,
+
+                  transition: dragged ? 'box-shadow 0.2s' : undefined,
                 }}
-                onClick={(e) => { e.stopPropagation(); onEventClick(event); }}
+                onPointerDown={(e) => handlePointerDown(e, event, startMin, durationMin)}
+
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (didDragRef.current) { didDragRef.current = false; return; }
+                  onEventClick(event);
+                }}
               >
+                {/* Drag time tooltip */}
+                {dragged && (
+                  <div className="absolute -top-7 left-0 bg-foreground text-background text-xs font-medium px-2 py-0.5 rounded whitespace-nowrap z-40 pointer-events-none">
+                    {formatMinutes(displayStartMin)} – {formatMinutes(displayEndMin)}
+                  </div>
+                )}
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-semibold text-foreground truncate flex items-center gap-1">
@@ -613,7 +787,9 @@ function DayTimeGrid({
                     </div>
                     {height > 36 && (
                       <div className="text-xs text-muted-foreground mt-0.5">
-                        {format(start, 'HH:mm')} – {format(end, 'HH:mm')}
+                        {dragged
+                          ? `${formatMinutes(displayStartMin)} – ${formatMinutes(displayEndMin)}`
+                          : `${format(start, 'HH:mm')} – ${format(end, 'HH:mm')}`}
                         {event.event_type !== 'personal' && (
                           <>
                             <span className="mx-1">·</span>
@@ -676,6 +852,7 @@ function WeekTimeGrid({
   onEventClick,
   onSelectDate,
   onToggleConfirmed,
+  onEventMove,
 }: {
   weekDays: Date[];
   eventsByDay: Map<string, CalendarEvent[]>;
@@ -684,8 +861,13 @@ function WeekTimeGrid({
   onEventClick: (event: CalendarEvent) => void;
   onSelectDate: (date: Date) => void;
   onToggleConfirmed?: (event: CalendarEvent, confirmed: boolean) => void;
+  onEventMove?: (event: CalendarEvent, newStart: string, newEnd: string) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const dayColumnsRef = useRef<HTMLDivElement>(null);
+  const weekDaysRef = useRef(weekDays);
+  weekDaysRef.current = weekDays;
+  const { handlePointerDown, activeDrag, didDragRef } = useEventDrag(onEventMove, dayColumnsRef, weekDaysRef);
 
   // Collect all events for this week to determine scroll position
   const allWeekEvents = useMemo(() => {
@@ -771,10 +953,12 @@ function WeekTimeGrid({
           </div>
 
           {/* Day columns */}
+          <div ref={dayColumnsRef} className="flex-1 flex relative">
           {weekDays.map((day, dayIndex) => {
             const key = format(day, 'yyyy-MM-dd');
             const dayEvents = eventsByDay.get(key) || [];
             const today = isToday(day);
+            const isDragTarget = activeDrag && activeDrag.currentDayIndex === dayIndex && activeDrag.originalDayIndex !== dayIndex;
 
             return (
               <div
@@ -791,6 +975,11 @@ function WeekTimeGrid({
                   />
                 ))}
 
+                {/* Drag overlay (per-column to stay in stacking context) */}
+                {activeDrag && (
+                  <div className="fixed inset-0 z-20 cursor-grabbing" />
+                )}
+
                 {/* Events */}
                 {layoutEvents(dayEvents).map(({ event, col, totalCols }) => {
                   const start = parseISO(event.start_time);
@@ -798,18 +987,25 @@ function WeekTimeGrid({
                   const startMin = start.getHours() * 60 + start.getMinutes();
                   const endMin = end.getHours() * 60 + end.getMinutes();
                   const effectiveEndMin = endMin <= startMin ? 24 * 60 : endMin;
-                  const top = ((startMin - DAY_START_HOUR * 60) / 60) * HOUR_HEIGHT;
-                  const height = Math.max(((effectiveEndMin - startMin) / 60) * HOUR_HEIGHT, 20);
+                  const durationMin = effectiveEndMin - startMin;
+                  const dragged = activeDrag?.eventId === event.id;
+                  const draggedAway = dragged && activeDrag.currentDayIndex !== dayIndex;
+                  const displayStartMin = dragged && !draggedAway ? activeDrag.currentStartMin : startMin;
+                  const displayEndMin = displayStartMin + durationMin;
+                  const top = ((displayStartMin - DAY_START_HOUR * 60) / 60) * HOUR_HEIGHT;
+                  const height = Math.max((durationMin / 60) * HOUR_HEIGHT, 20);
                   const eventHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
                   const earnings = eventHours * event.hourly_rate;
                   const color = getEventColor(event);
+                  const draggable = isDraggableEvent(event);
 
                   return (
                     <div
                       key={event.id}
-                      className={`absolute rounded px-1.5 py-0.5 cursor-pointer overflow-hidden transition-opacity hover:opacity-90 z-10 ${
-                        event.is_settled ? 'opacity-60' : ''
-                      }`}
+                      className={`absolute rounded px-1.5 py-0.5 transition-opacity hover:opacity-90 ${
+                        dragged && !draggedAway ? 'overflow-visible' : 'overflow-hidden'
+                      } ${event.is_settled ? 'opacity-60' : ''
+                      } ${dragged && !draggedAway ? 'z-30 shadow-lg ring-2 ring-primary/30' : 'z-10'} ${draggable ? 'cursor-grab' : 'cursor-pointer'} ${draggedAway ? 'opacity-20' : ''}`}
                       style={{
                         top,
                         height,
@@ -817,9 +1013,21 @@ function WeekTimeGrid({
                         width: `calc(${(1 / totalCols) * 100}% - 4px)`,
                         backgroundColor: color + '33',
                         borderLeft: `3px solid ${color}`,
+                        transition: dragged ? 'box-shadow 0.2s' : undefined,
                       }}
-                      onClick={(e) => { e.stopPropagation(); onEventClick(event); }}
+                      onPointerDown={(e) => handlePointerDown(e, event, startMin, durationMin, dayIndex)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (didDragRef.current) { didDragRef.current = false; return; }
+                        onEventClick(event);
+                      }}
                     >
+                      {/* Drag time tooltip */}
+                      {dragged && !draggedAway && (
+                        <div className="absolute -top-6 left-0 bg-foreground text-background text-[10px] font-medium px-1.5 py-0.5 rounded whitespace-nowrap z-40 pointer-events-none">
+                          {formatMinutes(displayStartMin)} – {formatMinutes(displayEndMin)}
+                        </div>
+                      )}
                       <div className="flex items-start justify-between gap-0.5">
                         <div className="min-w-0 flex-1">
                           <div className="text-[11px] font-semibold text-foreground truncate leading-tight flex items-center gap-0.5">
@@ -828,7 +1036,9 @@ function WeekTimeGrid({
                           </div>
                           {height > 30 && (
                             <div className="text-[10px] text-muted-foreground truncate">
-                              {format(start, 'HH:mm')} – {format(end, 'HH:mm')}
+                              {dragged && !draggedAway
+                                ? `${formatMinutes(displayStartMin)} – ${formatMinutes(displayEndMin)}`
+                                : `${format(start, 'HH:mm')} – ${format(end, 'HH:mm')}`}
                               {event.event_type !== 'personal' && (
                                 <>
                                   <span className="mx-0.5">·</span>
@@ -863,6 +1073,35 @@ function WeekTimeGrid({
                   );
                 })}
 
+                {/* Cross-day drag ghost */}
+                {isDragTarget && (() => {
+                  const ev = activeDrag.event;
+                  const ghostColor = getEventColor(ev);
+                  const ghostTop = ((activeDrag.currentStartMin - DAY_START_HOUR * 60) / 60) * HOUR_HEIGHT;
+                  const ghostHeight = Math.max((activeDrag.durationMin / 60) * HOUR_HEIGHT, 20);
+                  const ghostEndMin = activeDrag.currentStartMin + activeDrag.durationMin;
+                  return (
+                    <div
+                      className="absolute rounded px-1.5 py-0.5 z-30 shadow-lg ring-2 ring-primary/30 overflow-visible"
+                      style={{
+                        top: ghostTop,
+                        height: ghostHeight,
+                        left: '2px',
+                        right: '2px',
+                        backgroundColor: ghostColor + '33',
+                        borderLeft: `3px solid ${ghostColor}`,
+                      }}
+                    >
+                      <div className="absolute -top-6 left-0 bg-foreground text-background text-[10px] font-medium px-1.5 py-0.5 rounded whitespace-nowrap z-40 pointer-events-none">
+                        {formatMinutes(activeDrag.currentStartMin)} – {formatMinutes(ghostEndMin)}
+                      </div>
+                      <div className="text-[11px] font-semibold text-foreground truncate leading-tight">
+                        {ev.title}
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {/* Current time line */}
                 {today && (
                   <div
@@ -878,6 +1117,7 @@ function WeekTimeGrid({
               </div>
             );
           })}
+          </div>
         </div>
       </div>
     </div>
