@@ -14,46 +14,58 @@ interface SectionNavProps {
 
 export function SectionNav({ sections, className }: SectionNavProps) {
   const [activeId, setActiveId] = useState(sections[0]?.id ?? '');
-  const observerRef = useRef<IntersectionObserver | null>(null);
   const navRef = useRef<HTMLDivElement>(null);
   const chipRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
+  const clickLockRef = useRef(false);
 
   useEffect(() => {
-    observerRef.current?.disconnect();
+    const sectionIds = sections.map(s => s.id);
 
-    const visibleSections = new Map<string, number>();
+    const handleScroll = () => {
+      if (clickLockRef.current) return;
 
-    observerRef.current = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            visibleSections.set(entry.target.id, entry.intersectionRatio);
-          } else {
-            visibleSections.delete(entry.target.id);
+      // Near the top of the page — force first section
+      if (window.scrollY < 100) {
+        setActiveId(sectionIds[0]);
+        return;
+      }
+
+      // Find the section closest to the top of the viewport (but not above it)
+      let best = '';
+      let bestDistance = Infinity;
+      const offset = 120; // account for sticky nav height
+
+      for (const id of sectionIds) {
+        const el = document.getElementById(id);
+        if (!el) continue;
+        const rect = el.getBoundingClientRect();
+        const distance = Math.abs(rect.top - offset);
+        // Section is at or above the offset line (scrolled past the trigger point)
+        if (rect.top <= offset + 50 && distance < bestDistance) {
+          best = id;
+          bestDistance = distance;
+        }
+      }
+
+      // If nothing found above offset, pick the first visible one
+      if (!best) {
+        for (const id of sectionIds) {
+          const el = document.getElementById(id);
+          if (!el) continue;
+          const rect = el.getBoundingClientRect();
+          if (rect.bottom > 0 && rect.top < window.innerHeight) {
+            best = id;
+            break;
           }
         }
+      }
 
-        // Pick the section with highest intersection ratio
-        let best = '';
-        let bestRatio = 0;
-        Array.from(visibleSections.entries()).forEach(([id, ratio]) => {
-          if (ratio > bestRatio) {
-            best = id;
-            bestRatio = ratio;
-          }
-        });
+      if (best) setActiveId(best);
+    };
 
-        if (best) setActiveId(best);
-      },
-      { threshold: [0, 0.25, 0.5, 0.75, 1], rootMargin: '-80px 0px -40% 0px' }
-    );
-
-    for (const section of sections) {
-      const el = document.getElementById(section.id);
-      if (el) observerRef.current.observe(el);
-    }
-
-    return () => observerRef.current?.disconnect();
+    handleScroll();
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
   }, [sections]);
 
   // Auto-scroll active chip into view
@@ -75,10 +87,14 @@ export function SectionNav({ sections, className }: SectionNavProps) {
   }, [activeId]);
 
   const handleClick = useCallback((id: string) => {
+    setActiveId(id);
+    clickLockRef.current = true;
     const el = document.getElementById(id);
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
+    // Unlock after scroll settles
+    setTimeout(() => { clickLockRef.current = false; }, 800);
   }, []);
 
   const setChipRef = useCallback((id: string, el: HTMLButtonElement | null) => {
