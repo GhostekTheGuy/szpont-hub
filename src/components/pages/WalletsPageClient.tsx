@@ -13,6 +13,7 @@ import { AssetList } from '@/components/AssetList';
 import { AssetModal } from '@/components/AssetModal';
 import { SellAssetModal } from '@/components/SellAssetModal';
 import { CompoundInterestChart } from '@/components/CompoundInterestChart';
+import { SectionNav } from '@/components/SectionNav';
 import { useFinanceStore, Transaction, Wallet, Asset, AssetSale } from '@/hooks/useFinanceStore';
 import { Plus, Camera, ChevronDown, ChevronUp, RefreshCw, BadgeDollarSign, Receipt, TrendingUp, TrendingDown, Landmark, Calculator } from 'lucide-react';
 import { deleteTransactionAction, deleteWalletAction, recalculateWalletBalance, deleteAssetAction, refreshAssetPricesAction } from '@/app/actions';
@@ -144,7 +145,7 @@ export function WalletsPageClient({ initialWallets, initialTransactions, exchang
 
   return (
     <>
-      <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-3 px-4 lg:px-0">
+      <div id="wallets-top" className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-3 px-4 lg:px-0 scroll-mt-24">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Portfele</h1>
           {activeWalletId && (
@@ -171,6 +172,13 @@ export function WalletsPageClient({ initialWallets, initialTransactions, exchang
           </button>
         </div>
       </div>
+
+      <SectionNav sections={[
+        { id: 'wallets-top', label: 'Portfele' },
+        { id: 'transactions-section', label: 'Transakcje' },
+        { id: 'assets-section', label: 'Aktywa' },
+        ...(taxSummary && taxSummary.salesCount > 0 ? [{ id: 'tax-section', label: 'Podatki' }] : []),
+      ]} />
 
       <div className="relative mb-6 px-4 lg:px-0">
         <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
@@ -236,7 +244,7 @@ export function WalletsPageClient({ initialWallets, initialTransactions, exchang
       )}
 
       {/* Transactions + Side Panel */}
-      <div className={`grid gap-6 px-4 lg:px-0 ${activeWalletId || hasAnyOutcomes ? 'grid-cols-1 lg:grid-cols-[1fr_auto]' : ''}`}>
+      <div id="transactions-section" className={`scroll-mt-24 grid gap-6 px-4 lg:px-0 ${activeWalletId || hasAnyOutcomes ? 'grid-cols-1 lg:grid-cols-[1fr_auto]' : ''}`}>
         <div className="card-responsive min-w-0">
           <div className="px-4 py-4 lg:px-6 lg:py-6 pb-0 flex items-center justify-between">
             <h2 className="text-xl font-bold text-card-foreground">
@@ -318,7 +326,7 @@ export function WalletsPageClient({ initialWallets, initialTransactions, exchang
       </div>
 
       {/* ═══════════ AKTYWA ═══════════ */}
-      <div className="mt-8 px-4 lg:px-0">
+      <div id="assets-section" className="mt-8 px-4 lg:px-0 scroll-mt-24">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-2xl font-bold text-foreground">Aktywa</h2>
           <div className="flex items-center gap-2">
@@ -362,7 +370,7 @@ export function WalletsPageClient({ initialWallets, initialTransactions, exchang
 
       {/* Podsumowanie podatkowe */}
       {taxSummary && taxSummary.salesCount > 0 && (
-        <div className="mt-6 mx-4 lg:mx-0 bg-card border border-border rounded-xl p-4 lg:p-6">
+        <div id="tax-section" className="mt-6 mx-4 lg:mx-0 bg-card border border-border rounded-xl p-4 lg:p-6 scroll-mt-24">
           <h2 className="text-xl font-bold text-card-foreground mb-4 flex items-center gap-2">
             <Calculator className="w-5 h-5" />
             Podsumowanie podatkowe ({new Date().getFullYear()})

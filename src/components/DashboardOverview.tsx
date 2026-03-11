@@ -8,6 +8,7 @@ import { TransactionList } from '@/components/TransactionList';
 import { FinancialChart } from '@/components/FinancialChart';
 import { useFinanceStore, Transaction, Wallet, Asset, Goal, RecurringExpense } from '@/hooks/useFinanceStore';
 import { GoalCard } from '@/components/GoalCard';
+import { SectionNav } from '@/components/SectionNav';
 
 // Lazy load AssetList (imports @token-icons/react — heavy)
 const AssetList = dynamic(() => import('@/components/AssetList').then(m => ({ default: m.AssetList })), { ssr: false });
@@ -177,10 +178,29 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
         </div>
       </div>
 
+      {/* Desktop section nav — only left-column sections */}
+      <SectionNav className="hidden lg:block" sections={[
+        { id: 'net-worth', label: 'Wartość netto' },
+        { id: 'charts', label: 'Wykresy' },
+        { id: 'projected', label: 'Prognozowany Net-Worth' },
+        { id: 'assets', label: 'Aktywa' },
+      ]} />
+      {/* Mobile section nav — all sections in scroll order */}
+      <SectionNav className="lg:hidden" sections={[
+        { id: 'm-net-worth', label: 'Wartość netto' },
+        { id: 'm-wallets', label: 'Portfele' },
+        { id: 'm-goals', label: 'Cele' },
+        { id: 'm-expenses', label: 'Stałe wydatki' },
+        { id: 'charts', label: 'Wykresy' },
+        { id: 'projected', label: 'Prognozowany Net-Worth' },
+        { id: 'assets', label: 'Aktywa' },
+        { id: 'm-transactions', label: 'Transakcje' },
+      ]} />
+
       {/* ═══════════ MOBILE-ONLY SECTIONS ═══════════ */}
       <div className="lg:hidden space-y-3 px-4 mb-3">
         {/* B. Net worth card */}
-        <div className="bg-card border border-border rounded-2xl p-5">
+        <div id="m-net-worth" className="bg-card border border-border rounded-2xl p-5 scroll-mt-24">
           <div className="flex items-center justify-between mb-1">
             <span className="text-[10px] font-semibold tracking-[0.2em] text-muted-foreground uppercase">Wartość netto</span>
             <span className="text-xs text-muted-foreground font-medium">{displayCurrency}</span>
@@ -213,7 +233,7 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
         </div>
 
         {/* C. Wallet horizontal scroll */}
-        <div>
+        <div id="m-wallets" className="scroll-mt-24">
           <div className="flex items-center justify-between mb-2">
             <span className="text-[10px] font-semibold tracking-[0.2em] text-muted-foreground uppercase">Portfele</span>
             <div className="flex items-center gap-2">
@@ -250,7 +270,7 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
         </div>
 
         {/* D. Goals section */}
-        <div className="bg-card border border-border rounded-2xl p-4">
+        <div id="m-goals" className="bg-card border border-border rounded-2xl p-4 scroll-mt-24">
           <div className="flex items-center justify-between mb-3">
             <span className="text-[10px] font-semibold tracking-[0.2em] text-muted-foreground uppercase">Cele</span>
             <button
@@ -283,15 +303,17 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
         </div>
 
         {/* Recurring expenses - mobile */}
-        <RecurringExpensesCard
-          expenses={recurringExpenses}
-          balanceMasked={balanceMasked}
-          displayCurrency={displayCurrency}
-          exchangeRates={exchangeRates}
-          onAdd={() => { setEditingExpense(null); setIsExpenseModalOpen(true); }}
-          onEdit={(exp) => { setEditingExpense(exp); setIsExpenseModalOpen(true); }}
-          onPay={(exp) => { setPayingExpense(exp); setIsPayModalOpen(true); }}
-        />
+        <div id="m-expenses" className="scroll-mt-24">
+          <RecurringExpensesCard
+            expenses={recurringExpenses}
+            balanceMasked={balanceMasked}
+            displayCurrency={displayCurrency}
+            exchangeRates={exchangeRates}
+            onAdd={() => { setEditingExpense(null); setIsExpenseModalOpen(true); }}
+            onEdit={(exp) => { setEditingExpense(exp); setIsExpenseModalOpen(true); }}
+            onPay={(exp) => { setPayingExpense(exp); setIsPayModalOpen(true); }}
+          />
+        </div>
 
         {/* E. Quick stats row */}
         <div className="grid grid-cols-3 gap-2">
@@ -324,7 +346,7 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
         {/* Left column — main content */}
         <div className="min-w-0 space-y-3">
           {/* Chart + net worth + stats in one card */}
-          <div className="card-responsive">
+          <div id="net-worth" className="card-responsive scroll-mt-24">
             <div className="flex flex-col lg:flex-row">
               {/* Left: net worth + chart */}
               <div className="flex-1 min-w-0">
@@ -375,7 +397,7 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
           </div>
 
           {/* Monthly charts row */}
-          <div className={`grid grid-cols-1 lg:grid-cols-2 gap-3 ${balanceMasked ? 'blur-lg select-none pointer-events-none' : ''}`}>
+          <div id="charts" className={`scroll-mt-24 grid grid-cols-1 lg:grid-cols-2 gap-3 ${balanceMasked ? 'blur-lg select-none pointer-events-none' : ''}`}>
             <div className="card-responsive">
               <MonthlyIncomeChart transactions={transactions} displayCurrency={displayCurrency} exchangeRates={exchangeRates} />
             </div>
@@ -390,7 +412,7 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
           </div>
 
           {/* Projected net worth */}
-          <div className={`card-responsive ${balanceMasked ? 'blur-lg select-none pointer-events-none' : ''}`}>
+          <div id="projected" className={`card-responsive scroll-mt-24 ${balanceMasked ? 'blur-lg select-none pointer-events-none' : ''}`}>
             <ProjectedNetWorthChart
               transactions={transactions}
               wallets={wallets}
@@ -402,7 +424,7 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
           </div>
 
           {/* Assets preview */}
-          <div className="card-responsive">
+          <div id="assets" className="card-responsive scroll-mt-24">
             <AssetList assets={assets} />
             <div className="px-4 lg:px-6 pb-4">
               <Link href="/wallets" className="flex items-center justify-center gap-1 text-sm text-primary hover:underline">
@@ -500,7 +522,7 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
       </div>
 
       {/* H. Mobile transactions (after grid) */}
-      <div className="lg:hidden px-4 mt-3">
+      <div id="m-transactions" className="lg:hidden px-4 mt-3 scroll-mt-24">
         <div className="flex items-center justify-between mb-2">
           <span className="text-[10px] font-semibold tracking-[0.2em] text-muted-foreground uppercase">Ostatnie transakcje</span>
           <Link href="/transactions" className="flex items-center gap-1 text-xs text-primary hover:underline">
