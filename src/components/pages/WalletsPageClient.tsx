@@ -9,31 +9,59 @@ import { WalletChart } from '@/components/WalletChart';
 import { ExpensePieChart } from '@/components/ExpensePieChart';
 import { FinancialCushion } from '@/components/FinancialCushion';
 import { ScanReceiptModal } from '@/components/ScanReceiptModal';
-import { useFinanceStore, Transaction, Wallet } from '@/hooks/useFinanceStore';
-import { Plus, Camera } from 'lucide-react';
-import { deleteTransactionAction, deleteWalletAction, recalculateWalletBalance } from '@/app/actions';
-import { type ExchangeRates } from '@/lib/exchange-rates';
+import { AssetList } from '@/components/AssetList';
+import { AssetModal } from '@/components/AssetModal';
+import { SellAssetModal } from '@/components/SellAssetModal';
+import { CompoundInterestChart } from '@/components/CompoundInterestChart';
+import { useFinanceStore, Transaction, Wallet, Asset, AssetSale } from '@/hooks/useFinanceStore';
+import { Plus, Camera, ChevronDown, ChevronUp, RefreshCw, BadgeDollarSign, Receipt, TrendingUp, TrendingDown, Landmark, Calculator } from 'lucide-react';
+import { deleteTransactionAction, deleteWalletAction, recalculateWalletBalance, deleteAssetAction, refreshAssetPricesAction } from '@/app/actions';
+import { formatCurrency, type ExchangeRates } from '@/lib/exchange-rates';
+import { useRouter } from 'next/navigation';
+
+interface TaxSummary {
+  totalProceeds: number;
+  totalCost: number;
+  totalProfit: number;
+  totalTax: number;
+  salesCount: number;
+}
 
 interface Props {
   initialWallets: Wallet[];
   initialTransactions: Transaction[];
   exchangeRates: ExchangeRates;
+  initialAssets: Asset[];
+  initialSales: AssetSale[];
+  initialTaxSummary: TaxSummary | null;
 }
 
-export function WalletsPageClient({ initialWallets, initialTransactions, exchangeRates }: Props) {
+export function WalletsPageClient({ initialWallets, initialTransactions, exchangeRates, initialAssets, initialSales, initialTaxSummary }: Props) {
+  const router = useRouter();
   const [isTransModalOpen, setIsTransModalOpen] = useState(false);
   const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [editingWallet, setEditingWallet] = useState<Wallet | null>(null);
   const [chartRefreshKey, setChartRefreshKey] = useState(0);
+  const [transactionsExpanded, setTransactionsExpanded] = useState(false);
 
-  const { wallets, transactions, activeWalletId, setWallets, setTransactions, setActiveWallet, displayCurrency } = useFinanceStore();
+  // Assets state
+  const [assetModalOpen, setAssetModalOpen] = useState(false);
+  const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
+  const [sellModalOpen, setSellModalOpen] = useState(false);
+  const [sellingAsset, setSellingAsset] = useState<Asset | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const taxSummary = initialTaxSummary;
+
+  const { wallets, transactions, assets, assetSales, activeWalletId, setWallets, setTransactions, setAssets, setAssetSales, setActiveWallet, displayCurrency } = useFinanceStore();
 
   useEffect(() => {
     setWallets(initialWallets);
     setTransactions(initialTransactions);
-  }, [initialWallets, initialTransactions, setWallets, setTransactions]);
+    setAssets(initialAssets);
+    setAssetSales(initialSales);
+  }, [initialWallets, initialTransactions, initialAssets, initialSales, setWallets, setTransactions, setAssets, setAssetSales]);
 
   const filteredTransactions = useMemo(() => {
     if (!activeWalletId) return transactions;
@@ -78,6 +106,41 @@ export function WalletsPageClient({ initialWallets, initialTransactions, exchang
       console.error(error);
     }
   };
+
+  // Asset handlers
+  const handleEditAsset = (asset: Asset) => {
+    setEditingAsset(asset);
+    setAssetModalOpen(true);
+  };
+
+  const handleDeleteAsset = async (id: string) => {
+    try {
+      await deleteAssetAction(id);
+      router.refresh();
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const handleSellAsset = (asset: Asset) => {
+    setSellingAsset(asset);
+    setSellModalOpen(true);
+  };
+
+  const handleRefreshPrices = async () => {
+    setRefreshing(true);
+    try {
+      await refreshAssetPricesAction();
+      router.refresh();
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const visibleTransactions = transactionsExpanded ? filteredTransactions : filteredTransactions.slice(0, 5);
+  const hasMoreTransactions = filteredTransactions.length > 5;
 
   return (
     <>
@@ -189,10 +252,24 @@ export function WalletsPageClient({ initialWallets, initialTransactions, exchang
             </button>
           </div>
           <TransactionList
-            transactions={filteredTransactions}
+            transactions={visibleTransactions}
             onDelete={handleDeleteTransaction}
             onEdit={(t) => { setEditingTransaction(t); setIsTransModalOpen(true); }}
           />
+          {hasMoreTransactions && (
+            <div className="px-4 pb-4 lg:px-6">
+              <button
+                onClick={() => setTransactionsExpanded(!transactionsExpanded)}
+                className="w-full flex items-center justify-center gap-2 py-2.5 text-sm text-muted-foreground hover:text-foreground bg-secondary/50 hover:bg-secondary rounded-lg transition-colors"
+              >
+                {transactionsExpanded ? (
+                  <>Zwiń <ChevronUp className="w-4 h-4" /></>
+                ) : (
+                  <>Pokaż wszystkie ({filteredTransactions.length}) <ChevronDown className="w-4 h-4" /></>
+                )}
+              </button>
+            </div>
+          )}
         </div>
 
         {activeWalletId && (
@@ -240,6 +317,117 @@ export function WalletsPageClient({ initialWallets, initialTransactions, exchang
         )}
       </div>
 
+      {/* ═══════════ AKTYWA ═══════════ */}
+      <div className="mt-8 px-4 lg:px-0">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-2xl font-bold text-foreground">Aktywa</h2>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleRefreshPrices}
+              disabled={refreshing}
+              className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-foreground bg-secondary hover:bg-accent rounded-lg border border-border transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Odśwież ceny</span>
+            </button>
+            <button
+              onClick={() => { setSellingAsset(null); setSellModalOpen(true); }}
+              className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-foreground bg-secondary hover:bg-accent rounded-lg border border-border transition-colors"
+            >
+              <BadgeDollarSign className="w-4 h-4" />
+              <span className="hidden sm:inline">Dodaj sprzedaż</span>
+            </button>
+            <button
+              onClick={() => { setEditingAsset(null); setAssetModalOpen(true); }}
+              className="flex items-center gap-2 px-3 py-2 text-sm text-primary-foreground bg-primary hover:bg-primary/90 rounded-lg transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">Dodaj aktywo</span>
+            </button>
+          </div>
+        </div>
+
+        <AssetList
+          assets={assets}
+          onEdit={handleEditAsset}
+          onDelete={handleDeleteAsset}
+          onSell={handleSellAsset}
+          standalone
+        />
+      </div>
+
+      <div className="px-4 lg:px-0">
+        <CompoundInterestChart initialCapital={assets.reduce((sum, a) => sum + a.total_value, 0)} transactions={initialTransactions} />
+      </div>
+
+      {/* Podsumowanie podatkowe */}
+      {taxSummary && taxSummary.salesCount > 0 && (
+        <div className="mt-6 mx-4 lg:mx-0 bg-card border border-border rounded-xl p-4 lg:p-6">
+          <h2 className="text-xl font-bold text-card-foreground mb-4 flex items-center gap-2">
+            <Calculator className="w-5 h-5" />
+            Podsumowanie podatkowe ({new Date().getFullYear()})
+          </h2>
+
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+            <div className="p-3 bg-muted/50 rounded-lg border border-border">
+              <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                <Receipt className="w-3 h-3" /> Przychody
+              </p>
+              <p className="text-lg font-bold text-card-foreground">{formatCurrency(taxSummary.totalProceeds)}</p>
+            </div>
+            <div className="p-3 bg-muted/50 rounded-lg border border-border">
+              <p className="text-xs text-muted-foreground mb-1">Koszty</p>
+              <p className="text-lg font-bold text-card-foreground">{formatCurrency(taxSummary.totalCost)}</p>
+            </div>
+            <div className="p-3 bg-muted/50 rounded-lg border border-border">
+              <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                {taxSummary.totalProfit >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                Zysk/Strata
+              </p>
+              <p className={`text-lg font-bold ${taxSummary.totalProfit >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                {taxSummary.totalProfit >= 0 ? '+' : ''}{formatCurrency(taxSummary.totalProfit)}
+              </p>
+            </div>
+            <div className="p-3 bg-muted/50 rounded-lg border border-border">
+              <p className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
+                <Landmark className="w-3 h-3" /> Podatek Belki
+              </p>
+              <p className="text-lg font-bold text-card-foreground">{formatCurrency(taxSummary.totalTax)}</p>
+            </div>
+            <div className="p-3 bg-muted/50 rounded-lg border border-border">
+              <p className="text-xs text-muted-foreground mb-1">Transakcje</p>
+              <p className="text-lg font-bold text-card-foreground">{taxSummary.salesCount}</p>
+            </div>
+          </div>
+
+          {/* Historia sprzedaży */}
+          {assetSales.length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium text-muted-foreground mb-3">Historia sprzedaży</h3>
+              <div className="space-y-2">
+                {assetSales.map((sale) => (
+                  <div key={sale.id} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border text-sm">
+                    <div>
+                      <span className="text-card-foreground font-medium">{sale.asset_name}</span>
+                      <span className="text-muted-foreground ml-2">{sale.quantity_sold} {sale.asset_symbol}</span>
+                      <span className="text-muted-foreground ml-2">· {sale.sale_date}</span>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <span className={sale.profit >= 0 ? 'text-green-500' : 'text-red-500'}>
+                        {sale.profit >= 0 ? '+' : ''}{formatCurrency(sale.profit)}
+                      </span>
+                      <span className="text-muted-foreground">
+                        Podatek: {formatCurrency(sale.tax_amount)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <TransactionModal
         isOpen={isTransModalOpen}
         onClose={() => { setIsTransModalOpen(false); setChartRefreshKey(k => k + 1); }}
@@ -256,6 +444,20 @@ export function WalletsPageClient({ initialWallets, initialTransactions, exchang
       <ScanReceiptModal
         isOpen={isScanModalOpen}
         onClose={() => setIsScanModalOpen(false)}
+      />
+
+      <AssetModal
+        isOpen={assetModalOpen}
+        onClose={() => { setAssetModalOpen(false); setEditingAsset(null); }}
+        editingAsset={editingAsset}
+        onDelete={handleDeleteAsset}
+      />
+
+      <SellAssetModal
+        isOpen={sellModalOpen}
+        onClose={() => { setSellModalOpen(false); setSellingAsset(null); }}
+        asset={sellingAsset}
+        wallets={wallets}
       />
     </>
   );

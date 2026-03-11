@@ -1,11 +1,14 @@
-import { getWalletsWithTransactions } from "@/app/actions";
+import { getWalletsWithTransactions, getAssetsData, getAssetSalesData, getAssetTaxSummary } from "@/app/actions";
 import { getExchangeRates } from "@/lib/exchange-rates";
 import { WalletsPageClient } from "@/components/pages/WalletsPageClient";
 
 export default async function WalletsPage() {
-  const [data, exchangeRates] = await Promise.all([
+  const [data, exchangeRates, assetsResult, sales, taxSummary] = await Promise.all([
     getWalletsWithTransactions(),
     getExchangeRates(),
+    getAssetsData(),
+    getAssetSalesData(),
+    getAssetTaxSummary(new Date().getFullYear()),
   ]);
 
   if (!data) {
@@ -21,6 +24,9 @@ export default async function WalletsPage() {
       initialWallets={data.wallets}
       initialTransactions={data.transactions}
       exchangeRates={exchangeRates}
+      initialAssets={assetsResult?.assets ?? []}
+      initialSales={sales}
+      initialTaxSummary={taxSummary}
     />
   );
 }

@@ -405,7 +405,7 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
           <div className="card-responsive">
             <AssetList assets={assets} />
             <div className="px-4 lg:px-6 pb-4">
-              <Link href="/assets" className="flex items-center justify-center gap-1 text-sm text-primary hover:underline">
+              <Link href="/wallets" className="flex items-center justify-center gap-1 text-sm text-primary hover:underline">
                 Wszystkie aktywa <ArrowRight className="w-4 h-4" />
               </Link>
             </div>

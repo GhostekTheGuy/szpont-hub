@@ -7,7 +7,7 @@ import Image from 'next/image';
 import {
   LayoutDashboard,
   Wallet,
-  PiggyBank,
+  FileText,
   CalendarDays,
   Target,
   ChevronsLeft,
@@ -27,7 +27,7 @@ interface DashboardLayoutProps {
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/wallets', label: 'Portfele', icon: Wallet },
-  { href: '/assets', label: 'Aktywa', icon: PiggyBank },
+  { href: '/invoices', label: 'Faktury', icon: FileText },
   { href: '/calendar', label: 'Praca', icon: CalendarDays },
   { href: '/habits', label: 'Nawyki', icon: Target },
 ];
