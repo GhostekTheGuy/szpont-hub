@@ -11,7 +11,7 @@ import { FinancialCushion } from '@/components/FinancialCushion';
 import { ScanReceiptModal } from '@/components/ScanReceiptModal';
 import { useFinanceStore, Transaction, Wallet } from '@/hooks/useFinanceStore';
 import { Plus, Camera } from 'lucide-react';
-import { deleteTransactionAction, deleteWalletAction } from '@/app/actions';
+import { deleteTransactionAction, deleteWalletAction, recalculateWalletBalance } from '@/app/actions';
 import { type ExchangeRates } from '@/lib/exchange-rates';
 
 interface Props {
@@ -70,6 +70,15 @@ export function WalletsPageClient({ initialWallets, initialTransactions, exchang
     }
   };
 
+  const handleRecalculate = async (id: string) => {
+    try {
+      await recalculateWalletBalance(id);
+      setChartRefreshKey(k => k + 1);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
   return (
     <>
       <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-3 px-4 lg:px-0">
@@ -113,6 +122,7 @@ export function WalletsPageClient({ initialWallets, initialTransactions, exchang
                 exchangeRates={exchangeRates}
                 onEdit={(w) => { setEditingWallet(w); setIsWalletModalOpen(true); }}
                 onDelete={handleDeleteWallet}
+                onRecalculate={handleRecalculate}
               />
             </div>
           ))}

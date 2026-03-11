@@ -6,7 +6,7 @@ import dynamic from 'next/dynamic';
 import { WalletCard } from '@/components/WalletCard';
 import { TransactionList } from '@/components/TransactionList';
 import { FinancialChart } from '@/components/FinancialChart';
-import { useFinanceStore, Transaction, Wallet, Asset, Goal } from '@/hooks/useFinanceStore';
+import { useFinanceStore, Transaction, Wallet, Asset, Goal, RecurringExpense } from '@/hooks/useFinanceStore';
 import { GoalCard } from '@/components/GoalCard';
 
 // Lazy load AssetList (imports @token-icons/react — heavy)
@@ -20,10 +20,12 @@ const ProjectedNetWorthChart = dynamic(() => import('@/components/ProjectedNetWo
 const TransactionModal = dynamic(() => import('@/components/TransactionModal').then(m => ({ default: m.TransactionModal })));
 const WalletModal = dynamic(() => import('@/components/WalletModal').then(m => ({ default: m.WalletModal })));
 const GoalModal = dynamic(() => import('@/components/GoalModal').then(m => ({ default: m.GoalModal })));
-import { TrendingUp, Wallet as WalletIcon, ArrowUpRight, ArrowDownRight, Plus, ArrowRight, Target, Sparkles } from 'lucide-react';
+const ExpenseModal = dynamic(() => import('@/components/ExpenseModal').then(m => ({ default: m.ExpenseModal })));
+const PayExpenseModal = dynamic(() => import('@/components/PayExpenseModal').then(m => ({ default: m.PayExpenseModal })));
+import { TrendingUp, Wallet as WalletIcon, ArrowUpRight, ArrowDownRight, Plus, ArrowRight, Target, Sparkles, RotateCcw } from 'lucide-react';
 import { subDays, format } from 'date-fns';
 import { pl } from 'date-fns/locale';
-import { deleteTransactionAction, deleteWalletAction, deleteGoalAction } from '@/app/actions';
+import { deleteTransactionAction, deleteWalletAction, deleteGoalAction, recalculateWalletBalance } from '@/app/actions';
 import { convertAmount, formatCurrency, type Currency, type ExchangeRates, type HistoricalRates } from '@/lib/exchange-rates';
 import { getDashboardHistoricalRates } from '@/app/actions';
 
@@ -32,6 +34,7 @@ interface Props {
   initialTransactions: Transaction[];
   initialAssets: Asset[];
   initialGoals: Goal[];
+  initialRecurringExpenses: RecurringExpense[];
   exchangeRates: ExchangeRates;
   userName: string;
   workEarningsByDate: Record<string, number>;
@@ -45,27 +48,32 @@ function getGreeting(): string {
   return 'Dobrej nocy';
 }
 
-export function DashboardOverview({ initialWallets, initialTransactions, initialAssets, initialGoals, exchangeRates, userName, workEarningsByDate }: Props) {
+export function DashboardOverview({ initialWallets, initialTransactions, initialAssets, initialGoals, initialRecurringExpenses, exchangeRates, userName, workEarningsByDate }: Props) {
   const [isTransModalOpen, setIsTransModalOpen] = useState(false);
   const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [editingWallet, setEditingWallet] = useState<Wallet | null>(null);
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
+  const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
+  const [editingExpense, setEditingExpense] = useState<RecurringExpense | null>(null);
+  const [isPayModalOpen, setIsPayModalOpen] = useState(false);
+  const [payingExpense, setPayingExpense] = useState<RecurringExpense | null>(null);
   const [range, setRange] = useState<'1W' | '1M' | '3M' | '1Y'>('1M');
   const [defaultTransType, setDefaultTransType] = useState<'income' | 'outcome' | undefined>(undefined);
 
   const [historicalRates, setHistoricalRates] = useState<HistoricalRates | undefined>(undefined);
   const [ratesReady, setRatesReady] = useState(false);
 
-  const { wallets, transactions, assets, goals, setWallets, setTransactions, setAssets, setGoals, balanceMasked, setShowWeeklyReport, displayCurrency } = useFinanceStore();
+  const { wallets, transactions, assets, goals, recurringExpenses, setWallets, setTransactions, setAssets, setGoals, setRecurringExpenses, balanceMasked, setShowWeeklyReport, displayCurrency } = useFinanceStore();
 
   useEffect(() => {
     setWallets(initialWallets);
     setTransactions(initialTransactions);
     setAssets(initialAssets);
     setGoals(initialGoals);
-  }, [initialWallets, initialTransactions, initialAssets, initialGoals, setWallets, setTransactions, setAssets, setGoals]);
+    setRecurringExpenses(initialRecurringExpenses);
+  }, [initialWallets, initialTransactions, initialAssets, initialGoals, initialRecurringExpenses, setWallets, setTransactions, setAssets, setGoals, setRecurringExpenses]);
 
   // Pobierz historyczne kursy gdy zmieni się range
   useEffect(() => {
@@ -116,6 +124,14 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
 
   const handleDeleteGoal = async (id: string) => {
     if (confirm('Czy na pewno?')) await deleteGoalAction(id);
+  };
+
+  const handleRecalculate = async (id: string) => {
+    try {
+      await recalculateWalletBalance(id);
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   const profitPercent = stats.totalOutcome > 0 ? (stats.profit / stats.totalOutcome) * 100 : 0;
@@ -221,6 +237,7 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
                     exchangeRates={exchangeRates}
                     onEdit={(w) => { setEditingWallet(w); setIsWalletModalOpen(true); }}
                     onDelete={handleDeleteWallet}
+                    onRecalculate={handleRecalculate}
                   />
                 </div>
               ))}
@@ -264,6 +281,17 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
             )}
           </div>
         </div>
+
+        {/* Recurring expenses - mobile */}
+        <RecurringExpensesCard
+          expenses={recurringExpenses}
+          balanceMasked={balanceMasked}
+          displayCurrency={displayCurrency}
+          exchangeRates={exchangeRates}
+          onAdd={() => { setEditingExpense(null); setIsExpenseModalOpen(true); }}
+          onEdit={(exp) => { setEditingExpense(exp); setIsExpenseModalOpen(true); }}
+          onPay={(exp) => { setPayingExpense(exp); setIsPayModalOpen(true); }}
+        />
 
         {/* E. Quick stats row */}
         <div className="grid grid-cols-3 gap-2">
@@ -402,6 +430,7 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
                   exchangeRates={exchangeRates}
                   onEdit={(w) => { setEditingWallet(w); setIsWalletModalOpen(true); }}
                   onDelete={handleDeleteWallet}
+                  onRecalculate={handleRecalculate}
                 />
               ))}
               {wallets.length === 0 && (
@@ -444,6 +473,17 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
               </div>
             </div>
           </div>
+
+          {/* Recurring expenses */}
+          <RecurringExpensesCard
+            expenses={recurringExpenses}
+            balanceMasked={balanceMasked}
+            displayCurrency={displayCurrency}
+            exchangeRates={exchangeRates}
+            onAdd={() => { setEditingExpense(null); setIsExpenseModalOpen(true); }}
+            onEdit={(exp) => { setEditingExpense(exp); setIsExpenseModalOpen(true); }}
+            onPay={(exp) => { setPayingExpense(exp); setIsPayModalOpen(true); }}
+          />
 
           {/* Recent transactions */}
           <div className="card-responsive">
@@ -498,6 +538,145 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
         editingGoal={editingGoal}
         wallets={wallets}
       />
+
+      <ExpenseModal
+        isOpen={isExpenseModalOpen}
+        onClose={() => setIsExpenseModalOpen(false)}
+        editingExpense={editingExpense}
+      />
+
+      <PayExpenseModal
+        isOpen={isPayModalOpen}
+        onClose={() => setIsPayModalOpen(false)}
+        expense={payingExpense}
+      />
     </>
+  );
+}
+
+// --- Recurring Expenses Card ---
+
+function RecurringExpensesCard({
+  expenses,
+  balanceMasked,
+  displayCurrency,
+  exchangeRates,
+  onAdd,
+  onEdit,
+  onPay,
+}: {
+  expenses: RecurringExpense[];
+  balanceMasked: boolean;
+  displayCurrency: Currency;
+  exchangeRates: ExchangeRates;
+  onAdd: () => void;
+  onEdit: (e: RecurringExpense) => void;
+  onPay: (e: RecurringExpense) => void;
+}) {
+  const today = new Date().toISOString().split('T')[0];
+  const upcoming = expenses
+    .filter(e => e.is_active)
+    .sort((a, b) => a.next_due_date.localeCompare(b.next_due_date));
+
+  const monthlyTotal = expenses
+    .filter(e => e.is_active)
+    .reduce((sum, e) => {
+      const amountInDisplay = convertAmount(e.amount, e.currency, displayCurrency, exchangeRates);
+      if (e.frequency === 'monthly') return sum + amountInDisplay;
+      if (e.frequency === 'quarterly') return sum + amountInDisplay / 3;
+      return sum + amountInDisplay / 12;
+    }, 0);
+
+  const getDaysUntil = (dateStr: string) => {
+    const diff = Math.ceil((new Date(dateStr).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+    if (diff < 0) return 'zaległy';
+    if (diff === 0) return 'dzisiaj';
+    if (diff === 1) return 'jutro';
+    return `za ${diff} dni`;
+  };
+
+  const getUrgencyColor = (dateStr: string) => {
+    const diff = Math.ceil((new Date(dateStr).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+    if (diff <= 0) return 'text-red-500';
+    if (diff <= 3) return 'text-yellow-500';
+    return 'text-muted-foreground';
+  };
+
+  const FREQ_LABEL: Record<string, string> = { monthly: '/mies.', quarterly: '/kw.', yearly: '/rok' };
+
+  return (
+    <div className="bg-card border border-border rounded-xl overflow-hidden">
+      <div className="px-4 py-4 lg:px-6 lg:py-5">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <RotateCcw className="w-4 h-4 text-muted-foreground" />
+            <h2 className="text-lg font-bold text-foreground">Stałe wydatki</h2>
+          </div>
+          <button
+            onClick={onAdd}
+            className="flex items-center gap-1 text-xs text-primary hover:underline"
+          >
+            <Plus className="w-3 h-3" /> Nowy
+          </button>
+        </div>
+
+        {/* Monthly total */}
+        {upcoming.length > 0 && (
+          <div className="mb-3 px-3 py-2 bg-secondary/50 rounded-lg">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">Miesięcznie łącznie</span>
+              <span className={`text-sm font-bold text-foreground ${balanceMasked ? 'blur-md select-none' : ''}`}>
+                ~{formatCurrency(monthlyTotal, displayCurrency)}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Expense list */}
+        <div className="space-y-1.5">
+          {upcoming.map((expense) => (
+            <div
+              key={expense.id}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-secondary/50 transition-colors group cursor-pointer"
+              onClick={() => onEdit(expense)}
+            >
+              <span className="text-lg shrink-0">{expense.icon || '📋'}</span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-foreground truncate">{expense.name}</span>
+                  <span className={`text-sm font-semibold text-foreground ml-2 shrink-0 ${balanceMasked ? 'blur-md select-none' : ''}`}>
+                    {formatCurrency(expense.amount, expense.currency)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between mt-0.5">
+                  <span className={`text-[11px] ${getUrgencyColor(expense.next_due_date)}`}>
+                    {getDaysUntil(expense.next_due_date)}
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {expense.walletName && `${expense.walletName} · `}{FREQ_LABEL[expense.frequency] || ''}
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={(e) => { e.stopPropagation(); onPay(expense); }}
+                className="shrink-0 px-2.5 py-1.5 text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 rounded-md transition-colors opacity-0 group-hover:opacity-100"
+              >
+                Opłać
+              </button>
+            </div>
+          ))}
+        </div>
+
+        {upcoming.length === 0 && (
+          <button
+            onClick={onAdd}
+            className="w-full flex flex-col items-center gap-2 py-6 border border-dashed border-border rounded-lg text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors"
+          >
+            <RotateCcw className="w-8 h-8 opacity-40" />
+            <span className="text-sm">Dodaj pierwszy stały wydatek</span>
+          </button>
+        )}
+      </div>
+    </div>
   );
 }

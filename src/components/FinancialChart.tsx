@@ -6,6 +6,7 @@ import { Transaction, useFinanceStore } from '@/hooks/useFinanceStore';
 import { format, subDays } from 'date-fns';
 import { pl } from 'date-fns/locale';
 import { convertAmount, formatCurrency, type Currency, type ExchangeRates, type HistoricalRates } from '@/lib/exchange-rates';
+import { getNiceYTicks } from '@/lib/chart-utils';
 
 interface FinancialChartProps {
   transactions: Transaction[];
@@ -75,12 +76,11 @@ export const FinancialChart = memo(function FinancialChart({ transactions, range
     return data;
   }, [transactions, range, displayCurrency, exchangeRates, historicalRates, currentNetWorth, workEarningsByDate]);
 
-  const yDomain = useMemo((): [(min: number) => number, (max: number) => number] => {
-    return [
-      (min: number) => min - Math.abs(min) * 0.01,
-      (max: number) => max + Math.abs(max) * 0.01,
-    ];
-  }, []);
+  const yTicks = useMemo(() => {
+    if (chartData.length === 0) return [0];
+    const values = chartData.map(d => d.value);
+    return getNiceYTicks(Math.min(...values), Math.max(...values));
+  }, [chartData]);
 
   const formatYTick = useCallback((value: number) => {
     if (Math.abs(value) >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
@@ -132,7 +132,8 @@ export const FinancialChart = memo(function FinancialChart({ transactions, range
             tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
             axisLine={false}
             tickLine={false}
-            domain={yDomain}
+            domain={[yTicks[0], yTicks[yTicks.length - 1]]}
+            ticks={yTicks}
             tickFormatter={formatYTick}
           />
           <Tooltip

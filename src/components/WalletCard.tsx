@@ -2,7 +2,7 @@
 
 import { useRef, useCallback } from 'react';
 import { Wallet, useFinanceStore } from '@/hooks/useFinanceStore';
-import { Edit2, Trash2, Banknote, Bitcoin, TrendingUp, Wallet as WalletIcon, CreditCard, PiggyBank } from 'lucide-react';
+import { Edit2, Trash2, Banknote, Bitcoin, TrendingUp, Wallet as WalletIcon, CreditCard, PiggyBank, RefreshCw } from 'lucide-react';
 import { convertAmount, formatCurrency, type ExchangeRates } from '@/lib/exchange-rates';
 import dynamic from 'next/dynamic';
 
@@ -47,9 +47,10 @@ interface WalletCardProps {
   exchangeRates?: ExchangeRates;
   onEdit?: (wallet: Wallet) => void;
   onDelete?: (id: string) => void;
+  onRecalculate?: (id: string) => void;
 }
 
-export function WalletCard({ wallet, exchangeRates, onEdit, onDelete }: WalletCardProps) {
+export function WalletCard({ wallet, exchangeRates, onEdit, onDelete, onRecalculate }: WalletCardProps) {
   const IconComponent = iconMap[wallet.icon] || WalletIcon;
   const parsed = parseWalletColor(wallet.color);
   const balanceMasked = useFinanceStore(s => s.balanceMasked);
@@ -170,6 +171,15 @@ export function WalletCard({ wallet, exchangeRates, onEdit, onDelete }: WalletCa
 
         {/* Action buttons */}
         <div className="absolute top-3 right-3 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-200 translate-y-1 group-hover:translate-y-0 z-20">
+          {onRecalculate && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onRecalculate(wallet.id); }}
+              className="p-1.5 bg-white/15 hover:bg-white/30 rounded-lg backdrop-blur-md transition-colors"
+              title="Przelicz saldo"
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-white" />
+            </button>
+          )}
           {onEdit && (
             <button
               onClick={(e) => { e.stopPropagation(); onEdit(wallet); }}

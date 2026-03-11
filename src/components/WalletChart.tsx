@@ -9,6 +9,7 @@ import { getWalletChartData } from '@/app/actions';
 import { formatCurrency, type Currency } from '@/lib/exchange-rates';
 import { useFinanceStore } from '@/hooks/useFinanceStore';
 import { Loader2 } from 'lucide-react';
+import { getNiceYTicks } from '@/lib/chart-utils';
 
 interface WalletChartProps {
   walletId: string;
@@ -40,14 +41,10 @@ export function WalletChart({ walletId, walletName, displayCurrency, refreshKey 
     fullDate: d.date,
   }));
 
-  const yDomain = useMemo(() => {
-    if (chartData.length === 0) return [0, 100];
+  const yTicks = useMemo(() => {
+    if (chartData.length === 0) return [0];
     const values = chartData.map(d => d.value);
-    const min = Math.min(...values);
-    const max = Math.max(...values);
-    const range = max - min;
-    const padding = range > 0 ? range * 0.1 : Math.abs(max) * 0.05 || 100;
-    return [Math.floor(min - padding), Math.ceil(max + padding)];
+    return getNiceYTicks(Math.min(...values), Math.max(...values));
   }, [chartData]);
 
   const formatYTick = useCallback((value: number) => {
@@ -123,7 +120,8 @@ export function WalletChart({ walletId, walletName, displayCurrency, refreshKey 
                   tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
                   axisLine={false}
                   tickLine={false}
-                  domain={yDomain}
+                  domain={[yTicks[0], yTicks[yTicks.length - 1]]}
+                  ticks={yTicks}
                   tickFormatter={formatYTick}
                 />
                 <Tooltip

@@ -158,12 +158,13 @@ export async function getDashboardData() {
   const dek = await getDEK();
 
   // Równoległe pobieranie wszystkich danych (w tym goals — unika dodatkowego getUserId+getDEK)
-  const [{ wallets, transactions }, rates, { data: assets, error: assetsError }, { data: goals, error: goalsError }, { data: calendarEventsRaw }] = await Promise.all([
+  const [{ wallets, transactions }, rates, { data: assets, error: assetsError }, { data: goals, error: goalsError }, { data: calendarEventsRaw }, { data: recurringExpensesRaw }] = await Promise.all([
     fetchWalletsAndTransactions(userId, dek),
     getExchangeRates(),
     supabaseAdmin.from('assets').select('*').eq('user_id', userId),
     supabaseAdmin.from('goals').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
     supabaseAdmin.from('calendar_events').select('*').eq('user_id', userId).eq('is_confirmed', true).neq('event_type', 'personal'),
+    supabaseAdmin.from('recurring_expenses').select('*').eq('user_id', userId).eq('is_active', true).order('next_due_date', { ascending: true }),
   ]);
 
   if (assetsError) {
@@ -199,6 +200,29 @@ export async function getDashboardData() {
     wallet_id: g.wallet_id,
   }));
 
+  // Deszyfruj recurring expenses
+  const walletMap = new Map<string, string>();
+  for (const w of wallets) {
+    walletMap.set(w.id, w.name);
+  }
+  const decryptedRecurringExpenses = (recurringExpensesRaw || []).map(e => ({
+    id: e.id,
+    name: decryptString(e.name, dek) || e.name,
+    amount: decryptNumber(e.amount, dek),
+    currency: (e.currency || 'PLN') as Currency,
+    category: e.category,
+    wallet_id: e.wallet_id,
+    walletName: e.wallet_id ? walletMap.get(e.wallet_id) || '' : '',
+    billing_day: e.billing_day,
+    frequency: e.frequency as 'monthly' | 'quarterly' | 'yearly',
+    next_due_date: e.next_due_date,
+    is_active: e.is_active,
+    icon: e.icon || '',
+    color: e.color || '',
+    notes: e.notes ? decryptString(e.notes, dek) : null,
+    created_at: e.created_at,
+  }));
+
   // Oblicz dzienne zarobki z rozliczonych wydarzeń kalendarza (data → kwota w PLN)
   const workEarningsByDate: Record<string, number> = {};
   for (const ev of calendarEventsRaw || []) {
@@ -212,7 +236,7 @@ export async function getDashboardData() {
     workEarningsByDate[eventDate] = (workEarningsByDate[eventDate] || 0) + earnings;
   }
 
-  return { wallets, transactions, assets: decryptedAssets, goals: decryptedGoals, exchangeRates: rates, workEarningsByDate };
+  return { wallets, transactions, assets: decryptedAssets, goals: decryptedGoals, recurringExpenses: decryptedRecurringExpenses, exchangeRates: rates, workEarningsByDate };
 }
 
 export async function getWalletsWithTransactions() {
@@ -562,6 +586,47 @@ export async function deleteTransactionAction(id: string) {
     .update({ balance: encryptNumber(newBalance, dek) })
     .eq('id', transaction.wallet_id);
 
+  // Usuń powiązaną opłatę stałego wydatku (jeśli istnieje) i cofnij next_due_date
+  const { data: payment } = await supabaseAdmin
+    .from('expense_payments')
+    .select('id, expense_id, status')
+    .eq('transaction_id', id)
+    .maybeSingle();
+
+  if (payment) {
+    // Cofnij next_due_date o jeden cykl
+    const { data: expense } = await supabaseAdmin
+      .from('recurring_expenses')
+      .select('next_due_date, frequency')
+      .eq('id', payment.expense_id)
+      .single();
+
+    if (expense) {
+      const currentDue = new Date(expense.next_due_date);
+      let prevDue: Date;
+      if (expense.frequency === 'monthly') {
+        prevDue = new Date(currentDue);
+        prevDue.setMonth(prevDue.getMonth() - 1);
+      } else if (expense.frequency === 'quarterly') {
+        prevDue = new Date(currentDue);
+        prevDue.setMonth(prevDue.getMonth() - 3);
+      } else {
+        prevDue = new Date(currentDue);
+        prevDue.setFullYear(prevDue.getFullYear() - 1);
+      }
+
+      await supabaseAdmin
+        .from('recurring_expenses')
+        .update({ next_due_date: prevDue.toISOString().split('T')[0] })
+        .eq('id', payment.expense_id);
+    }
+
+    await supabaseAdmin
+      .from('expense_payments')
+      .delete()
+      .eq('id', payment.id);
+  }
+
   await supabaseAdmin
     .from('transactions')
     .delete()
@@ -753,6 +818,39 @@ export async function adjustBalanceAction(walletId: string, newBalance: number) 
     .eq('id', walletId);
 
   revalidatePath('/', 'layout');
+}
+
+export async function recalculateWalletBalance(walletId: string) {
+  const userId = await getUserId();
+  if (!userId) throw new Error("Unauthorized");
+
+  const dek = await getDEK();
+
+  const [{ data: wallet }, { data: transactions }] = await Promise.all([
+    supabaseAdmin.from('wallets').select('*').eq('id', walletId).eq('user_id', userId).single(),
+    supabaseAdmin.from('transactions').select('*').eq('wallet_id', walletId),
+  ]);
+
+  if (!wallet) throw new Error("Wallet not found");
+
+  const rates = await getExchangeRates();
+  const initialBalance = wallet.initial_balance ? decryptNumber(wallet.initial_balance, dek) : 0;
+
+  let balance = initialBalance;
+  for (const t of transactions || []) {
+    const amount = decryptNumber(t.amount, dek);
+    const currency: Currency = t.currency || 'PLN';
+    const amountInPLN = convertAmount(amount, currency, 'PLN', rates);
+    balance += amountInPLN;
+  }
+
+  await supabaseAdmin
+    .from('wallets')
+    .update({ balance: encryptNumber(balance, dek) })
+    .eq('id', walletId);
+
+  revalidatePath('/', 'layout');
+  return balance;
 }
 
 export async function deleteWalletAction(id: string) {
@@ -3107,4 +3205,330 @@ export async function getWeeklyReportData(): Promise<WeeklyReportInput | null> {
     workEarnings: weeklySummary?.totalEarnings ?? 0,
     habits: habitStats,
   };
+}
+
+// --- STAŁE WYDATKI ---
+
+export async function getRecurringExpenses() {
+  const userId = await getUserId();
+  if (!userId) return null;
+
+  const dek = await getDEK();
+
+  const [{ data: expenses, error }, { data: wallets }] = await Promise.all([
+    supabaseAdmin
+      .from('recurring_expenses')
+      .select('*')
+      .eq('user_id', userId)
+      .order('next_due_date', { ascending: true }),
+    supabaseAdmin.from('wallets').select('id, name').eq('user_id', userId),
+  ]);
+
+  if (error) {
+    console.error('Error fetching recurring expenses:', error);
+  }
+
+  const decryptedWallets = (wallets || []).map(w => ({
+    ...w,
+    name: decryptString(w.name, dek) || w.name,
+  }));
+
+  const walletMap = new Map<string, string>();
+  for (const w of decryptedWallets) {
+    walletMap.set(w.id, w.name);
+  }
+
+  const decryptedExpenses = (expenses || []).map(e => ({
+    id: e.id,
+    name: decryptString(e.name, dek) || e.name,
+    amount: decryptNumber(e.amount, dek),
+    currency: (e.currency || 'PLN') as Currency,
+    category: e.category,
+    wallet_id: e.wallet_id,
+    walletName: e.wallet_id ? walletMap.get(e.wallet_id) || '' : '',
+    billing_day: e.billing_day,
+    frequency: e.frequency as 'monthly' | 'quarterly' | 'yearly',
+    next_due_date: e.next_due_date,
+    is_active: e.is_active,
+    icon: e.icon || '',
+    color: e.color || '',
+    notes: e.notes ? decryptString(e.notes, dek) : null,
+    created_at: e.created_at,
+  }));
+
+  return { expenses: decryptedExpenses, wallets: decryptedWallets };
+}
+
+export async function addRecurringExpense(data: {
+  name: string;
+  amount: number;
+  currency: string;
+  category: string;
+  wallet_id: string | null;
+  billing_day: number;
+  frequency: string;
+  next_due_date: string;
+  icon: string;
+  color: string;
+  notes: string;
+}) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  if (!data.name || data.name.length > 200) throw new Error('Invalid name');
+  if (typeof data.amount !== 'number' || !isFinite(data.amount) || data.amount <= 0) throw new Error('Invalid amount');
+  if (data.billing_day < 1 || data.billing_day > 31) throw new Error('Invalid billing day');
+  if (!['monthly', 'quarterly', 'yearly'].includes(data.frequency)) throw new Error('Invalid frequency');
+
+  const dek = await getDEK();
+
+  const { error } = await supabaseAdmin
+    .from('recurring_expenses')
+    .insert({
+      user_id: userId,
+      name: encryptString(data.name, dek),
+      amount: encryptNumber(data.amount, dek),
+      currency: data.currency || 'PLN',
+      category: data.category,
+      wallet_id: data.wallet_id || null,
+      billing_day: data.billing_day,
+      frequency: data.frequency,
+      next_due_date: data.next_due_date,
+      is_active: true,
+      icon: data.icon,
+      color: data.color,
+      notes: data.notes ? encryptString(data.notes, dek) : null,
+    });
+
+  if (error) {
+    console.error('Error adding recurring expense:', error);
+    throw new Error(error.message);
+  }
+
+  revalidatePath('/', 'layout');
+}
+
+export async function editRecurringExpense(id: string, data: {
+  name: string;
+  amount: number;
+  currency: string;
+  category: string;
+  wallet_id: string | null;
+  billing_day: number;
+  frequency: string;
+  next_due_date: string;
+  icon: string;
+  color: string;
+  notes: string;
+  is_active: boolean;
+}) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  const { data: existing } = await supabaseAdmin
+    .from('recurring_expenses')
+    .select('user_id')
+    .eq('id', id)
+    .single();
+
+  if (!existing || existing.user_id !== userId) throw new Error('Not found');
+
+  const dek = await getDEK();
+
+  const { error } = await supabaseAdmin
+    .from('recurring_expenses')
+    .update({
+      name: encryptString(data.name, dek),
+      amount: encryptNumber(data.amount, dek),
+      currency: data.currency || 'PLN',
+      category: data.category,
+      wallet_id: data.wallet_id || null,
+      billing_day: data.billing_day,
+      frequency: data.frequency,
+      next_due_date: data.next_due_date,
+      is_active: data.is_active,
+      icon: data.icon,
+      color: data.color,
+      notes: data.notes ? encryptString(data.notes, dek) : null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error editing recurring expense:', error);
+    throw new Error(error.message);
+  }
+
+  revalidatePath('/', 'layout');
+}
+
+export async function deleteRecurringExpense(id: string) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  const { data: existing } = await supabaseAdmin
+    .from('recurring_expenses')
+    .select('user_id')
+    .eq('id', id)
+    .single();
+
+  if (!existing || existing.user_id !== userId) throw new Error('Not found');
+
+  // Payments cascade-delete via FK
+  await supabaseAdmin
+    .from('recurring_expenses')
+    .delete()
+    .eq('id', id);
+
+  revalidatePath('/', 'layout');
+}
+
+export async function payRecurringExpense(id: string, actualAmount: number) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  if (typeof actualAmount !== 'number' || !isFinite(actualAmount) || actualAmount <= 0) {
+    throw new Error('Invalid amount');
+  }
+
+  const dek = await getDEK();
+
+  // Fetch expense
+  const { data: expense } = await supabaseAdmin
+    .from('recurring_expenses')
+    .select('*')
+    .eq('id', id)
+    .eq('user_id', userId)
+    .single();
+
+  if (!expense) throw new Error('Expense not found');
+
+  const expenseName = decryptString(expense.name, dek) || 'Stały wydatek';
+  const currency: Currency = (['PLN', 'USD', 'EUR'].includes(expense.currency) ? expense.currency : 'PLN') as Currency;
+
+  // Create transaction (outcome)
+  const transactionId = nanoid();
+  const rates = await getExchangeRates();
+  const amountInPLN = convertAmount(actualAmount, currency, 'PLN', rates);
+
+  if (expense.wallet_id) {
+    const { data: wallet } = await supabaseAdmin
+      .from('wallets')
+      .select('*')
+      .eq('id', expense.wallet_id)
+      .eq('user_id', userId)
+      .single();
+
+    if (wallet) {
+      // Add transaction
+      await supabaseAdmin
+        .from('transactions')
+        .insert({
+          id: transactionId,
+          amount: encryptNumber(-Math.abs(actualAmount), dek),
+          category: encryptString(expense.category, dek),
+          description: encryptString(expenseName, dek),
+          type: 'outcome',
+          date: new Date().toISOString().split('T')[0],
+          wallet_id: expense.wallet_id,
+          currency,
+          created_at: new Date().toISOString(),
+        });
+
+      // Update wallet balance
+      const currentBalance = decryptNumber(wallet.balance, dek);
+      const newBalance = currentBalance - amountInPLN;
+      await supabaseAdmin
+        .from('wallets')
+        .update({ balance: encryptNumber(newBalance, dek) })
+        .eq('id', expense.wallet_id);
+    }
+  }
+
+  // Record payment
+  await supabaseAdmin
+    .from('expense_payments')
+    .insert({
+      expense_id: id,
+      user_id: userId,
+      amount: encryptNumber(actualAmount, dek),
+      paid_date: new Date().toISOString().split('T')[0],
+      transaction_id: expense.wallet_id ? transactionId : null,
+      status: 'paid',
+    });
+
+  // Advance next_due_date
+  const currentDue = new Date(expense.next_due_date);
+  let nextDue: Date;
+  if (expense.frequency === 'monthly') {
+    nextDue = new Date(currentDue);
+    nextDue.setMonth(nextDue.getMonth() + 1);
+  } else if (expense.frequency === 'quarterly') {
+    nextDue = new Date(currentDue);
+    nextDue.setMonth(nextDue.getMonth() + 3);
+  } else {
+    nextDue = new Date(currentDue);
+    nextDue.setFullYear(nextDue.getFullYear() + 1);
+  }
+
+  await supabaseAdmin
+    .from('recurring_expenses')
+    .update({
+      next_due_date: nextDue.toISOString().split('T')[0],
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id);
+
+  revalidatePath('/', 'layout');
+}
+
+export async function skipRecurringExpense(id: string) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  const { data: expense } = await supabaseAdmin
+    .from('recurring_expenses')
+    .select('*')
+    .eq('id', id)
+    .eq('user_id', userId)
+    .single();
+
+  if (!expense) throw new Error('Expense not found');
+
+  const dek = await getDEK();
+
+  // Record skipped payment
+  await supabaseAdmin
+    .from('expense_payments')
+    .insert({
+      expense_id: id,
+      user_id: userId,
+      amount: encryptNumber(0, dek),
+      paid_date: new Date().toISOString().split('T')[0],
+      status: 'skipped',
+    });
+
+  // Advance next_due_date
+  const currentDue = new Date(expense.next_due_date);
+  let nextDue: Date;
+  if (expense.frequency === 'monthly') {
+    nextDue = new Date(currentDue);
+    nextDue.setMonth(nextDue.getMonth() + 1);
+  } else if (expense.frequency === 'quarterly') {
+    nextDue = new Date(currentDue);
+    nextDue.setMonth(nextDue.getMonth() + 3);
+  } else {
+    nextDue = new Date(currentDue);
+    nextDue.setFullYear(nextDue.getFullYear() + 1);
+  }
+
+  await supabaseAdmin
+    .from('recurring_expenses')
+    .update({
+      next_due_date: nextDue.toISOString().split('T')[0],
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id);
+
+  revalidatePath('/', 'layout');
 }

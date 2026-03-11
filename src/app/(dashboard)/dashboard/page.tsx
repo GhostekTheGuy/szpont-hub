@@ -28,6 +28,7 @@ export default async function Home() {
         initialTransactions={data.transactions}
         initialAssets={data.assets}
         initialGoals={data.goals}
+        initialRecurringExpenses={data.recurringExpenses}
         exchangeRates={data.exchangeRates}
         userName={userName}
         workEarningsByDate={data.workEarningsByDate}

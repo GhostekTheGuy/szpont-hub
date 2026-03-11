@@ -98,6 +98,24 @@ export interface CalendarEvent {
   google_calendar_id?: string | null;
 }
 
+export interface RecurringExpense {
+  id: string;
+  name: string;
+  amount: number;
+  currency: Currency;
+  category: string;
+  wallet_id: string | null;
+  walletName: string;
+  billing_day: number;
+  frequency: 'monthly' | 'quarterly' | 'yearly';
+  next_due_date: string;
+  is_active: boolean;
+  icon: string;
+  color: string;
+  notes: string | null;
+  created_at: string;
+}
+
 interface FinanceState {
   wallets: Wallet[];
   transactions: Transaction[];
@@ -107,6 +125,7 @@ interface FinanceState {
   goals: Goal[];
   habits: Habit[];
   habitEntries: HabitEntry[];
+  recurringExpenses: RecurringExpense[];
   activeWalletId: string | null;
   balanceMasked: boolean;
   displayCurrency: Currency;
@@ -122,6 +141,7 @@ interface FinanceState {
   setGoals: (goals: Goal[]) => void;
   setHabits: (habits: Habit[]) => void;
   setHabitEntries: (entries: HabitEntry[]) => void;
+  setRecurringExpenses: (expenses: RecurringExpense[]) => void;
   setActiveWallet: (id: string | null) => void;
   setBalanceMasked: (masked: boolean) => void;
   toggleBalanceMask: () => void;
@@ -140,6 +160,7 @@ export const useFinanceStore = create<FinanceState>()(
     goals: [],
     habits: [],
     habitEntries: [],
+    recurringExpenses: [],
     activeWalletId: null,
     balanceMasked: false,
     displayCurrency: 'PLN' as Currency,
@@ -154,6 +175,7 @@ export const useFinanceStore = create<FinanceState>()(
     setGoals: (goals) => set({ goals }),
     setHabits: (habits) => set({ habits }),
     setHabitEntries: (habitEntries) => set({ habitEntries }),
+    setRecurringExpenses: (recurringExpenses) => set({ recurringExpenses }),
     setActiveWallet: (id) => set({ activeWalletId: id }),
     setBalanceMasked: (masked) => set({ balanceMasked: masked }),
     toggleBalanceMask: () => {
