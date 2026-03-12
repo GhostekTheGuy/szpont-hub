@@ -2,6 +2,7 @@
 
 import type { Habit, HabitEntry } from '@/hooks/useFinanceStore';
 import { ICON_OPTIONS } from '@/components/HabitModal';
+import { format } from 'date-fns';
 import { Flame } from 'lucide-react';
 
 interface Props {
@@ -27,7 +28,7 @@ export function HabitStreakBars({ habits, entries }: Props) {
 
     // Count consecutive days backwards from today
     while (true) {
-      const dateStr = d.toISOString().split('T')[0];
+      const dateStr = format(d, 'yyyy-MM-dd');
       const completed = entries.some(
         e => e.habit_id === habit.id && e.date === dateStr && e.completed
       );

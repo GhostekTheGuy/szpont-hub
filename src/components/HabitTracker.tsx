@@ -41,7 +41,7 @@ export function HabitTracker({ weekStart, onPrevWeek, onNextWeek, onToday, isCur
 
   // 7 dni tygodnia
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
-  const today = new Date().toISOString().split('T')[0];
+  const today = format(new Date(), 'yyyy-MM-dd');
 
   const isCompleted = useCallback((habitId: string, date: string) => {
     return habitEntries.some(e => e.habit_id === habitId && e.date === date && e.completed);
@@ -273,7 +273,7 @@ export function HabitTracker({ weekStart, onPrevWeek, onNextWeek, onToday, isCur
                       {/* 7 day checkboxes */}
                       <div className="grid grid-cols-7 gap-1">
                         {days.map((day, idx) => {
-                          const dateStr = day.toISOString().split('T')[0];
+                          const dateStr = format(day, 'yyyy-MM-dd');
                           const isToday = dateStr === today;
                           const completed = isCompleted(habit.id, dateStr);
                           const isSunday = idx === 6;
@@ -373,7 +373,7 @@ export function HabitTracker({ weekStart, onPrevWeek, onNextWeek, onToday, isCur
                             {/* Dots for this row across all weeks */}
                             {overallGrid.map((week, weekIdx) => {
                               const day = week[rowIdx];
-                              const dateStr = day.toISOString().split('T')[0];
+                              const dateStr = format(day, 'yyyy-MM-dd');
                               const completed = isCompleted(habit.id, dateStr);
                               return (
                                 <div

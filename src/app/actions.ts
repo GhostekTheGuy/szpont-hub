@@ -409,7 +409,15 @@ export async function getDashboardHistoricalRates(range: '1W' | '1M' | '3M' | '1
 
 // --- TRANSAKCJE ---
 
-export async function addTransactionAction(data: any) {
+export async function addTransactionAction(data: {
+  amount: number;
+  wallet: string;
+  type: 'income' | 'outcome';
+  category: string;
+  description?: string;
+  date?: string;
+  currency?: string;
+}) {
   const userId = await getUserId();
   if (!userId) throw new Error("Unauthorized");
 
@@ -422,7 +430,7 @@ export async function addTransactionAction(data: any) {
   if (data.date && !/^\d{4}-\d{2}-\d{2}$/.test(data.date)) throw new Error("Invalid date");
 
   const dek = await getDEK();
-  const currency: Currency = ['PLN', 'USD', 'EUR'].includes(data.currency) ? data.currency : 'PLN';
+  const currency: Currency = data.currency && ['PLN', 'USD', 'EUR'].includes(data.currency) ? data.currency as Currency : 'PLN';
 
   // 1. Pobierz portfel
   const { data: wallet, error: walletError } = await supabaseAdmin
@@ -461,7 +469,7 @@ export async function addTransactionAction(data: any) {
 
   if (insertError) {
     console.error('Error adding transaction:', insertError);
-    throw new Error(insertError.message);
+    throw new Error('Failed to add transaction');
   }
 
   // 3. Zaktualizuj saldo w PLN (zaszyfrowane)
@@ -635,7 +643,15 @@ export async function deleteTransactionAction(id: string) {
   revalidatePath('/', 'layout');
 }
 
-export async function editTransactionAction(id: string, data: any) {
+export async function editTransactionAction(id: string, data: {
+  amount: number;
+  wallet: string;
+  type: 'income' | 'outcome';
+  category: string;
+  description?: string;
+  date?: string;
+  currency?: string;
+}) {
   const userId = await getUserId();
   if (!userId) throw new Error("Unauthorized");
 
@@ -671,7 +687,7 @@ export async function editTransactionAction(id: string, data: any) {
     .update({ balance: encryptNumber(revertedBalance, dek) })
     .eq('id', oldTransaction.wallet_id);
 
-  const newCurrency: Currency = data.currency || 'PLN';
+  const newCurrency: Currency = data.currency && ['PLN', 'USD', 'EUR'].includes(data.currency) ? data.currency as Currency : 'PLN';
 
   // 2. Zaktualizuj transakcję (zaszyfrowane pola)
   await supabaseAdmin
@@ -710,7 +726,14 @@ export async function editTransactionAction(id: string, data: any) {
 
 // --- PORTFELE ---
 
-export async function addWalletAction(data: any) {
+export async function addWalletAction(data: {
+  name: string;
+  type: string;
+  track_from?: string;
+  initial_balance?: number;
+  color?: string;
+  icon?: string;
+}) {
   const userId = await getUserId();
   if (!userId) throw new Error("Unauthorized");
 
@@ -743,13 +766,20 @@ export async function addWalletAction(data: any) {
 
   if (error) {
     console.error('Error adding wallet:', error);
-    throw new Error(error.message);
+    throw new Error('Failed to add wallet');
   }
 
   revalidatePath('/', 'layout');
 }
 
-export async function editWalletAction(id: string, data: any) {
+export async function editWalletAction(id: string, data: {
+  name: string;
+  type: string;
+  track_from?: string;
+  initial_balance?: number;
+  color?: string;
+  icon?: string;
+}) {
   const userId = await getUserId();
   if (!userId) throw new Error("Unauthorized");
 
@@ -890,7 +920,7 @@ export async function resetPasswordAction() {
     redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/auth/callback?next=/update-password`,
   });
 
-  if (error) throw new Error(error.message);
+  if (error) throw new Error('Failed to send reset email');
 }
 
 export async function resetPasswordByEmailAction(email: string) {
@@ -1141,7 +1171,7 @@ export async function addCalendarEvent(data: {
 
   if (error) {
     console.error('Error adding calendar event:', error);
-    throw new Error(error.message);
+    throw new Error('Failed to add calendar event');
   }
 
   revalidatePath('/', 'layout');
@@ -2073,7 +2103,7 @@ export async function searchYahooFinance(query: string): Promise<{ symbol: strin
   try {
     const res = await fetch(
       `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(sanitizedQuery)}&quotesCount=8&newsCount=0&listsCount=0`,
-      { headers: { 'User-Agent': 'Mozilla/5.0' } }
+      { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(10000) }
     );
     if (!res.ok) return [];
     const data = await res.json();
@@ -2098,7 +2128,7 @@ export async function fetchYahooQuotes(symbols: string[]): Promise<{ symbol: str
     try {
       const res = await fetch(
         `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=2d`,
-        { headers: { 'User-Agent': 'Mozilla/5.0' } }
+        { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(10000) }
       );
       if (!res.ok) continue;
       const data = await res.json();
@@ -2202,7 +2232,7 @@ export async function addAssetAction(data: {
 
   if (error) {
     console.error('Error adding asset:', error);
-    throw new Error(error.message);
+    throw new Error('Failed to add asset');
   }
 
   revalidatePath('/', 'layout');
@@ -2433,7 +2463,7 @@ export async function sellAssetAction(data: {
 
   if (saleError) {
     console.error('Error inserting asset sale:', saleError);
-    throw new Error(saleError.message);
+    throw new Error('Failed to record asset sale');
   }
 
   // 5. Update or delete asset
@@ -2598,7 +2628,7 @@ export async function addManualSaleAction(data: {
 
   if (saleError) {
     console.error('Error inserting manual sale:', saleError);
-    throw new Error(saleError.message);
+    throw new Error('Failed to record asset sale');
   }
 
   // Transakcja income netto do portfela
@@ -2700,7 +2730,7 @@ export async function addHabit(data: { name: string; color: string; icon: string
 
   if (error) {
     console.error('Error adding habit:', error);
-    throw new Error(error.message);
+    throw new Error('Failed to add habit');
   }
 
   revalidatePath('/', 'layout');
@@ -3019,7 +3049,7 @@ export async function addGoalAction(data: {
 
   if (error) {
     console.error('Error adding goal:', error);
-    throw new Error(error.message);
+    throw new Error('Failed to add goal');
   }
 
   revalidatePath('/', 'layout');
@@ -3318,7 +3348,7 @@ export async function addRecurringExpense(data: {
 
   if (error) {
     console.error('Error adding recurring expense:', error);
-    throw new Error(error.message);
+    throw new Error('Failed to add recurring expense');
   }
 
   revalidatePath('/', 'layout');
@@ -3372,7 +3402,7 @@ export async function editRecurringExpense(id: string, data: {
 
   if (error) {
     console.error('Error editing recurring expense:', error);
-    throw new Error(error.message);
+    throw new Error('Failed to edit recurring expense');
   }
 
   revalidatePath('/', 'layout');

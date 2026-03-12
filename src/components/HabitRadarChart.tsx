@@ -1,6 +1,7 @@
 'use client';
 
 import { useId } from 'react';
+import { format } from 'date-fns';
 import type { Habit, HabitEntry } from '@/hooks/useFinanceStore';
 
 interface Props {
@@ -21,7 +22,7 @@ export function HabitRadarChart({ habits, entries }: Props) {
   const now = new Date();
   const thirtyDaysAgo = new Date(now);
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+  const thirtyDaysAgoStr = format(thirtyDaysAgo, 'yyyy-MM-dd');
 
   const habitScores = habits.map(habit => {
     const habitEntries = entries.filter(

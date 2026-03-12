@@ -50,14 +50,27 @@ function getSavedSeller(): SellerData | null {
   try {
     const raw = localStorage.getItem('invoice_seller');
     if (!raw) return null;
-    return JSON.parse(raw);
+    // Decode from base64 obfuscation
+    const decoded = atob(raw);
+    return JSON.parse(decoded);
   } catch {
-    return null;
+    // Fallback: try reading legacy plaintext format
+    try {
+      const raw = localStorage.getItem('invoice_seller');
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      // Re-save in obfuscated format
+      localStorage.setItem('invoice_seller', btoa(JSON.stringify(parsed)));
+      return parsed;
+    } catch {
+      return null;
+    }
   }
 }
 
 function saveSeller(seller: SellerData) {
-  localStorage.setItem('invoice_seller', JSON.stringify(seller));
+  // Base64 encode to avoid storing NIP/address in plaintext
+  localStorage.setItem('invoice_seller', btoa(JSON.stringify(seller)));
 }
 
 type DocType = 'invoice' | 'summary';
