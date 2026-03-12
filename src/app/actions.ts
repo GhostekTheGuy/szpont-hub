@@ -1234,20 +1234,36 @@ export async function moveRecurringEvent(
   if (!parent) throw new Error('Event not found');
 
   if (mode === 'all') {
-    // Update parent's time portion (keep original date anchor)
+    // Update parent's date and time to match the new position
+    // For weekly: this changes the day-of-week anchor
+    // For daily/monthly: this changes the date anchor
     const newStart = new Date(newStartTime);
     const newEnd = new Date(newEndTime);
-    const origStart = new Date(parent.start_time);
-    const origEnd = new Date(parent.end_time);
-    const durationMs = origEnd.getTime() - origStart.getTime();
 
-    origStart.setUTCHours(newStart.getUTCHours(), newStart.getUTCMinutes(), 0, 0);
-    const updatedEnd = new Date(origStart.getTime() + durationMs);
-
-    await supabaseAdmin
-      .from('calendar_events')
-      .update({ start_time: origStart.toISOString(), end_time: updatedEnd.toISOString() })
-      .eq('id', parentId);
+    // If dragged from an expanded instance, shift the parent's date
+    // to match the new day while preserving the original creation week offset
+    if (parsedInstance) {
+      const origStart = new Date(parent.start_time);
+      const origEnd = new Date(parent.end_time);
+      const durationMs = origEnd.getTime() - origStart.getTime();
+      // Shift parent date by the same day-of-week delta
+      const instanceOrigDate = new Date(parsedInstance.dateStr + 'T00:00:00Z');
+      const dayDelta = Math.round((newStart.getTime() - instanceOrigDate.getTime()) / 86400000);
+      const shiftedStart = new Date(origStart);
+      shiftedStart.setUTCDate(shiftedStart.getUTCDate() + dayDelta);
+      shiftedStart.setUTCHours(newStart.getUTCHours(), newStart.getUTCMinutes(), 0, 0);
+      const shiftedEnd = new Date(shiftedStart.getTime() + durationMs);
+      await supabaseAdmin
+        .from('calendar_events')
+        .update({ start_time: shiftedStart.toISOString(), end_time: shiftedEnd.toISOString() })
+        .eq('id', parentId);
+    } else {
+      // Moving the parent directly — just use new times
+      await supabaseAdmin
+        .from('calendar_events')
+        .update({ start_time: newStartTime, end_time: newEndTime })
+        .eq('id', parentId);
+    }
   } else {
     // "this" mode — materialize this specific instance
     if (parsedInstance) {
@@ -1276,7 +1292,7 @@ export async function moveRecurringEvent(
             is_recurring: false,
             recurrence_rule: null,
             is_settled: false,
-            is_confirmed: parent.is_confirmed || false,
+            is_confirmed: false,
             event_type: parent.event_type || 'work',
             created_at: new Date().toISOString(),
           });
