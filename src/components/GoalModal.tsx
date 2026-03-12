@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useToast } from '@/components/Toast';
 import { addGoalAction, editGoalAction } from '@/app/actions';
 import type { Goal, Wallet } from '@/hooks/useFinanceStore';
 
@@ -29,6 +30,7 @@ interface GoalModalProps {
 }
 
 export function GoalModal({ isOpen, onClose, editingGoal, wallets }: GoalModalProps) {
+  const { toast } = useToast();
   const [name, setName] = useState('');
   const [targetAmount, setTargetAmount] = useState('');
   const [currentAmount, setCurrentAmount] = useState('');
@@ -81,7 +83,7 @@ export function GoalModal({ isOpen, onClose, editingGoal, wallets }: GoalModalPr
       onClose();
     } catch (error) {
       console.error(error);
-      alert('Wystąpił błąd');
+      toast('Wystąpił błąd', 'error');
     } finally {
       setLoading(false);
     }

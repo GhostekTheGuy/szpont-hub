@@ -6,6 +6,7 @@ import { Asset, Wallet } from '@/hooks/useFinanceStore';
 import { sellAssetAction, addManualSaleAction } from '@/app/actions';
 import { formatCurrency } from '@/lib/exchange-rates';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useToast } from '@/components/Toast';
 import { useRouter } from 'next/navigation';
 
 interface SellAssetModalProps {
@@ -16,6 +17,7 @@ interface SellAssetModalProps {
 }
 
 export function SellAssetModal({ isOpen, onClose, asset, wallets }: SellAssetModalProps) {
+  const { toast } = useToast();
   const router = useRouter();
   const [mode, setMode] = useState<'asset' | 'manual'>(asset ? 'asset' : 'manual');
 
@@ -36,7 +38,7 @@ export function SellAssetModal({ isOpen, onClose, asset, wallets }: SellAssetMod
     if (isOpen) {
       setMode(asset ? 'asset' : 'manual');
       setQuantity('');
-      setWalletId('');
+      setWalletId(asset?.wallet_id || '');
       setManualName('');
       setManualSymbol('');
       setManualQty('');
@@ -102,7 +104,7 @@ export function SellAssetModal({ isOpen, onClose, asset, wallets }: SellAssetMod
       onClose();
     } catch (error) {
       console.error(error);
-      alert(`Błąd: ${error instanceof Error ? error.message : String(error)}`);
+      toast(`Błąd: ${error instanceof Error ? error.message : String(error)}`, 'error');
     } finally {
       setLoading(false);
     }
@@ -289,17 +291,24 @@ export function SellAssetModal({ isOpen, onClose, asset, wallets }: SellAssetMod
               {/* Wybór portfela */}
               <div>
                 <label className="block text-sm text-muted-foreground mb-2">Portfel docelowy</label>
-                <select
-                  required
-                  value={walletId}
-                  onChange={(e) => setWalletId(e.target.value)}
-                  className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
-                >
-                  <option value="">Wybierz portfel...</option>
-                  {wallets.map((w) => (
-                    <option key={w.id} value={w.id}>{w.name}</option>
-                  ))}
-                </select>
+                {mode === 'asset' && asset?.wallet_id ? (
+                  <div className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-foreground text-sm">
+                    {wallets.find(w => w.id === asset.wallet_id)?.name || 'Przypisany portfel'}
+                    <span className="text-xs text-muted-foreground ml-2">(portfel aktywa)</span>
+                  </div>
+                ) : (
+                  <select
+                    required
+                    value={walletId}
+                    onChange={(e) => setWalletId(e.target.value)}
+                    className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
+                  >
+                    <option value="">Wybierz portfel...</option>
+                    {wallets.map((w) => (
+                      <option key={w.id} value={w.id}>{w.name}</option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               {/* Live kalkulacja */}

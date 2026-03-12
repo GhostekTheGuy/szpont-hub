@@ -5,6 +5,7 @@ import { X } from 'lucide-react';
 import { useFinanceStore, type CalendarEvent } from '@/hooks/useFinanceStore';
 import { addCalendarEvent, editCalendarEvent, deleteCalendarEvent, editRecurringInstance, deleteRecurringInstance } from '@/app/actions';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useToast } from '@/components/Toast';
 import { format } from 'date-fns';
 
 interface CalendarEventModalProps {
@@ -20,6 +21,7 @@ function timeToString(h: number, m: number): string {
 }
 
 export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate, prefillHour }: CalendarEventModalProps) {
+  const { toast, confirm } = useToast();
   const { wallets } = useFinanceStore();
 
   const [eventType, setEventType] = useState<'work' | 'personal'>('work');
@@ -115,7 +117,7 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
       onClose(true);
     } catch (error) {
       console.error(error);
-      alert('Wystąpił błąd zapisu');
+      toast('Wystąpił błąd zapisu', 'error');
     } finally {
       setLoading(false);
     }
@@ -127,14 +129,18 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
     let reverseTransaction = false;
 
     if (editingEvent.is_settled && editingEvent.event_type !== 'personal') {
-      const choice = confirm(
-        'To wydarzenie zostało już rozliczone. Czy chcesz również odjąć przydzieloną kwotę z portfela?'
-      );
+      const choice = await confirm({
+        title: 'Wydarzenie rozliczone',
+        description: 'To wydarzenie zostało już rozliczone. Czy chcesz również odjąć przydzieloną kwotę z portfela?',
+        variant: 'danger',
+        confirmLabel: 'Tak, odjąć kwotę',
+        cancelLabel: 'Nie',
+      });
       reverseTransaction = choice;
       // Confirm deletion regardless
-      if (!confirm('Usunąć wydarzenie?')) return;
+      if (!await confirm({ title: 'Usunąć wydarzenie?', variant: 'danger', confirmLabel: 'Usuń' })) return;
     } else {
-      if (!confirm('Usunąć wydarzenie?')) return;
+      if (!await confirm({ title: 'Usunąć wydarzenie?', variant: 'danger', confirmLabel: 'Usuń' })) return;
     }
 
     setLoading(true);

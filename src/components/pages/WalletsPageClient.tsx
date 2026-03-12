@@ -14,6 +14,7 @@ import { AssetModal } from '@/components/AssetModal';
 import { SellAssetModal } from '@/components/SellAssetModal';
 import { CompoundInterestChart } from '@/components/CompoundInterestChart';
 import { SectionNav } from '@/components/SectionNav';
+import { useToast } from '@/components/Toast';
 import { useFinanceStore, Transaction, Wallet, Asset, AssetSale } from '@/hooks/useFinanceStore';
 import { Plus, Camera, ChevronDown, ChevronUp, RefreshCw, BadgeDollarSign, Receipt, TrendingUp, TrendingDown, Landmark, Calculator } from 'lucide-react';
 import { deleteTransactionAction, deleteWalletAction, recalculateWalletBalance, deleteAssetAction, refreshAssetPricesAction } from '@/app/actions';
@@ -38,6 +39,7 @@ interface Props {
 }
 
 export function WalletsPageClient({ initialWallets, initialTransactions, exchangeRates, initialAssets, initialSales, initialTaxSummary }: Props) {
+  const { confirm } = useToast();
   const router = useRouter();
   const [isTransModalOpen, setIsTransModalOpen] = useState(false);
   const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
@@ -86,14 +88,14 @@ export function WalletsPageClient({ initialWallets, initialTransactions, exchang
   }, [transactions]);
 
   const handleDeleteTransaction = async (id: string) => {
-    if (confirm('Czy na pewno?')) {
+    if (await confirm({ title: 'Czy na pewno chcesz usunąć tę transakcję?', variant: 'danger', confirmLabel: 'Usuń' })) {
       await deleteTransactionAction(id);
       setChartRefreshKey(k => k + 1);
     }
   };
 
   const handleDeleteWallet = async (id: string) => {
-    if (confirm('Czy na pewno?')) {
+    if (await confirm({ title: 'Czy na pewno chcesz usunąć ten portfel?', variant: 'danger', confirmLabel: 'Usuń' })) {
       await deleteWalletAction(id);
       if (activeWalletId === id) setActiveWallet(null);
     }
@@ -114,9 +116,9 @@ export function WalletsPageClient({ initialWallets, initialTransactions, exchang
     setAssetModalOpen(true);
   };
 
-  const handleDeleteAsset = async (id: string) => {
+  const handleDeleteAsset = async (id: string, revertTransaction?: boolean) => {
     try {
-      await deleteAssetAction(id);
+      await deleteAssetAction(id, revertTransaction);
       router.refresh();
     } catch (error) {
       console.error(error);
@@ -459,6 +461,7 @@ export function WalletsPageClient({ initialWallets, initialTransactions, exchang
         onClose={() => { setAssetModalOpen(false); setEditingAsset(null); }}
         editingAsset={editingAsset}
         onDelete={handleDeleteAsset}
+        wallets={wallets}
       />
 
       <SellAssetModal

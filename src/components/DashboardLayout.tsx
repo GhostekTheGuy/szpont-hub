@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { PageTransition } from '@/components/PageTransition';
 import { Spotlight } from '@/components/Spotlight';
+import { ToastProvider } from '@/components/Toast';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -71,6 +72,7 @@ export function DashboardLayout({ children, userName, avatarUrl, isPro }: Dashbo
   const settingsActive = pathname.startsWith('/settings');
 
   return (
+    <ToastProvider>
     <div className="min-h-screen bg-background">
       {/* Spotlight */}
       <Spotlight />
@@ -221,5 +223,6 @@ export function DashboardLayout({ children, userName, avatarUrl, isPro }: Dashbo
         </div>
       </nav>
     </div>
+    </ToastProvider>
   );
 }

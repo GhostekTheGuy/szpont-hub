@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { X, Search, Loader2 } from 'lucide-react';
-import { Asset } from '@/hooks/useFinanceStore';
+import { Asset, Wallet } from '@/hooks/useFinanceStore';
 import { addAssetAction, editAssetAction, searchYahooFinance } from '@/app/actions';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useToast } from '@/components/Toast';
 import { useRouter } from 'next/navigation';
 
 interface CoinResult {
@@ -27,10 +28,12 @@ interface AssetModalProps {
   isOpen: boolean;
   onClose: () => void;
   editingAsset?: Asset | null;
-  onDelete?: (id: string) => void;
+  onDelete?: (id: string, revertTransaction?: boolean) => void;
+  wallets?: Wallet[];
 }
 
-export function AssetModal({ isOpen, onClose, editingAsset, onDelete }: AssetModalProps) {
+export function AssetModal({ isOpen, onClose, editingAsset, onDelete, wallets = [] }: AssetModalProps) {
+  const { toast } = useToast();
   const router = useRouter();
 
   const [assetType, setAssetType] = useState<AssetType>('crypto');
@@ -43,6 +46,9 @@ export function AssetModal({ isOpen, onClose, editingAsset, onDelete }: AssetMod
   const [quantity, setQuantity] = useState('');
   const [costBasis, setCostBasis] = useState('');
   const [costCurrency, setCostCurrency] = useState<'PLN' | 'USD'>('PLN');
+  const [walletId, setWalletId] = useState('');
+  const [deductFromWallet, setDeductFromWallet] = useState(true);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
   const debounceRef = useRef<NodeJS.Timeout>();
 
@@ -69,6 +75,8 @@ export function AssetModal({ isOpen, onClose, editingAsset, onDelete }: AssetMod
       setQuantity(editingAsset.quantity.toString());
       setCostBasis(editingAsset.cost_basis > 0 ? editingAsset.cost_basis.toString() : '');
       setCostCurrency('PLN');
+      setWalletId(editingAsset.wallet_id || '');
+      setDeductFromWallet(false);
       setQuery('');
       setCoinResults([]);
       setStockResults([]);
@@ -78,6 +86,8 @@ export function AssetModal({ isOpen, onClose, editingAsset, onDelete }: AssetMod
       setQuantity('');
       setCostBasis('');
       setCostCurrency('PLN');
+      setWalletId('');
+      setDeductFromWallet(true);
       setQuery('');
       setCoinResults([]);
       setStockResults([]);
@@ -201,6 +211,8 @@ export function AssetModal({ isOpen, onClose, editingAsset, onDelete }: AssetMod
           quantity: parseFloat(quantity),
           cost_basis: costBasisPLN,
           asset_type: 'crypto',
+          wallet_id: walletId || undefined,
+          deduct_from_wallet: deductFromWallet && !!walletId,
         });
       } else if (assetType === 'stock' && selectedStock) {
         await addAssetAction({
@@ -210,13 +222,15 @@ export function AssetModal({ isOpen, onClose, editingAsset, onDelete }: AssetMod
           quantity: parseFloat(quantity),
           cost_basis: costBasisPLN,
           asset_type: 'stock',
+          wallet_id: walletId || undefined,
+          deduct_from_wallet: deductFromWallet && !!walletId,
         });
       }
       router.refresh();
       onClose();
     } catch (error) {
       console.error(error);
-      alert(`Błąd: ${error instanceof Error ? error.message : String(error)}`);
+      toast(`Błąd: ${error instanceof Error ? error.message : String(error)}`, 'error');
     } finally {
       setLoading(false);
     }
@@ -422,16 +436,79 @@ export function AssetModal({ isOpen, onClose, editingAsset, onDelete }: AssetMod
                 </div>
               </div>
 
+              {/* Wallet picker */}
+              {wallets.length > 0 && (
+                <div>
+                  <label className="block text-sm text-muted-foreground mb-2">Portfel</label>
+                  <select
+                    value={walletId}
+                    onChange={(e) => setWalletId(e.target.value)}
+                    className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
+                  >
+                    <option value="">Brak przypisania</option>
+                    {wallets.map((w) => (
+                      <option key={w.id} value={w.id}>{w.name}</option>
+                    ))}
+                  </select>
+
+                  {/* Deduct checkbox — only for new assets with wallet selected */}
+                  {!editingAsset && walletId && (
+                    <label className="flex items-center gap-2 mt-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={deductFromWallet}
+                        onChange={(e) => setDeductFromWallet(e.target.checked)}
+                        className="w-4 h-4 rounded border-border accent-primary"
+                      />
+                      <span className="text-sm text-muted-foreground">Odejmij kwotę zakupu z salda portfela</span>
+                    </label>
+                  )}
+                </div>
+              )}
+
+              {/* Delete confirmation popup */}
+              {showDeleteConfirm && editingAsset && onDelete && (
+                <div className="p-4 bg-destructive/5 border border-destructive/20 rounded-lg space-y-3">
+                  <p className="text-sm text-card-foreground font-medium">Czy usunąć również transakcję zakupu i przywrócić saldo portfela?</p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onDelete(editingAsset.id, true);
+                        setShowDeleteConfirm(false);
+                        onClose();
+                      }}
+                      className="flex-1 px-3 py-2 bg-destructive hover:bg-destructive/90 text-destructive-foreground text-sm font-medium rounded-lg transition-colors"
+                    >
+                      Usuń z transakcją
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onDelete(editingAsset.id, false);
+                        setShowDeleteConfirm(false);
+                        onClose();
+                      }}
+                      className="flex-1 px-3 py-2 bg-secondary hover:bg-accent text-secondary-foreground text-sm font-medium rounded-lg transition-colors"
+                    >
+                      Tylko aktywo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowDeleteConfirm(false)}
+                      className="px-3 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      Anuluj
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className={`flex gap-2 mt-6 ${editingAsset && onDelete ? '' : ''}`}>
-                {editingAsset && onDelete && (
+                {editingAsset && onDelete && !showDeleteConfirm && (
                   <button
                     type="button"
-                    onClick={() => {
-                      if (confirm('Czy na pewno chcesz usunąć to aktywo?')) {
-                        onDelete(editingAsset.id);
-                        onClose();
-                      }
-                    }}
+                    onClick={() => setShowDeleteConfirm(true)}
                     className="px-4 py-2.5 bg-destructive/10 hover:bg-destructive/20 text-destructive font-medium rounded-lg transition-colors"
                   >
                     Usuń

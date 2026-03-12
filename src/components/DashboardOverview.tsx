@@ -23,6 +23,7 @@ const WalletModal = dynamic(() => import('@/components/WalletModal').then(m => (
 const GoalModal = dynamic(() => import('@/components/GoalModal').then(m => ({ default: m.GoalModal })));
 const ExpenseModal = dynamic(() => import('@/components/ExpenseModal').then(m => ({ default: m.ExpenseModal })));
 const PayExpenseModal = dynamic(() => import('@/components/PayExpenseModal').then(m => ({ default: m.PayExpenseModal })));
+import { useToast } from '@/components/Toast';
 import { TrendingUp, Wallet as WalletIcon, ArrowUpRight, ArrowDownRight, Plus, ArrowRight, Target, Sparkles, RotateCcw } from 'lucide-react';
 import { subDays, format } from 'date-fns';
 import { pl } from 'date-fns/locale';
@@ -50,6 +51,7 @@ function getGreeting(): string {
 }
 
 export function DashboardOverview({ initialWallets, initialTransactions, initialAssets, initialGoals, initialRecurringExpenses, exchangeRates, userName, workEarningsByDate }: Props) {
+  const { confirm } = useToast();
   const [isTransModalOpen, setIsTransModalOpen] = useState(false);
   const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
@@ -116,15 +118,15 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
   }, [wallets, assets, transactions, range, displayCurrency, exchangeRates]);
 
   const handleDeleteTransaction = async (id: string) => {
-    if (confirm('Czy na pewno?')) await deleteTransactionAction(id);
+    if (await confirm({ title: 'Czy na pewno chcesz usunąć tę transakcję?', variant: 'danger', confirmLabel: 'Usuń' })) await deleteTransactionAction(id);
   };
 
   const handleDeleteWallet = async (id: string) => {
-    if (confirm('Czy na pewno?')) await deleteWalletAction(id);
+    if (await confirm({ title: 'Czy na pewno chcesz usunąć ten portfel?', variant: 'danger', confirmLabel: 'Usuń' })) await deleteWalletAction(id);
   };
 
   const handleDeleteGoal = async (id: string) => {
-    if (confirm('Czy na pewno?')) await deleteGoalAction(id);
+    if (await confirm({ title: 'Czy na pewno chcesz usunąć ten cel?', variant: 'danger', confirmLabel: 'Usuń' })) await deleteGoalAction(id);
   };
 
   const handleRecalculate = async (id: string) => {

@@ -5,6 +5,7 @@ import { X, CalendarIcon } from 'lucide-react';
 import { useFinanceStore, Transaction } from '@/hooks/useFinanceStore';
 import { addTransactionAction, editTransactionAction, addTransferAction } from '@/app/actions';
 import type { Currency } from '@/lib/exchange-rates';
+import { useToast } from '@/components/Toast';
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { Calendar } from '@/components/ui/calendar';
@@ -23,6 +24,7 @@ interface TransactionModalProps {
 }
 
 export function TransactionModal({ isOpen, onClose, editingTransaction, defaultType, onDelete }: TransactionModalProps) {
+  const { toast, confirm } = useToast();
   const { wallets } = useFinanceStore();
 
   const [amount, setAmount] = useState('');
@@ -97,7 +99,7 @@ export function TransactionModal({ isOpen, onClose, editingTransaction, defaultT
       onClose();
     } catch (error) {
       console.error(error);
-      alert('Wystąpił błąd zapisu');
+      toast('Wystąpił błąd zapisu', 'error');
     } finally {
       setLoading(false);
     }
@@ -327,8 +329,8 @@ export function TransactionModal({ isOpen, onClose, editingTransaction, defaultT
             {editingTransaction && onDelete && (
               <button
                 type="button"
-                onClick={() => {
-                  if (confirm('Czy na pewno chcesz usunąć tę transakcję?')) {
+                onClick={async () => {
+                  if (await confirm({ title: 'Czy na pewno chcesz usunąć tę transakcję?', variant: 'danger', confirmLabel: 'Usuń' })) {
                     onDelete(editingTransaction.id);
                     onClose();
                   }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { X, RefreshCw, Unplug, Loader2, Check } from 'lucide-react';
+import { useToast } from '@/components/Toast';
 import { useFinanceStore } from '@/hooks/useFinanceStore';
 import {
   getGoogleCalendarMappings,
@@ -37,6 +38,7 @@ export function GoogleCalendarSettings({
   onSync,
   onDisconnected,
 }: GoogleCalendarSettingsProps) {
+  const { confirm } = useToast();
   const { wallets } = useFinanceStore();
   const [mappings, setMappings] = useState<CalendarMapping[]>([]);
   const [loading, setLoading] = useState(false);
@@ -118,7 +120,7 @@ export function GoogleCalendarSettings({
   };
 
   const handleDisconnect = async () => {
-    if (!confirm('Rozłączyć Google Calendar? Zsynchronizowane eventy zostaną usunięte.')) return;
+    if (!await confirm({ title: 'Rozłączyć Google Calendar?', description: 'Zsynchronizowane eventy zostaną usunięte.', variant: 'danger', confirmLabel: 'Rozłącz' })) return;
     setDisconnecting(true);
     try {
       await disconnectGoogleCalendar();

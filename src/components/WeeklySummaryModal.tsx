@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { X, TrendingUp, TrendingDown, Minus, Loader2, Sparkles, FileText, Calculator, ExternalLink, ClipboardCheck } from 'lucide-react';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useToast } from '@/components/Toast';
 import { settleWeekAction, settleMonthAction, getWeeklySummary, getMonthlySummary } from '@/app/actions';
 import { calculatePIT } from '@/lib/tax-calculator';
 import { generatePITPDF } from '@/lib/invoice-pdf';
@@ -47,6 +48,7 @@ interface WeeklySummaryModalProps {
 }
 
 export function WeeklySummaryModal({ isOpen, onClose, weekStart, weekEnd, monthStart, monthEnd, monthLabel, onGenerateInvoice }: WeeklySummaryModalProps) {
+  const { toast } = useToast();
   const [mode, setMode] = useState<SummaryMode>('week');
   const [summary, setSummary] = useState<SummaryData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -162,7 +164,7 @@ export function WeeklySummaryModal({ isOpen, onClose, weekStart, weekEnd, monthS
       await loadSummary(mode);
     } catch (error) {
       console.error(error);
-      alert('Wystąpił błąd');
+      toast('Wystąpił błąd', 'error');
     } finally {
       setSettling(false);
     }

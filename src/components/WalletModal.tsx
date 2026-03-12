@@ -5,6 +5,7 @@ import { X, Wallet as WalletIcon, Banknote, Bitcoin, TrendingUp, CreditCard, Pig
 import { addWalletAction, editWalletAction } from '@/app/actions';
 import { Wallet } from '@/hooks/useFinanceStore';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useToast } from '@/components/Toast';
 import { parseWalletColor, type CardEffect } from '@/components/WalletCard';
 
 const iconOptions = [
@@ -40,6 +41,7 @@ interface WalletModalProps {
 }
 
 export function WalletModal({ isOpen, onClose, editingWallet }: WalletModalProps) {
+  const { toast } = useToast();
   const [name, setName] = useState('');
   const [type, setType] = useState<'fiat' | 'crypto' | 'stock'>('fiat');
   const [icon, setIcon] = useState('wallet');
@@ -111,7 +113,7 @@ export function WalletModal({ isOpen, onClose, editingWallet }: WalletModalProps
       }
       onClose();
     } catch (error) {
-      alert('Błąd zapisu portfela');
+      toast('Błąd zapisu portfela', 'error');
     } finally {
       setLoading(false);
     }

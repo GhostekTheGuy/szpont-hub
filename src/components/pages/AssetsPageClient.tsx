@@ -49,9 +49,9 @@ export function AssetsPageClient({ initialAssets, initialWallets, initialTransac
     setModalOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: string, revertTransaction?: boolean) => {
     try {
-      await deleteAssetAction(id);
+      await deleteAssetAction(id, revertTransaction);
       router.refresh();
     } catch (error) {
       console.error(error);
@@ -192,6 +192,7 @@ export function AssetsPageClient({ initialAssets, initialWallets, initialTransac
         onClose={() => { setModalOpen(false); setEditingAsset(null); }}
         editingAsset={editingAsset}
         onDelete={handleDelete}
+        wallets={wallets}
       />
 
       <SellAssetModal

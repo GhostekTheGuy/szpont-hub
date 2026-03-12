@@ -186,6 +186,7 @@ export async function getDashboardData() {
     change_24h: decryptNumber(a.change_24h, dek),
     cost_basis: a.cost_basis ? decryptNumber(a.cost_basis, dek) : 0,
     asset_type: (a.asset_type || 'crypto') as 'crypto' | 'stock',
+    wallet_id: a.wallet_id || null,
   }));
 
   // Deszyfruj pola goals
@@ -297,6 +298,7 @@ export async function getAssetsData() {
     change_24h: decryptNumber(a.change_24h, dek),
     cost_basis: a.cost_basis ? decryptNumber(a.cost_basis, dek) : 0,
     asset_type: (a.asset_type || 'crypto') as 'crypto' | 'stock',
+    wallet_id: a.wallet_id || null,
   }));
 
   return { assets: decryptedAssets };
@@ -2154,6 +2156,8 @@ export async function addAssetAction(data: {
   quantity: number;
   cost_basis?: number;
   asset_type?: 'crypto' | 'stock';
+  wallet_id?: string;
+  deduct_from_wallet?: boolean;
 }) {
   const userId = await getUserId();
   if (!userId) throw new Error('Unauthorized');
@@ -2227,12 +2231,48 @@ export async function addAssetAction(data: {
       change_24h: encryptNumber(change24h, dek),
       cost_basis: encryptNumber(costBasis, dek),
       asset_type: assetType,
+      wallet_id: data.wallet_id || null,
       created_at: new Date().toISOString(),
     });
 
   if (error) {
     console.error('Error adding asset:', error);
     throw new Error('Failed to add asset');
+  }
+
+  // Odejmij kwotę zakupu z portfela i zapisz transakcję
+  if (data.deduct_from_wallet && data.wallet_id) {
+    const { data: wallet } = await supabaseAdmin
+      .from('wallets')
+      .select('*')
+      .eq('id', data.wallet_id)
+      .eq('user_id', userId)
+      .single();
+
+    if (wallet) {
+      const purchaseAmount = data.quantity * costBasis;
+      const currentBalance = decryptNumber(wallet.balance, dek);
+      const newBalance = currentBalance - purchaseAmount;
+
+      await supabaseAdmin
+        .from('transactions')
+        .insert({
+          id: nanoid(),
+          amount: encryptNumber(-purchaseAmount, dek),
+          category: encryptString('Zakup aktywa', dek),
+          description: encryptString(`Zakup ${data.quantity} ${safeSymbol}`, dek),
+          type: 'outcome',
+          date: new Date().toISOString().split('T')[0],
+          wallet_id: data.wallet_id,
+          currency: 'PLN',
+          created_at: new Date().toISOString(),
+        });
+
+      await supabaseAdmin
+        .from('wallets')
+        .update({ balance: encryptNumber(newBalance, dek) })
+        .eq('id', data.wallet_id);
+    }
   }
 
   revalidatePath('/', 'layout');
@@ -2271,17 +2311,63 @@ export async function editAssetAction(id: string, data: { quantity: number; cost
   revalidatePath('/', 'layout');
 }
 
-export async function deleteAssetAction(id: string) {
+export async function deleteAssetAction(id: string, revertTransaction = false) {
   const userId = await getUserId();
   if (!userId) throw new Error('Unauthorized');
 
+  const dek = await getDEK();
+
   const { data: asset } = await supabaseAdmin
     .from('assets')
-    .select('user_id')
+    .select('*')
     .eq('id', id)
     .single();
 
   if (!asset || asset.user_id !== userId) return;
+
+  // Cofnij transakcję zakupu i przywróć saldo portfela
+  if (revertTransaction && asset.wallet_id) {
+    const assetSymbol = decryptString(asset.symbol, dek) || '';
+    const description = `Zakup ${assetSymbol}`;
+
+    // Szukaj transakcji zakupu po wallet_id, type=outcome, category="Zakup aktywa" i opisie zawierającym symbol
+    const { data: transactions } = await supabaseAdmin
+      .from('transactions')
+      .select('*')
+      .eq('wallet_id', asset.wallet_id)
+      .eq('type', 'outcome');
+
+    if (transactions) {
+      for (const t of transactions) {
+        const desc = decryptString(t.description, dek) || '';
+        const cat = decryptString(t.category, dek) || '';
+        if (cat === 'Zakup aktywa' && desc.includes(assetSymbol)) {
+          // Cofnij saldo
+          const { data: wallet } = await supabaseAdmin
+            .from('wallets')
+            .select('*')
+            .eq('id', asset.wallet_id)
+            .eq('user_id', userId)
+            .single();
+
+          if (wallet) {
+            const txAmount = decryptNumber(t.amount, dek);
+            const currentBalance = decryptNumber(wallet.balance, dek);
+            // txAmount jest ujemny (outcome), więc odejmujemy go (dodajemy z powrotem)
+            const newBalance = currentBalance - txAmount;
+            await supabaseAdmin
+              .from('wallets')
+              .update({ balance: encryptNumber(newBalance, dek) })
+              .eq('id', asset.wallet_id);
+          }
+
+          // Usuń transakcję
+          await supabaseAdmin.from('transactions').delete().eq('id', t.id);
+          break;
+        }
+      }
+    }
+  }
 
   await supabaseAdmin.from('assets').delete().eq('id', id);
 
@@ -2425,11 +2511,14 @@ export async function sellAssetAction(data: {
     throw new Error('Insufficient quantity');
   }
 
-  // 2. Sprawdź portfel PRZED modyfikacją assetu
+  // 2. Sprawdź portfel — preferuj wallet_id z aktywa, fallback na podany
+  const targetWalletId = asset.wallet_id || data.walletId;
+  if (!targetWalletId) throw new Error('No wallet assigned');
+
   const { data: wallet } = await supabaseAdmin
     .from('wallets')
     .select('*')
-    .eq('id', data.walletId)
+    .eq('id', targetWalletId)
     .eq('user_id', userId)
     .single();
 
@@ -2456,7 +2545,7 @@ export async function sellAssetAction(data: {
       total_cost: encryptNumber(totalCost, dek),
       profit: encryptNumber(profit, dek),
       tax_amount: encryptNumber(taxAmount, dek),
-      wallet_id: data.walletId,
+      wallet_id: targetWalletId,
       sale_date: new Date().toISOString().split('T')[0],
       created_at: new Date().toISOString(),
     });
@@ -2490,14 +2579,14 @@ export async function sellAssetAction(data: {
     .insert({
       id: nanoid(),
       amount: encryptNumber(netProceeds, dek),
-      category: encryptString('Sprzedaż krypto', dek),
+      category: encryptString('Sprzedaż aktywa', dek),
       description: encryptString(
         `Sprzedaż ${data.quantityToSell} ${assetSymbol} (podatek: ${taxAmount.toFixed(2)} PLN)`,
         dek
       ),
       type: 'income',
       date: new Date().toISOString().split('T')[0],
-      wallet_id: data.walletId,
+      wallet_id: targetWalletId,
       currency: 'PLN',
       created_at: new Date().toISOString(),
     });

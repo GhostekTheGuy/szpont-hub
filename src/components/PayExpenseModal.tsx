@@ -5,6 +5,7 @@ import { X } from 'lucide-react';
 import { type RecurringExpense } from '@/hooks/useFinanceStore';
 import { payRecurringExpense, skipRecurringExpense } from '@/app/actions';
 import { formatCurrency } from '@/lib/exchange-rates';
+import { useToast } from '@/components/Toast';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface PayExpenseModalProps {
@@ -14,6 +15,7 @@ interface PayExpenseModalProps {
 }
 
 export function PayExpenseModal({ isOpen, onClose, expense }: PayExpenseModalProps) {
+  const { toast } = useToast();
   const [amount, setAmount] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -32,7 +34,7 @@ export function PayExpenseModal({ isOpen, onClose, expense }: PayExpenseModalPro
       onClose();
     } catch (error) {
       console.error(error);
-      alert('Wystąpił błąd');
+      toast('Wystąpił błąd', 'error');
     } finally {
       setLoading(false);
     }

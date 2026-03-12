@@ -5,6 +5,7 @@ import { X } from 'lucide-react';
 import { useFinanceStore, type RecurringExpense } from '@/hooks/useFinanceStore';
 import { addRecurringExpense, editRecurringExpense, deleteRecurringExpense } from '@/app/actions';
 import type { Currency } from '@/lib/exchange-rates';
+import { useToast } from '@/components/Toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 
@@ -32,6 +33,7 @@ const FREQUENCY_OPTIONS = [
 const ICONS = ['🎬', '🎵', '🌐', '⚡', '🏠', '🛡️', '🏦', '📱', '🎮', '☁️', '📋', '🚗', '💊', '🏋️', '📰', '🔧'];
 
 export function ExpenseModal({ isOpen, onClose, editingExpense }: ExpenseModalProps) {
+  const { toast, confirm } = useToast();
   const { wallets } = useFinanceStore();
 
   const [name, setName] = useState('');
@@ -119,7 +121,7 @@ export function ExpenseModal({ isOpen, onClose, editingExpense }: ExpenseModalPr
       onClose();
     } catch (error) {
       console.error(error);
-      alert('Wystąpił błąd zapisu');
+      toast('Wystąpił błąd zapisu', 'error');
     } finally {
       setLoading(false);
     }
@@ -127,7 +129,7 @@ export function ExpenseModal({ isOpen, onClose, editingExpense }: ExpenseModalPr
 
   const handleDelete = async () => {
     if (!editingExpense) return;
-    if (!confirm('Usunąć ten stały wydatek?')) return;
+    if (!await confirm({ title: 'Usunąć ten stały wydatek?', variant: 'danger', confirmLabel: 'Usuń' })) return;
     setLoading(true);
     try {
       await deleteRecurringExpense(editingExpense.id);

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Play, Pause, Square, X } from 'lucide-react';
 import { addCalendarEvent } from '@/app/actions';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useToast } from '@/components/Toast';
 import type { Wallet } from '@/hooks/useFinanceStore';
 
 interface TimerState {
@@ -60,6 +61,7 @@ interface TimerWidgetProps {
 type ViewState = 'idle' | 'form' | 'running';
 
 export function TimerWidget({ wallets, onStop }: TimerWidgetProps) {
+  const { toast, confirm } = useToast();
   const [timerState, setTimerState] = useState<TimerState | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [showForm, setShowForm] = useState(false);
@@ -172,17 +174,17 @@ export function TimerWidget({ wallets, onStop }: TimerWidgetProps) {
       onStop();
     } catch (error) {
       console.error('Error saving timer event:', error);
-      alert('Błąd zapisu wydarzenia');
+      toast('Błąd zapisu wydarzenia', 'error');
     } finally {
       setSaving(false);
     }
   }, [timerState, onStop]);
 
-  const handleCancel = useCallback(() => {
-    if (!confirm('Anulować timer? Czas nie zostanie zapisany.')) return;
+  const handleCancel = useCallback(async () => {
+    if (!await confirm({ title: 'Anulować timer?', description: 'Czas nie zostanie zapisany.', variant: 'danger', confirmLabel: 'Anuluj timer' })) return;
     clearTimerState();
     setTimerState(null);
-  }, []);
+  }, [confirm]);
 
   const view: ViewState = timerState ? 'running' : showForm ? 'form' : 'idle';
   const isPaused = timerState?.isPaused ?? false;

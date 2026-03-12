@@ -10,6 +10,7 @@ import { InvoiceModal } from '@/components/InvoiceModal';
 import { ScanTogglModal } from '@/components/ScanTogglModal';
 import { TimerWidget } from '@/components/TimerWidget';
 import { GoogleCalendarSettings } from '@/components/GoogleCalendarSettings';
+import { useToast } from '@/components/Toast';
 import { BarChart3, Timer, AlertTriangle, Loader2 } from 'lucide-react';
 import {
   format,
@@ -41,6 +42,7 @@ interface Props {
 const SYNC_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
 
 export function CalendarPageClient({ initialEvents, initialWallets, googleConnection }: Props) {
+  const { confirm } = useToast();
   const { calendarEvents, setCalendarEvents, setWallets, wallets } = useFinanceStore();
 
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -201,9 +203,12 @@ export function CalendarPageClient({ initialEvents, initialWallets, googleConnec
 
     // When unchecking a settled work event, ask about reversing the transaction
     if (!confirmed && event.is_settled && event.event_type !== 'personal') {
-      const shouldReverse = confirm(
-        `To wydarzenie zostało już rozliczone — kwota została dodana do portfela "${event.walletName}". Czy chcesz odjąć tę kwotę z portfela i odznaczyć wydarzenie?`
-      );
+      const shouldReverse = await confirm({
+        title: 'Wydarzenie rozliczone',
+        description: `To wydarzenie zostało już rozliczone — kwota została dodana do portfela "${event.walletName}". Czy chcesz odjąć tę kwotę z portfela i odznaczyć wydarzenie?`,
+        variant: 'danger',
+        confirmLabel: 'Tak, odjąć kwotę',
+      });
       if (!shouldReverse) return; // Anuluj — nic nie rób
     }
 
