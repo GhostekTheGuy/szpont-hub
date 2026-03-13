@@ -54,6 +54,7 @@ export interface AssetSale {
   tax_amount: number;
   wallet_id: string;
   sale_date: string;
+  tax_paid: boolean;
 }
 
 export interface Habit {

@@ -51,15 +51,14 @@ export function SellAssetModal({ isOpen, onClose, asset, wallets }: SellAssetMod
   // Asset mode calc
   const assetCalc = useMemo(() => {
     if (!asset || !quantity || parseFloat(quantity) <= 0) {
-      return { proceeds: 0, cost: 0, profit: 0, tax: 0, net: 0 };
+      return { proceeds: 0, cost: 0, profit: 0, tax: 0 };
     }
     const qty = parseFloat(quantity);
     const proceeds = qty * asset.current_price;
     const cost = qty * asset.cost_basis;
     const profit = proceeds - cost;
     const tax = Math.max(0, profit) * 0.19;
-    const net = proceeds - tax;
-    return { proceeds, cost, profit, tax, net };
+    return { proceeds, cost, profit, tax };
   }, [asset, quantity]);
 
   // Manual mode calc
@@ -67,13 +66,12 @@ export function SellAssetModal({ isOpen, onClose, asset, wallets }: SellAssetMod
     const qty = parseFloat(manualQty) || 0;
     const sp = parseFloat(manualSalePrice) || 0;
     const cb = parseFloat(manualCostBasis) || 0;
-    if (qty <= 0 || sp <= 0) return { proceeds: 0, cost: 0, profit: 0, tax: 0, net: 0 };
+    if (qty <= 0 || sp <= 0) return { proceeds: 0, cost: 0, profit: 0, tax: 0 };
     const proceeds = qty * sp;
     const cost = qty * cb;
     const profit = proceeds - cost;
     const tax = Math.max(0, profit) * 0.19;
-    const net = proceeds - tax;
-    return { proceeds, cost, profit, tax, net };
+    return { proceeds, cost, profit, tax };
   }, [manualQty, manualSalePrice, manualCostBasis]);
 
   const calc = mode === 'asset' ? assetCalc : manualCalc;
@@ -333,8 +331,8 @@ export function SellAssetModal({ isOpen, onClose, asset, wallets }: SellAssetMod
                     <span className="text-card-foreground font-bold">{formatCurrency(calc.tax)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Kwota netto</span>
-                    <span className="text-card-foreground font-medium">{formatCurrency(calc.net)}</span>
+                    <span className="text-muted-foreground">Do portfela trafi</span>
+                    <span className="text-card-foreground font-medium">{formatCurrency(calc.proceeds)}</span>
                   </div>
                 </div>
               )}

@@ -2604,17 +2604,15 @@ export async function sellAssetAction(data: {
       .eq('id', data.assetId);
   }
 
-  // 6. Utwórz transakcję income w wybranym portfelu (kwota netto po podatku)
-  const netProceeds = totalProceeds - taxAmount;
-
+  // 6. Utwórz transakcję income w wybranym portfelu (pełna kwota przychodu)
   await supabaseAdmin
     .from('transactions')
     .insert({
       id: nanoid(),
-      amount: encryptNumber(netProceeds, dek),
+      amount: encryptNumber(totalProceeds, dek),
       category: encryptString('Sprzedaż aktywa', dek),
       description: encryptString(
-        `Sprzedaż ${data.quantityToSell} ${assetSymbol} (podatek: ${taxAmount.toFixed(2)} PLN)`,
+        `Sprzedaż ${data.quantityToSell} ${assetSymbol}`,
         dek
       ),
       type: 'income',
@@ -2624,9 +2622,9 @@ export async function sellAssetAction(data: {
       created_at: new Date().toISOString(),
     });
 
-  // 6. Zaktualizuj saldo portfela
+  // 7. Zaktualizuj saldo portfela (pełna kwota)
   const currentBalance = decryptNumber(wallet.balance, dek);
-  const newBalance = currentBalance + netProceeds;
+  const newBalance = currentBalance + totalProceeds;
   await supabaseAdmin
     .from('wallets')
     .update({ balance: encryptNumber(newBalance, dek) })
@@ -2665,6 +2663,7 @@ export async function getAssetSalesData() {
     tax_amount: decryptNumber(s.tax_amount, dek),
     wallet_id: s.wallet_id,
     sale_date: s.sale_date,
+    tax_paid: s.tax_paid || false,
   }));
 }
 
@@ -2693,12 +2692,17 @@ export async function getAssetTaxSummary(year: number) {
   let totalCost = 0;
   let totalProfit = 0;
   let totalTax = 0;
+  let unpaidTax = 0;
 
   for (const s of sales || []) {
+    const taxAmt = decryptNumber(s.tax_amount, dek);
     totalProceeds += decryptNumber(s.total_proceeds, dek);
     totalCost += decryptNumber(s.total_cost, dek);
     totalProfit += decryptNumber(s.profit, dek);
-    totalTax += decryptNumber(s.tax_amount, dek);
+    totalTax += taxAmt;
+    if (!s.tax_paid) {
+      unpaidTax += taxAmt;
+    }
   }
 
   return {
@@ -2706,6 +2710,7 @@ export async function getAssetTaxSummary(year: number) {
     totalCost,
     totalProfit,
     totalTax,
+    unpaidTax,
     salesCount: (sales || []).length,
   };
 }
@@ -2753,9 +2758,7 @@ export async function addManualSaleAction(data: {
     throw new Error('Failed to record asset sale');
   }
 
-  // Transakcja income netto do portfela
-  const netProceeds = totalProceeds - taxAmount;
-
+  // Transakcja income do portfela (pełna kwota przychodu)
   const { data: wallet } = await supabaseAdmin
     .from('wallets')
     .select('*')
@@ -2769,10 +2772,10 @@ export async function addManualSaleAction(data: {
     .from('transactions')
     .insert({
       id: nanoid(),
-      amount: encryptNumber(netProceeds, dek),
-      category: encryptString('Sprzedaż krypto', dek),
+      amount: encryptNumber(totalProceeds, dek),
+      category: encryptString('Sprzedaż aktywa', dek),
       description: encryptString(
-        `Sprzedaż ${data.quantitySold} ${data.assetSymbol} (podatek: ${taxAmount.toFixed(2)} PLN)`,
+        `Sprzedaż ${data.quantitySold} ${data.assetSymbol}`,
         dek
       ),
       type: 'income',
@@ -2785,7 +2788,98 @@ export async function addManualSaleAction(data: {
   const currentBalance = decryptNumber(wallet.balance, dek);
   await supabaseAdmin
     .from('wallets')
-    .update({ balance: encryptNumber(currentBalance + netProceeds, dek) })
+    .update({ balance: encryptNumber(currentBalance + totalProceeds, dek) })
+    .eq('id', data.walletId);
+
+  revalidatePath('/', 'layout');
+}
+
+export async function payTaxAction(data: {
+  saleIds: string[];
+  walletId: string;
+}) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  const dek = await getDEK();
+
+  if (!data.saleIds.length) throw new Error('No sales selected');
+
+  // Pobierz wybrane sprzedaże
+  const { data: sales, error: salesError } = await supabaseAdmin
+    .from('asset_sales')
+    .select('*')
+    .eq('user_id', userId)
+    .in('id', data.saleIds);
+
+  if (salesError || !sales?.length) {
+    throw new Error('Failed to fetch sales');
+  }
+
+  // Oblicz łączny podatek do zapłaty (tylko nieopłacone)
+  let totalTaxToPay = 0;
+  const unpaidSaleIds: string[] = [];
+
+  for (const sale of sales) {
+    if (!sale.tax_paid) {
+      const taxAmount = decryptNumber(sale.tax_amount, dek);
+      if (taxAmount > 0) {
+        totalTaxToPay += taxAmount;
+        unpaidSaleIds.push(sale.id);
+      }
+    }
+  }
+
+  if (totalTaxToPay <= 0 || unpaidSaleIds.length === 0) {
+    throw new Error('No unpaid tax to pay');
+  }
+
+  // Sprawdź portfel
+  const { data: wallet } = await supabaseAdmin
+    .from('wallets')
+    .select('*')
+    .eq('id', data.walletId)
+    .eq('user_id', userId)
+    .single();
+
+  if (!wallet) throw new Error('Wallet not found');
+
+  // Oznacz sprzedaże jako opłacone
+  const { error: updateError } = await supabaseAdmin
+    .from('asset_sales')
+    .update({ tax_paid: true })
+    .eq('user_id', userId)
+    .in('id', unpaidSaleIds);
+
+  if (updateError) {
+    throw new Error('Failed to update tax status');
+  }
+
+  // Utwórz transakcję wydatku (podatek)
+  const description = unpaidSaleIds.length === 1
+    ? `Podatek Belki - 1 transakcja`
+    : `Podatek Belki - ${unpaidSaleIds.length} transakcje`;
+
+  await supabaseAdmin
+    .from('transactions')
+    .insert({
+      id: nanoid(),
+      amount: encryptNumber(totalTaxToPay, dek),
+      category: encryptString('Podatek Belki', dek),
+      description: encryptString(description, dek),
+      type: 'outcome',
+      date: new Date().toISOString().split('T')[0],
+      wallet_id: data.walletId,
+      currency: 'PLN',
+      created_at: new Date().toISOString(),
+    });
+
+  // Zaktualizuj saldo portfela
+  const currentBalance = decryptNumber(wallet.balance, dek);
+  const newBalance = currentBalance - totalTaxToPay;
+  await supabaseAdmin
+    .from('wallets')
+    .update({ balance: encryptNumber(newBalance, dek) })
     .eq('id', data.walletId);
 
   revalidatePath('/', 'layout');
