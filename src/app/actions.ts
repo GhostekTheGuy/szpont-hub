@@ -187,6 +187,7 @@ export async function getDashboardData() {
     cost_basis: a.cost_basis ? decryptNumber(a.cost_basis, dek) : 0,
     asset_type: (a.asset_type || 'crypto') as 'crypto' | 'stock',
     wallet_id: a.wallet_id || null,
+    created_at: a.created_at || new Date().toISOString(),
   }));
 
   // Deszyfruj pola goals
@@ -299,6 +300,7 @@ export async function getAssetsData() {
     cost_basis: a.cost_basis ? decryptNumber(a.cost_basis, dek) : 0,
     asset_type: (a.asset_type || 'crypto') as 'crypto' | 'stock',
     wallet_id: a.wallet_id || null,
+    created_at: a.created_at || new Date().toISOString(),
   }));
 
   return { assets: decryptedAssets };
@@ -327,7 +329,8 @@ export async function getWalletChartData(
   if (!wallet) return null;
 
   // Odfiltruj transakcje z kategorii "Praca" (settle/cofnięcia) — zastąpimy je dziennymi zarobkami z kalendarza
-  const nonWorkTransactions = transactions.filter(t => t.wallet === walletId && t.category !== 'Praca');
+  // Odfiltruj transakcje zakupu/sprzedaży aktywów — to konwersja cash↔aktywo, nie zmiana wartości portfela
+  const nonWorkTransactions = transactions.filter(t => t.wallet === walletId && t.category !== 'Praca' && t.category !== 'Zakup aktywa' && t.category !== 'Sprzedaż aktywa');
 
   const dek = await getDEK();
 
@@ -358,7 +361,23 @@ export async function getWalletChartData(
     getExchangeRates(),
   ]);
 
-  const realBalance = convertAmount(wallet.balance, 'PLN', displayCurrency, currentRates);
+  // Pobierz aktywa przypisane do tego portfela
+  const { data: walletAssets } = await supabaseAdmin
+    .from('assets')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('wallet_id', walletId);
+
+  const decryptedWalletAssets = (walletAssets || []).map(a => ({
+    total_value: decryptNumber(a.total_value, dek),
+    cost_basis: a.cost_basis ? decryptNumber(a.cost_basis, dek) : 0,
+    quantity: decryptNumber(a.quantity, dek),
+    created_at: (a.created_at || new Date().toISOString()) as string,
+  }));
+
+  // Wartość portfela = saldo gotówkowe + wartość przypisanych aktywów
+  const assignedAssetsValue = decryptedWalletAssets.reduce((sum, a) => sum + a.total_value, 0);
+  const realBalance = convertAmount(wallet.balance + assignedAssetsValue, 'PLN', displayCurrency, currentRates);
 
   // Normalizuj kwoty transakcji
   function getSignedAmount(t: { amount: number; type: string; currency: Currency }) {
@@ -388,7 +407,17 @@ export async function getWalletChartData(
       }
     }
 
-    data.push({ date: dateStr, value: realBalance - futureNonWork - futureCalendarEarnings });
+    // Korekta aktywów: dla dat przed zakupem aktywa odejmij niezrealizowany zysk/stratę
+    let assetAdjustment = 0;
+    for (const asset of decryptedWalletAssets) {
+      const purchaseDate = asset.created_at.slice(0, 10);
+      if (purchaseDate > dateStr && asset.cost_basis > 0) {
+        const unrealizedPL = asset.total_value - (asset.cost_basis * asset.quantity);
+        assetAdjustment += convertAmount(unrealizedPL, 'PLN', displayCurrency, currentRates);
+      }
+    }
+
+    data.push({ date: dateStr, value: realBalance - futureNonWork - futureCalendarEarnings - assetAdjustment });
     current.setDate(current.getDate() + 1);
   }
 
@@ -2278,7 +2307,7 @@ export async function addAssetAction(data: {
   revalidatePath('/', 'layout');
 }
 
-export async function editAssetAction(id: string, data: { quantity: number; cost_basis?: number }) {
+export async function editAssetAction(id: string, data: { quantity: number; cost_basis?: number; wallet_id?: string | null }) {
   const userId = await getUserId();
   if (!userId) throw new Error('Unauthorized');
 
@@ -2294,13 +2323,17 @@ export async function editAssetAction(id: string, data: { quantity: number; cost
   const currentPrice = decryptNumber(asset.current_price, dek);
   const totalValue = data.quantity * currentPrice;
 
-  const updateData: Record<string, string> = {
+  const updateData: Record<string, string | null> = {
     quantity: encryptNumber(data.quantity, dek),
     total_value: encryptNumber(totalValue, dek),
   };
 
   if (data.cost_basis !== undefined) {
     updateData.cost_basis = encryptNumber(data.cost_basis, dek);
+  }
+
+  if (data.wallet_id !== undefined) {
+    updateData.wallet_id = data.wallet_id || null;
   }
 
   await supabaseAdmin

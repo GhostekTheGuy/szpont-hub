@@ -202,6 +202,7 @@ export function AssetModal({ isOpen, onClose, editingAsset, onDelete, wallets = 
         await editAssetAction(editingAsset.id, {
           quantity: parseFloat(quantity),
           cost_basis: costBasisPLN,
+          wallet_id: walletId || null,
         });
       } else if (assetType === 'crypto' && selectedCoin) {
         await addAssetAction({

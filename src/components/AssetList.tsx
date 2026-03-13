@@ -145,7 +145,7 @@ export function AssetList({ assets, onEdit, onDelete, onSell, standalone }: Asse
                       </span>
                     </div>
                     {(onEdit || onDelete || onSell) && (
-                      <div className="flex gap-1 justify-end mt-1 opacity-0 lg:group-hover:opacity-100 transition-opacity">
+                      <div className="flex gap-1 justify-end mt-1 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
                         {onSell && (
                           <button
                             onClick={(e) => { e.stopPropagation(); onSell(asset); }}

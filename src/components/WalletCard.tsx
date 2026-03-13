@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useCallback } from 'react';
-import { Wallet, useFinanceStore } from '@/hooks/useFinanceStore';
+import { Wallet, Asset, useFinanceStore } from '@/hooks/useFinanceStore';
 import { Edit2, Trash2, Banknote, Bitcoin, TrendingUp, Wallet as WalletIcon, CreditCard, PiggyBank, RefreshCw } from 'lucide-react';
 import { convertAmount, formatCurrency, type ExchangeRates } from '@/lib/exchange-rates';
 import dynamic from 'next/dynamic';
@@ -44,20 +44,26 @@ export function parseWalletColor(color: string): {
 
 interface WalletCardProps {
   wallet: Wallet;
+  assets?: Asset[];
   exchangeRates?: ExchangeRates;
   onEdit?: (wallet: Wallet) => void;
   onDelete?: (id: string) => void;
   onRecalculate?: (id: string) => void;
 }
 
-export function WalletCard({ wallet, exchangeRates, onEdit, onDelete, onRecalculate }: WalletCardProps) {
+export function WalletCard({ wallet, assets, exchangeRates, onEdit, onDelete, onRecalculate }: WalletCardProps) {
   const IconComponent = iconMap[wallet.icon] || WalletIcon;
   const parsed = parseWalletColor(wallet.color);
   const balanceMasked = useFinanceStore(s => s.balanceMasked);
   const displayCurrency = useFinanceStore(s => s.displayCurrency);
+  // Wartość portfela = saldo gotówkowe + wartość przypisanych aktywów
+  const assignedAssetsValue = assets
+    ? assets.filter(a => a.wallet_id === wallet.id).reduce((sum, a) => sum + (a.total_value || 0), 0)
+    : 0;
+  const totalBalancePLN = wallet.balance + assignedAssetsValue;
   const convertedBalance = exchangeRates
-    ? convertAmount(wallet.balance, 'PLN', displayCurrency, exchangeRates)
-    : wallet.balance;
+    ? convertAmount(totalBalancePLN, 'PLN', displayCurrency, exchangeRates)
+    : totalBalancePLN;
   const cardRef = useRef<HTMLDivElement>(null);
   const glareRef = useRef<HTMLDivElement>(null);
   const rafRef = useRef<number>(0);

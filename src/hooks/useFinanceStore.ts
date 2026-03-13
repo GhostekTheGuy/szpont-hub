@@ -38,6 +38,7 @@ export interface Asset {
   cost_basis: number;
   asset_type: 'crypto' | 'stock';
   wallet_id: string | null;
+  created_at: string;
 }
 
 export interface AssetSale {

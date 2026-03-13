@@ -192,6 +192,7 @@ export function WalletsPageClient({ initialWallets, initialTransactions, exchang
             >
               <WalletCard
                 wallet={wallet}
+                assets={assets}
                 exchangeRates={exchangeRates}
                 onEdit={(w) => { setEditingWallet(w); setIsWalletModalOpen(true); }}
                 onDelete={handleDeleteWallet}

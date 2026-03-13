@@ -2,7 +2,7 @@
 
 import { useMemo, useCallback, memo } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Transaction, useFinanceStore } from '@/hooks/useFinanceStore';
+import { Transaction, Asset, useFinanceStore } from '@/hooks/useFinanceStore';
 import { format, subDays } from 'date-fns';
 import { pl } from 'date-fns/locale';
 import { convertAmount, formatCurrency, type Currency, type ExchangeRates, type HistoricalRates } from '@/lib/exchange-rates';
@@ -10,6 +10,7 @@ import { getNiceYTicks } from '@/lib/chart-utils';
 
 interface FinancialChartProps {
   transactions: Transaction[];
+  assets: Asset[];
   range: '1W' | '1M' | '3M' | '1Y';
   setRange: (range: '1W' | '1M' | '3M' | '1Y') => void;
   displayCurrency: Currency;
@@ -19,7 +20,7 @@ interface FinancialChartProps {
   workEarningsByDate?: Record<string, number>;
 }
 
-export const FinancialChart = memo(function FinancialChart({ transactions, range, setRange, displayCurrency, exchangeRates, historicalRates, currentNetWorth, workEarningsByDate }: FinancialChartProps) {
+export const FinancialChart = memo(function FinancialChart({ transactions, assets, range, setRange, displayCurrency, exchangeRates, historicalRates, currentNetWorth, workEarningsByDate }: FinancialChartProps) {
   const balanceMasked = useFinanceStore(s => s.balanceMasked);
 
   const chartData = useMemo(() => {
@@ -28,8 +29,9 @@ export const FinancialChart = memo(function FinancialChart({ transactions, range
     const todayStr = format(today, 'yyyy-MM-dd');
 
     // Odfiltruj transakcje "Praca" (settle/cofnięcia) — zastąpimy je dziennymi zarobkami z kalendarza
+    // Odfiltruj transakcje zakupu/sprzedaży aktywów — to konwersja cash↔aktywo, nie zmiana net worth
     const relevant = transactions.filter(t =>
-      (t.type === 'income' || t.type === 'outcome') && t.category !== 'Praca'
+      (t.type === 'income' || t.type === 'outcome') && t.category !== 'Praca' && t.category !== 'Zakup aktywa' && t.category !== 'Sprzedaż aktywa'
     );
     const sorted = [...relevant].sort((a, b) => a.date.localeCompare(b.date));
 
@@ -66,15 +68,26 @@ export const FinancialChart = memo(function FinancialChart({ transactions, range
         }
       }
 
+      // Korekta aktywów: dla dat przed zakupem aktywa odejmij niezrealizowany zysk/stratę
+      // Bo przed zakupem aktywo nie istniało — była tylko gotówka (cost_basis)
+      let assetAdjustment = 0;
+      for (const asset of assets) {
+        const purchaseDate = asset.created_at.slice(0, 10);
+        if (purchaseDate > dateStr && asset.cost_basis > 0) {
+          const unrealizedPL = asset.total_value - (asset.cost_basis * asset.quantity);
+          assetAdjustment += convertAmount(unrealizedPL, 'PLN', displayCurrency, exchangeRates);
+        }
+      }
+
       data.push({
         date: format(date, 'dd MMM', { locale: pl }),
-        value: currentNetWorth - futureFlow - futureWorkEarnings,
+        value: currentNetWorth - futureFlow - futureWorkEarnings - assetAdjustment,
         fullDate: dateStr
       });
     }
 
     return data;
-  }, [transactions, range, displayCurrency, exchangeRates, historicalRates, currentNetWorth, workEarningsByDate]);
+  }, [transactions, assets, range, displayCurrency, exchangeRates, historicalRates, currentNetWorth, workEarningsByDate]);
 
   const yTicks = useMemo(() => {
     if (chartData.length === 0) return [0];
