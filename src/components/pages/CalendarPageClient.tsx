@@ -2,16 +2,16 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useFinanceStore, type Wallet, type CalendarEvent } from '@/hooks/useFinanceStore';
-import { getCalendarEvents, toggleEventConfirmed, moveCalendarEvent, moveRecurringEvent } from '@/app/actions';
+import { getCalendarEvents, toggleEventConfirmed, moveCalendarEvent, moveRecurringEvent, getUnsettledCount, settleAllUnsettledAction } from '@/app/actions';
 import { WeeklyCalendar } from '@/components/WeeklyCalendar';
 import { CalendarEventModal } from '@/components/CalendarEventModal';
-import { WeeklySummaryModal } from '@/components/WeeklySummaryModal';
 import { InvoiceModal } from '@/components/InvoiceModal';
 import { ScanTogglModal } from '@/components/ScanTogglModal';
 import { TimerWidget } from '@/components/TimerWidget';
 import { GoogleCalendarSettings } from '@/components/GoogleCalendarSettings';
+import { WorkSummaryPanel } from '@/components/WorkSummaryPanel';
 import { useToast } from '@/components/Toast';
-import { BarChart3, Timer, AlertTriangle, Loader2 } from 'lucide-react';
+import { Check, Timer, AlertTriangle, Loader2, BarChart3 } from 'lucide-react';
 import {
   format,
   startOfWeek,
@@ -20,7 +20,6 @@ import {
   endOfMonth,
   addMonths,
   subMonths,
-  isSunday,
   isAfter,
   endOfDay,
 } from 'date-fns';
@@ -42,14 +41,15 @@ interface Props {
 const SYNC_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
 
 export function CalendarPageClient({ initialEvents, initialWallets, googleConnection }: Props) {
-  const { confirm } = useToast();
+  const { confirm, toast } = useToast();
   const { calendarEvents, setCalendarEvents, setWallets, wallets } = useFinanceStore();
 
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
-  const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
   const [isScanTogglOpen, setIsScanTogglOpen] = useState(false);
+  const [unsettledCount, setUnsettledCount] = useState(0);
+  const [settling, setSettling] = useState(false);
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
   const [isGoogleSettingsOpen, setIsGoogleSettingsOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
@@ -67,10 +67,16 @@ export function CalendarPageClient({ initialEvents, initialWallets, googleConnec
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
 
+  const refreshUnsettledCount = useCallback(async () => {
+    const count = await getUnsettledCount();
+    setUnsettledCount(count);
+  }, []);
+
   useEffect(() => {
     setWallets(initialWallets);
     setCalendarEvents(initialEvents);
-  }, [initialWallets, initialEvents, setWallets, setCalendarEvents]);
+    refreshUnsettledCount();
+  }, [initialWallets, initialEvents, setWallets, setCalendarEvents, refreshUnsettledCount]);
 
   const loadMonth = useCallback(async (date: Date) => {
     setLoading(true);
@@ -81,12 +87,13 @@ export function CalendarPageClient({ initialEvents, initialWallets, googleConnec
       if (data) {
         setCalendarEvents(data.events);
       }
+      refreshUnsettledCount();
     } catch (error) {
       console.error('Error loading calendar events:', error);
     } finally {
       setLoading(false);
     }
-  }, [setCalendarEvents]);
+  }, [setCalendarEvents, refreshUnsettledCount]);
 
   const [autoSyncing, setAutoSyncing] = useState(false);
 
@@ -262,10 +269,21 @@ export function CalendarPageClient({ initialEvents, initialWallets, googleConnec
     if (didChange) loadMonth(currentMonth);
   };
 
-  const handleSummaryClose = (didChange?: boolean) => {
-    setIsSummaryModalOpen(false);
-    if (didChange) loadMonth(currentMonth);
-  };
+  const handleSettle = useCallback(async () => {
+    if (unsettledCount === 0 || settling) return;
+    setSettling(true);
+    try {
+      const result = await settleAllUnsettledAction();
+      if (result.settled > 0) {
+        toast(`Zatwierdzono ${result.settled} wydarzeń`, 'success');
+        await loadMonth(currentMonth);
+      }
+    } catch {
+      toast('Wystąpił błąd przy zatwierdzaniu', 'error');
+    } finally {
+      setSettling(false);
+    }
+  }, [unsettledCount, settling, currentMonth, loadMonth]);
 
   const handleGoogleConnect = () => {
     window.location.href = '/api/google-calendar/auth';
@@ -294,9 +312,7 @@ export function CalendarPageClient({ initialEvents, initialWallets, googleConnec
       });
   }, [calendarEvents, monthStart, monthEnd]);
 
-  const isSundayToday = isSunday(new Date());
-
-  // For WeeklySummaryModal: derive week from selectedDate
+  // For WorkSummaryPanel: derive week from selectedDate
   const summaryDate = selectedDate || new Date();
   const weekStart = startOfWeek(summaryDate, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(summaryDate, { weekStartsOn: 1 });
@@ -393,18 +409,39 @@ export function CalendarPageClient({ initialEvents, initialWallets, googleConnec
                 Import
               </button>
               <button
-                onClick={() => setIsSummaryModalOpen(true)}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all text-sm ${
-                  isSundayToday
-                    ? 'bg-green-600 hover:bg-green-700 text-white animate-pulse'
-                    : 'bg-secondary hover:bg-accent text-secondary-foreground'
+                onClick={handleSettle}
+                disabled={unsettledCount === 0 || settling}
+                className={`relative flex items-center gap-2 px-3 py-2 rounded-lg transition-all text-sm ${
+                  unsettledCount > 0
+                    ? 'bg-green-600 hover:bg-green-700 text-white'
+                    : 'bg-secondary text-muted-foreground cursor-not-allowed'
                 }`}
+                title={unsettledCount === 0 ? 'Brak transakcji do zatwierdzenia' : `${unsettledCount} do zatwierdzenia`}
               >
-                <BarChart3 className="w-4 h-4" />
-                Podsumowanie
+                {settling ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Check className="w-4 h-4" />
+                )}
+                Zatwierdź transakcje
+                {unsettledCount > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                    {unsettledCount}
+                  </span>
+                )}
               </button>
             </>
           }
+        />
+
+        {/* Summary panel below calendar */}
+        <WorkSummaryPanel
+          weekStart={weekStart.toISOString()}
+          weekEnd={weekEnd.toISOString()}
+          monthStart={monthStart.toISOString()}
+          monthEnd={monthEnd.toISOString()}
+          monthLabel={format(currentMonth, 'LLLL yyyy', { locale: pl })}
+          onGenerateInvoice={() => setIsInvoiceModalOpen(true)}
         />
       </div>
 
@@ -415,20 +452,6 @@ export function CalendarPageClient({ initialEvents, initialWallets, googleConnec
         editingEvent={editingEvent}
         prefillDate={prefillDate}
         prefillHour={prefillHour}
-      />
-
-      <WeeklySummaryModal
-        isOpen={isSummaryModalOpen}
-        onClose={handleSummaryClose}
-        weekStart={weekStart.toISOString()}
-        weekEnd={weekEnd.toISOString()}
-        monthStart={monthStart.toISOString()}
-        monthEnd={monthEnd.toISOString()}
-        monthLabel={format(currentMonth, 'LLLL yyyy', { locale: pl })}
-        onGenerateInvoice={() => {
-          setIsSummaryModalOpen(false);
-          setIsInvoiceModalOpen(true);
-        }}
       />
 
       <InvoiceModal
@@ -455,6 +478,15 @@ export function CalendarPageClient({ initialEvents, initialWallets, googleConnec
           }}
         />
       )}
+
+      {/* Sticky scroll-to-summary button */}
+      <button
+        onClick={() => document.getElementById('work-summary-panel')?.scrollIntoView({ behavior: 'smooth' })}
+        className="fixed bottom-6 right-6 z-40 bg-primary hover:bg-primary/90 text-primary-foreground rounded-full p-3 shadow-lg transition-all hover:scale-105"
+        title="Podsumowanie"
+      >
+        <BarChart3 className="w-5 h-5" />
+      </button>
 
       {/* Recurring event move dialog */}
       {recurringMoveData && (

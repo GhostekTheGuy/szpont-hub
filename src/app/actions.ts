@@ -2142,6 +2142,104 @@ export async function settleMonthAction(monthStart: string, monthEnd: string) {
   return { settled: filteredMonthEvents.length };
 }
 
+export async function getUnsettledCount() {
+  const userId = await getUserId();
+  if (!userId) return 0;
+
+  const { count } = await supabaseAdmin
+    .from('calendar_events')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('is_confirmed', true)
+    .eq('is_settled', false)
+    .neq('event_type', 'personal');
+
+  return count || 0;
+}
+
+export async function settleAllUnsettledAction() {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  const dek = await getDEK();
+
+  const { data: events, error } = await supabaseAdmin
+    .from('calendar_events')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('is_confirmed', true)
+    .eq('is_settled', false);
+
+  if (error || !events || events.length === 0) return { settled: 0 };
+
+  const workEvents = events.filter(e => (e.event_type || 'work') === 'work');
+  if (workEvents.length === 0) return { settled: 0 };
+
+  const filteredEvents = workEvents.filter(event => !!event.wallet_id);
+  if (filteredEvents.length === 0) return { settled: 0 };
+
+  const walletEarnings = new Map<string, number>();
+
+  for (const event of filteredEvents) {
+    if (!event.wallet_id) continue;
+    const hourlyRate = decryptNumber(event.hourly_rate, dek);
+    const start = new Date(event.start_time);
+    const end = new Date(event.end_time);
+    const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+    const earnings = hours * hourlyRate;
+
+    walletEarnings.set(
+      event.wallet_id,
+      (walletEarnings.get(event.wallet_id) || 0) + earnings
+    );
+  }
+
+  const eventIds = filteredEvents.map(e => e.id);
+  await supabaseAdmin
+    .from('calendar_events')
+    .update({ is_settled: true })
+    .in('id', eventIds);
+
+  const today = new Date().toISOString().split('T')[0];
+
+  await Promise.all(Array.from(walletEarnings.entries()).map(async ([walletId, totalEarnings]) => {
+    await supabaseAdmin
+      .from('transactions')
+      .insert({
+        id: nanoid(),
+        amount: encryptNumber(totalEarnings, dek),
+        category: encryptString('Praca', dek),
+        description: encryptString(`Zarobki zatwierdzone ${today}`, dek),
+        type: 'income',
+        date: today,
+        wallet_id: walletId,
+        currency: 'PLN',
+        created_at: new Date().toISOString(),
+      });
+
+    const { data: wallet } = await supabaseAdmin
+      .from('wallets')
+      .select('balance')
+      .eq('id', walletId)
+      .single();
+
+    if (!wallet) return;
+
+    const currentBalance = decryptNumber(wallet.balance, dek);
+    const { error: updateError } = await supabaseAdmin
+      .from('wallets')
+      .update({ balance: encryptNumber(currentBalance + totalEarnings, dek) })
+      .eq('id', walletId);
+
+    if (updateError) {
+      console.error(`Settlement balance update failed for wallet ${walletId}:`, updateError);
+    }
+  }));
+
+  revalidatePath('/', 'layout');
+  return { settled: filteredEvents.length };
+}
+
 // --- YAHOO FINANCE ---
 
 export async function searchYahooFinance(query: string): Promise<{ symbol: string; name: string; exchange: string; type: string }[]> {
