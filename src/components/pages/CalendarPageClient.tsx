@@ -434,7 +434,10 @@ export function CalendarPageClient({ initialEvents, initialWallets, googleConnec
           }
         />
 
-        {/* Summary panel below calendar */}
+      </div>
+
+      {/* Summary panel below calendar */}
+      <div className="px-4 lg:px-0">
         <WorkSummaryPanel
           weekStart={weekStart.toISOString()}
           weekEnd={weekEnd.toISOString()}
