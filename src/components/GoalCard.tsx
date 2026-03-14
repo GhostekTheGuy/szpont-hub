@@ -1,5 +1,6 @@
 'use client';
 
+import { memo } from 'react';
 import { Target, Wallet, TrendingUp, ShoppingBag, Shield, Pencil, Trash2 } from 'lucide-react';
 import type { Goal } from '@/hooks/useFinanceStore';
 import { formatCurrency, type Currency } from '@/lib/exchange-rates';
@@ -19,7 +20,7 @@ interface GoalCardProps {
   onDelete: (id: string) => void;
 }
 
-export function GoalCard({ goal, displayCurrency, onEdit, onDelete }: GoalCardProps) {
+export const GoalCard = memo(function GoalCard({ goal, displayCurrency, onEdit, onDelete }: GoalCardProps) {
   const Icon = ICONS[goal.icon] || Target;
   const progress = goal.target_amount > 0
     ? Math.min((goal.current_amount / goal.target_amount) * 100, 100)
@@ -81,4 +82,4 @@ export function GoalCard({ goal, displayCurrency, onEdit, onDelete }: GoalCardPr
       </div>
     </div>
   );
-}
+});

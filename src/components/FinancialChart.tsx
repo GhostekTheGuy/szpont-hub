@@ -42,48 +42,68 @@ export const FinancialChart = memo(function FinancialChart({ transactions, asset
       return converted;
     }
 
-    // Liczymy wstecz od aktualnego net worth
-    // Oblicz sumę przyszłych zmian dla każdego dnia
+    // Prekomputacja: grupuj delty transakcji i zarobków po dacie (O(n) zamiast O(days×n))
+    const txByDate = new Map<string, number>();
+    for (const t of sorted) {
+      const d = t.date.slice(0, 10);
+      const ratesForDay = historicalRates?.[d] || exchangeRates;
+      txByDate.set(d, (txByDate.get(d) || 0) + txDelta(t, ratesForDay));
+    }
+
+    const workByDate = new Map<string, number>();
+    if (workEarningsByDate) {
+      for (const [evDate, earnings] of Object.entries(workEarningsByDate)) {
+        workByDate.set(evDate, convertAmount(earnings, 'PLN', displayCurrency, exchangeRates));
+      }
+    }
+
+    // Prekomputacja korekty aktywów po dacie zakupu
+    const assetAdjByDate = new Map<string, number>();
+    for (const asset of assets) {
+      if (asset.cost_basis > 0) {
+        const purchaseDate = asset.created_at.slice(0, 10);
+        const unrealizedPL = asset.total_value - (asset.cost_basis * asset.quantity);
+        const adj = convertAmount(unrealizedPL, 'PLN', displayCurrency, exchangeRates);
+        assetAdjByDate.set(purchaseDate, (assetAdjByDate.get(purchaseDate) || 0) + adj);
+      }
+    }
+
+    // Oblicz sumy skumulowane — startujemy od pełnej sumy przyszłych i odejmujemy dzień po dniu
+    let runningFutureFlow = 0;
+    for (const v of Array.from(txByDate.values())) runningFutureFlow += v;
+    let runningFutureWork = 0;
+    for (const v of Array.from(workByDate.values())) runningFutureWork += v;
+    let runningAssetAdj = 0;
+    for (const v of Array.from(assetAdjByDate.values())) runningAssetAdj += v;
+
+    const startDate = subDays(today, days);
+    // Odejmij transakcje sprzed zakresu wykresu (nie są "przyszłe" dla żadnego dnia na wykresie)
+    const startDateStr = format(startDate, 'yyyy-MM-dd');
+    for (const [d, v] of Array.from(txByDate.entries())) {
+      if (d <= startDateStr) runningFutureFlow -= v;
+    }
+    for (const [d, v] of Array.from(workByDate.entries())) {
+      if (d <= startDateStr) runningFutureWork -= v;
+    }
+    for (const [d, v] of Array.from(assetAdjByDate.entries())) {
+      if (d <= startDateStr) runningAssetAdj -= v;
+    }
+
     const data = [];
     for (let i = days; i >= 0; i--) {
       const date = subDays(today, i);
       const dateStr = format(date, 'yyyy-MM-dd');
 
-      // Suma transakcji (nie-pracowych) po tym dniu
-      let futureFlow = 0;
-      for (const t of sorted) {
-        if (t.date.slice(0, 10) > dateStr) {
-          const ratesForDay = historicalRates?.[t.date.slice(0, 10)] || exchangeRates;
-          futureFlow += txDelta(t, ratesForDay);
-        }
-      }
-
-      // Suma zarobków z kalendarza po tym dniu
-      let futureWorkEarnings = 0;
-      if (workEarningsByDate) {
-        for (const [evDate, earnings] of Object.entries(workEarningsByDate)) {
-          if (evDate > dateStr) {
-            futureWorkEarnings += convertAmount(earnings, 'PLN', displayCurrency, exchangeRates);
-          }
-        }
-      }
-
-      // Korekta aktywów: dla dat przed zakupem aktywa odejmij niezrealizowany zysk/stratę
-      // Bo przed zakupem aktywo nie istniało — była tylko gotówka (cost_basis)
-      let assetAdjustment = 0;
-      for (const asset of assets) {
-        const purchaseDate = asset.created_at.slice(0, 10);
-        if (purchaseDate > dateStr && asset.cost_basis > 0) {
-          const unrealizedPL = asset.total_value - (asset.cost_basis * asset.quantity);
-          assetAdjustment += convertAmount(unrealizedPL, 'PLN', displayCurrency, exchangeRates);
-        }
-      }
-
       data.push({
         date: format(date, 'dd MMM', { locale: pl }),
-        value: currentNetWorth - futureFlow - futureWorkEarnings - assetAdjustment,
+        value: currentNetWorth - runningFutureFlow - runningFutureWork - runningAssetAdj,
         fullDate: dateStr
       });
+
+      // Po przetworzeniu tego dnia, odejmij jego wkład z "przyszłych" sum
+      runningFutureFlow -= (txByDate.get(dateStr) || 0);
+      runningFutureWork -= (workByDate.get(dateStr) || 0);
+      runningAssetAdj -= (assetAdjByDate.get(dateStr) || 0);
     }
 
     return data;

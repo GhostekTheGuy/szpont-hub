@@ -107,7 +107,7 @@ async function fetchWalletsAndTransactions(userId: string, existingDek?: Buffer)
   // Równoległy fetch DEK (jeśli nie podany) + portfeli
   const [dek, { data: wallets, error: walletsError }] = await Promise.all([
     existingDek ? Promise.resolve(existingDek) : getDEK(),
-    supabaseAdmin.from('wallets').select('*').eq('user_id', userId),
+    supabaseAdmin.from('wallets').select('id, user_id, name, balance, icon, color, type, track_from, initial_balance, currency').eq('user_id', userId),
   ]);
 
   if (walletsError) {
@@ -119,7 +119,7 @@ async function fetchWalletsAndTransactions(userId: string, existingDek?: Buffer)
     ...w,
     name: decryptString(w.name, dek) || w.name,
     balance: decryptNumber(w.balance, dek),
-    track_from: w.track_from ? decryptString(w.track_from, dek) : undefined,
+    track_from: w.track_from ? decryptString(w.track_from, dek) || undefined : undefined,
     initial_balance: w.initial_balance ? decryptNumber(w.initial_balance, dek) : 0,
   }));
 
@@ -161,7 +161,7 @@ export async function getDashboardData() {
   const [{ wallets, transactions }, rates, { data: assets, error: assetsError }, { data: goals, error: goalsError }, { data: calendarEventsRaw }, { data: recurringExpensesRaw }] = await Promise.all([
     fetchWalletsAndTransactions(userId, dek),
     getExchangeRates(),
-    supabaseAdmin.from('assets').select('*').eq('user_id', userId),
+    supabaseAdmin.from('assets').select('id, user_id, name, symbol, coingecko_id, quantity, current_price, total_value, change_24h, cost_basis, asset_type, wallet_id, created_at').eq('user_id', userId),
     supabaseAdmin.from('goals').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
     supabaseAdmin.from('calendar_events').select('*').eq('user_id', userId).eq('is_confirmed', true).neq('event_type', 'personal'),
     supabaseAdmin.from('recurring_expenses').select('*').eq('user_id', userId).eq('is_active', true).order('next_due_date', { ascending: true }),
@@ -266,7 +266,7 @@ export async function getWallets() {
     ...w,
     name: decryptString(w.name, dek) || w.name,
     balance: decryptNumber(w.balance, dek),
-    track_from: w.track_from ? decryptString(w.track_from, dek) : undefined,
+    track_from: w.track_from ? decryptString(w.track_from, dek) || undefined : undefined,
     initial_balance: w.initial_balance ? decryptNumber(w.initial_balance, dek) : 0,
   }));
 
@@ -281,7 +281,7 @@ export async function getAssetsData() {
 
   const { data: assets, error: assetsError } = await supabaseAdmin
     .from('assets')
-    .select('*')
+    .select('id, user_id, name, symbol, coingecko_id, quantity, current_price, total_value, change_24h, cost_basis, asset_type, wallet_id, created_at')
     .eq('user_id', userId);
 
   if (assetsError) {
@@ -386,38 +386,58 @@ export async function getWalletChartData(
     return converted;
   }
 
-  // Liczymy wstecz od aktualnego salda.
-  // futureSum = suma transakcji PO dniu + suma zarobków z kalendarza PO dniu
+  // Prekomputacja: grupuj delty po dacie (O(n) zamiast O(days×n))
+  const txByDate = new Map<string, number>();
+  for (const t of nonWorkTransactions) {
+    const d = t.date.slice(0, 10);
+    txByDate.set(d, (txByDate.get(d) || 0) + getSignedAmount(t));
+  }
+
+  const calByDate = new Map<string, number>();
+  for (const [evDate, earnings] of Array.from(dailyEarnings.entries())) {
+    calByDate.set(evDate, convertAmount(earnings, 'PLN', displayCurrency, currentRates));
+  }
+
+  const assetAdjByDate = new Map<string, number>();
+  for (const asset of decryptedWalletAssets) {
+    if (asset.cost_basis > 0) {
+      const purchaseDate = asset.created_at.slice(0, 10);
+      const unrealizedPL = asset.total_value - (asset.cost_basis * asset.quantity);
+      const adj = convertAmount(unrealizedPL, 'PLN', displayCurrency, currentRates);
+      assetAdjByDate.set(purchaseDate, (assetAdjByDate.get(purchaseDate) || 0) + adj);
+    }
+  }
+
+  // Oblicz sumy skumulowane
+  let runningFutureTx = 0;
+  for (const v of Array.from(txByDate.values())) runningFutureTx += v;
+  let runningFutureCal = 0;
+  for (const v of Array.from(calByDate.values())) runningFutureCal += v;
+  let runningAssetAdj = 0;
+  for (const v of Array.from(assetAdjByDate.values())) runningAssetAdj += v;
+
+  const startDateStr = startDate.toISOString().split('T')[0];
+  for (const [d, v] of Array.from(txByDate.entries())) {
+    if (d <= startDateStr) runningFutureTx -= v;
+  }
+  for (const [d, v] of Array.from(calByDate.entries())) {
+    if (d <= startDateStr) runningFutureCal -= v;
+  }
+  for (const [d, v] of Array.from(assetAdjByDate.entries())) {
+    if (d <= startDateStr) runningAssetAdj -= v;
+  }
+
   const data: { date: string; value: number }[] = [];
   const current = new Date(startDate);
 
   while (current <= today) {
     const dateStr = current.toISOString().split('T')[0];
 
-    // Suma nie-pracowych transakcji po tym dniu
-    const futureNonWork = nonWorkTransactions
-      .filter(t => t.date > dateStr)
-      .reduce((acc, t) => acc + getSignedAmount(t), 0);
+    data.push({ date: dateStr, value: realBalance - runningFutureTx - runningFutureCal - runningAssetAdj });
 
-    // Suma zarobków z kalendarza po tym dniu
-    let futureCalendarEarnings = 0;
-    for (const [evDate, earnings] of Array.from(dailyEarnings.entries())) {
-      if (evDate > dateStr) {
-        futureCalendarEarnings += convertAmount(earnings, 'PLN', displayCurrency, currentRates);
-      }
-    }
-
-    // Korekta aktywów: dla dat przed zakupem aktywa odejmij niezrealizowany zysk/stratę
-    let assetAdjustment = 0;
-    for (const asset of decryptedWalletAssets) {
-      const purchaseDate = asset.created_at.slice(0, 10);
-      if (purchaseDate > dateStr && asset.cost_basis > 0) {
-        const unrealizedPL = asset.total_value - (asset.cost_basis * asset.quantity);
-        assetAdjustment += convertAmount(unrealizedPL, 'PLN', displayCurrency, currentRates);
-      }
-    }
-
-    data.push({ date: dateStr, value: realBalance - futureNonWork - futureCalendarEarnings - assetAdjustment });
+    runningFutureTx -= (txByDate.get(dateStr) || 0);
+    runningFutureCal -= (calByDate.get(dateStr) || 0);
+    runningAssetAdj -= (assetAdjByDate.get(dateStr) || 0);
     current.setDate(current.getDate() + 1);
   }
 
@@ -1772,8 +1792,8 @@ export async function settleWeekAction(weekStart: string, weekEnd: string) {
     .update({ is_settled: true })
     .in('id', eventIds);
 
-  // Stwórz transakcje income i zaktualizuj salda
-  for (const [walletId, totalEarnings] of Array.from(walletEarnings.entries())) {
+  // Stwórz transakcje income i zaktualizuj salda — każdy portfel niezależnie, równolegle
+  await Promise.all(Array.from(walletEarnings.entries()).map(async ([walletId, totalEarnings]) => {
     await supabaseAdmin
       .from('transactions')
       .insert({
@@ -1788,14 +1808,13 @@ export async function settleWeekAction(weekStart: string, weekEnd: string) {
         created_at: new Date().toISOString(),
       });
 
-    // Fresh read + update salda w jednej sekwencji per portfel
     const { data: wallet } = await supabaseAdmin
       .from('wallets')
       .select('balance')
       .eq('id', walletId)
       .single();
 
-    if (!wallet) continue;
+    if (!wallet) return;
 
     const currentBalance = decryptNumber(wallet.balance, dek);
     const { error: updateError } = await supabaseAdmin
@@ -1806,7 +1825,7 @@ export async function settleWeekAction(weekStart: string, weekEnd: string) {
     if (updateError) {
       console.error(`Settlement balance update failed for wallet ${walletId}:`, updateError);
     }
-  }
+  }));
 
   revalidatePath('/', 'layout');
   return { settled: filteredEvents.length };
@@ -2084,8 +2103,8 @@ export async function settleMonthAction(monthStart: string, monthEnd: string) {
     .update({ is_settled: true })
     .in('id', eventIds);
 
-  // Stwórz transakcje income i zaktualizuj salda
-  for (const [walletId, totalEarnings] of Array.from(walletEarnings.entries())) {
+  // Stwórz transakcje income i zaktualizuj salda — każdy portfel niezależnie, równolegle
+  await Promise.all(Array.from(walletEarnings.entries()).map(async ([walletId, totalEarnings]) => {
     await supabaseAdmin
       .from('transactions')
       .insert({
@@ -2106,7 +2125,7 @@ export async function settleMonthAction(monthStart: string, monthEnd: string) {
       .eq('id', walletId)
       .single();
 
-    if (!wallet) continue;
+    if (!wallet) return;
 
     const currentBalance = decryptNumber(wallet.balance, dek);
     const { error: updateError } = await supabaseAdmin
@@ -2117,7 +2136,7 @@ export async function settleMonthAction(monthStart: string, monthEnd: string) {
     if (updateError) {
       console.error(`Settlement balance update failed for wallet ${walletId}:`, updateError);
     }
-  }
+  }));
 
   revalidatePath('/', 'layout');
   return { settled: filteredMonthEvents.length };
@@ -2366,7 +2385,7 @@ export async function deleteAssetAction(id: string, revertTransaction = false) {
     // Szukaj transakcji zakupu po wallet_id, type=outcome, category="Zakup aktywa" i opisie zawierającym symbol
     const { data: transactions } = await supabaseAdmin
       .from('transactions')
-      .select('*')
+      .select('id, amount, description, category')
       .eq('wallet_id', asset.wallet_id)
       .eq('type', 'outcome');
 
@@ -2415,7 +2434,7 @@ export async function refreshAssetPricesAction() {
 
   const { data: assets } = await supabaseAdmin
     .from('assets')
-    .select('*')
+    .select('id, coingecko_id, symbol, quantity, asset_type')
     .eq('user_id', userId);
 
   if (!assets || assets.length === 0) return;
@@ -2448,12 +2467,12 @@ export async function refreshAssetPricesAction() {
             ])
           );
 
-          for (const asset of cryptoAssets) {
+          await Promise.all(cryptoAssets.map(asset => {
             const coinData = priceMap.get(asset.coingecko_id);
-            if (!coinData) continue;
+            if (!coinData) return Promise.resolve();
 
             const totalValue = asset.quantity * coinData.price;
-            await supabaseAdmin
+            return supabaseAdmin
               .from('assets')
               .update({
                 current_price: encryptNumber(coinData.price, dek),
@@ -2461,7 +2480,7 @@ export async function refreshAssetPricesAction() {
                 change_24h: encryptNumber(coinData.change, dek),
               })
               .eq('id', asset.id);
-          }
+          }));
         }
       } catch {
         // Ignoruj błędy API
@@ -2478,9 +2497,9 @@ export async function refreshAssetPricesAction() {
 
       const quoteMap = new Map(quotes.map(q => [q.symbol, q]));
 
-      for (const asset of stockAssets) {
+      await Promise.all(stockAssets.map(asset => {
         const q = quoteMap.get(asset.symbol);
-        if (!q) continue;
+        if (!q) return Promise.resolve();
 
         let pricePLN: number;
         if (q.currency === 'PLN') {
@@ -2491,7 +2510,7 @@ export async function refreshAssetPricesAction() {
         }
 
         const totalValue = asset.quantity * pricePLN;
-        await supabaseAdmin
+        return supabaseAdmin
           .from('assets')
           .update({
             current_price: encryptNumber(pricePLN, dek),
@@ -2499,7 +2518,7 @@ export async function refreshAssetPricesAction() {
             change_24h: encryptNumber(q.change, dek),
           })
           .eq('id', asset.id);
-      }
+      }));
     } catch {
       // Ignoruj błędy API
     }
@@ -3447,11 +3466,17 @@ export async function getWeeklyReportData(): Promise<WeeklyReportInput | null> {
       category: t.category || 'Inne',
     }));
 
-  // Nawyki: completion rate z poprzedniego tygodnia
+  // Nawyki: completion rate z poprzedniego tygodnia — Map lookup zamiast powtarzanego filter
+  const entriesByHabit = new Map<string, typeof habitsData.entries>();
+  for (const e of habitsData.entries) {
+    if (e.date >= weekStartStr && e.date <= weekEndStr) {
+      const arr = entriesByHabit.get(e.habit_id);
+      if (arr) arr.push(e);
+      else entriesByHabit.set(e.habit_id, [e]);
+    }
+  }
   const habitStats = habitsData.habits.map(h => {
-    const weekEntries = habitsData.entries.filter(e =>
-      e.habit_id === h.id && e.date >= weekStartStr && e.date <= weekEndStr
-    );
+    const weekEntries = entriesByHabit.get(h.id) || [];
     const completed = weekEntries.filter(e => e.completed).length;
     const expected = h.frequency === 'daily' ? 7 : h.frequency === 'weekly' ? 1 : 7;
     return { name: h.name, completed, expected };

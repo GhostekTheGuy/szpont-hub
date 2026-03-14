@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, ReactNode } from 'react';
+import { useRef, memo, ReactNode } from 'react';
 import Link from 'next/link';
 import { Transaction, useFinanceStore } from '@/hooks/useFinanceStore';
 import { ArrowUpRight, ArrowDownRight, ArrowLeftRight, Trash2, Edit2, ArrowRight } from 'lucide-react';
@@ -33,7 +33,7 @@ interface TransactionListProps {
   compact?: boolean;
 }
 
-export function TransactionList({ transactions, onDelete, onEdit, limit, showSeeMore = false, compact = false }: TransactionListProps) {
+export const TransactionList = memo(function TransactionList({ transactions, onDelete, onEdit, limit, showSeeMore = false, compact = false }: TransactionListProps) {
   const balanceMasked = useFinanceStore(s => s.balanceMasked);
   const visible = limit ? transactions.slice(0, limit) : transactions;
 
@@ -154,4 +154,4 @@ export function TransactionList({ transactions, onDelete, onEdit, limit, showSee
       )}
     </div>
   );
-}
+});

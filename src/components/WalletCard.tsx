@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, memo } from 'react';
 import { Wallet, Asset, useFinanceStore } from '@/hooks/useFinanceStore';
 import { Edit2, Trash2, Banknote, Bitcoin, TrendingUp, Wallet as WalletIcon, CreditCard, PiggyBank, RefreshCw } from 'lucide-react';
 import { convertAmount, formatCurrency, type ExchangeRates } from '@/lib/exchange-rates';
@@ -51,7 +51,7 @@ interface WalletCardProps {
   onRecalculate?: (id: string) => void;
 }
 
-export function WalletCard({ wallet, assets, exchangeRates, onEdit, onDelete, onRecalculate }: WalletCardProps) {
+export const WalletCard = memo(function WalletCard({ wallet, assets, exchangeRates, onEdit, onDelete, onRecalculate }: WalletCardProps) {
   const IconComponent = iconMap[wallet.icon] || WalletIcon;
   const parsed = parseWalletColor(wallet.color);
   const balanceMasked = useFinanceStore(s => s.balanceMasked);
@@ -247,4 +247,4 @@ export function WalletCard({ wallet, assets, exchangeRates, onEdit, onDelete, on
       </div>
     </div>
   );
-}
+});
