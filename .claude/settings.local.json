@@ -34,7 +34,17 @@
       "Bash(cat:*)",
       "Bash(wc:*)",
       "Bash(npm run:*)",
-      "Bash(pnpm run:*)"
+      "Bash(pnpm run:*)",
+      "Bash(export PATH=\"$PATH:/c/Program Files/nodejs:/c/Users/s1016/AppData/Roaming/npm:/c/Users/s1016/AppData/Local/pnpm\" && npx pnpm run build 2>&1)",
+      "Bash(taskkill //F //IM node.exe 2>/dev/null; export PATH=\"$PATH:/c/Program Files/nodejs:/c/Users/s1016/AppData/Roaming/npm:/c/Users/s1016/AppData/Local/pnpm\" && npx pnpm dev)",
+      "Bash(export PATH=\"$HOME/.bun/bin:$PATH\" && bun run build 2>&1)",
+      "Bash(rm -rf .next && export PATH=\"$HOME/.bun/bin:$PATH\" && bun run build 2>&1)",
+      "Bash(taskkill //F //IM node.exe 2>/dev/null; export PATH=\"$HOME/.bun/bin:$PATH\" && bun run dev)",
+      "Bash(export PATH=\"$HOME/.bun/bin:$PATH\" && rm -rf .next && bun run build 2>&1)",
+      "Bash(git add:*)",
+      "Bash(git push:*)",
+      "Bash(git remote:*)",
+      "Bash(git fetch:*)"
     ]
   }
 }
