@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { getResend, EMAIL_FROM } from '@/lib/resend';
+import { getTransporter, EMAIL_FROM } from '@/lib/mailer';
 
 const REMIND_DAYS_BEFORE = 3;
 
@@ -118,18 +118,17 @@ export async function GET(request: Request) {
       </html>
     `;
 
-    const { error: sendError } = await getResend().emails.send({
-      from: EMAIL_FROM,
-      to: email,
-      subject,
-      html,
-    });
-
-    if (sendError) {
+    try {
+      await getTransporter().sendMail({
+        from: EMAIL_FROM,
+        to: email,
+        subject,
+        html,
+      });
+      sent++;
+    } catch (sendError) {
       console.error(`Failed to send to ${email}:`, sendError);
       errors.push(email);
-    } else {
-      sent++;
     }
   }
 
