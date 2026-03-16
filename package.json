@@ -38,6 +38,7 @@
     "react-day-picker": "^9.13.2",
     "react-dom": "^18.3.1",
     "recharts": "^2.12.7",
+    "resend": "^6.9.3",
     "server-only": "^0.0.1",
     "stripe": "^20.3.1",
     "tailwind-merge": "^3.4.1",
