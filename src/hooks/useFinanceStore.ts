@@ -97,8 +97,46 @@ export interface CalendarEvent {
   is_settled: boolean;
   is_confirmed: boolean;
   event_type: 'work' | 'personal';
+  order_id?: string | null;
   google_event_id?: string | null;
   google_calendar_id?: string | null;
+}
+
+export type OrderStatus = 'pending' | 'in_progress' | 'completed' | 'settled';
+
+export interface Client {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  nip: string | null;
+  company_name: string | null;
+  street: string | null;
+  postal_code: string | null;
+  city: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
+export type BillingType = 'flat' | 'hourly';
+
+export interface Order {
+  id: string;
+  client_id: string;
+  title: string;
+  description: string | null;
+  amount: number;
+  billing_type: BillingType;
+  hourly_rate: number | null;
+  tracked_hours: number;
+  wallet_id: string | null;
+  walletName: string;
+  status: OrderStatus;
+  tags: string[];
+  completion_date: string | null;
+  is_settled: boolean;
+  settled_at: string | null;
+  created_at: string;
 }
 
 export interface RecurringExpense {
@@ -129,6 +167,8 @@ interface FinanceState {
   habits: Habit[];
   habitEntries: HabitEntry[];
   recurringExpenses: RecurringExpense[];
+  clients: Client[];
+  orders: Order[];
   activeWalletId: string | null;
   balanceMasked: boolean;
   displayCurrency: Currency;
@@ -145,6 +185,8 @@ interface FinanceState {
   setHabits: (habits: Habit[]) => void;
   setHabitEntries: (entries: HabitEntry[]) => void;
   setRecurringExpenses: (expenses: RecurringExpense[]) => void;
+  setClients: (clients: Client[]) => void;
+  setOrders: (orders: Order[]) => void;
   setActiveWallet: (id: string | null) => void;
   setBalanceMasked: (masked: boolean) => void;
   toggleBalanceMask: () => void;
@@ -164,6 +206,8 @@ export const useFinanceStore = create<FinanceState>()(
     habits: [],
     habitEntries: [],
     recurringExpenses: [],
+    clients: [],
+    orders: [],
     activeWalletId: null,
     balanceMasked: false,
     displayCurrency: 'PLN' as Currency,
@@ -179,6 +223,8 @@ export const useFinanceStore = create<FinanceState>()(
     setHabits: (habits) => set({ habits }),
     setHabitEntries: (habitEntries) => set({ habitEntries }),
     setRecurringExpenses: (recurringExpenses) => set({ recurringExpenses }),
+    setClients: (clients) => set({ clients }),
+    setOrders: (orders) => set({ orders }),
     setActiveWallet: (id) => set({ activeWalletId: id }),
     setBalanceMasked: (masked) => set({ balanceMasked: masked }),
     toggleBalanceMask: () => {

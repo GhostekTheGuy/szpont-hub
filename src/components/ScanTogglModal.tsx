@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { X, Upload, Timer, Loader2, Check, Trash2, FileText, Sparkles } from 'lucide-react';
-import { useFinanceStore } from '@/hooks/useFinanceStore';
+import { useFinanceStore, type Order } from '@/hooks/useFinanceStore';
 import { addCalendarEvent, getScansRemaining } from '@/app/actions';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -21,11 +21,13 @@ interface ScannedEntry {
   duration_hours: number;
   hourly_rate: string;
   wallet_id: string;
+  order_id: string;
   selected: boolean;
 }
 
 export function ScanTogglModal({ isOpen, onClose }: ScanTogglModalProps) {
-  const { wallets } = useFinanceStore();
+  const { wallets, orders } = useFinanceStore();
+  const hourlyOrders = orders.filter(o => o.billing_type === 'hourly' && o.status !== 'settled' && o.hourly_rate);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [state, setState] = useState<ModalState>('idle');
@@ -37,6 +39,7 @@ export function ScanTogglModal({ isOpen, onClose }: ScanTogglModalProps) {
   const [entries, setEntries] = useState<ScannedEntry[]>([]);
   const [globalWalletId, setGlobalWalletId] = useState(wallets[0]?.id || '');
   const [globalRate, setGlobalRate] = useState('');
+  const [globalOrderId, setGlobalOrderId] = useState('');
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [savedCount, setSavedCount] = useState(0);
   const [scansRemaining, setScansRemaining] = useState<number | null>(null);
@@ -60,6 +63,7 @@ export function ScanTogglModal({ isOpen, onClose }: ScanTogglModalProps) {
     setEntries([]);
     setGlobalWalletId(wallets[0]?.id || '');
     setGlobalRate('');
+    setGlobalOrderId('');
     setEditingIndex(null);
     setSavedCount(0);
   }, [wallets]);
@@ -122,10 +126,11 @@ export function ScanTogglModal({ isOpen, onClose }: ScanTogglModalProps) {
       }
 
       const scanned: ScannedEntry[] = data.entries.map(
-        (e: Omit<ScannedEntry, 'selected' | 'hourly_rate' | 'wallet_id'>) => ({
+        (e: Omit<ScannedEntry, 'selected' | 'hourly_rate' | 'wallet_id' | 'order_id'>) => ({
           ...e,
           hourly_rate: globalRate,
           wallet_id: globalWalletId,
+          order_id: globalOrderId,
           selected: true,
         })
       );
@@ -190,6 +195,7 @@ export function ScanTogglModal({ isOpen, onClose }: ScanTogglModalProps) {
           is_recurring: false,
           recurrence_rule: null,
           event_type: 'work',
+          order_id: e.order_id || null,
         });
         setSavedCount(i + 1);
       }
@@ -351,6 +357,37 @@ export function ScanTogglModal({ isOpen, onClose }: ScanTogglModalProps) {
             {(state === 'results' || state === 'saving') && (
               <div className="space-y-4">
                 {/* Global settings */}
+                {hourlyOrders.length > 0 && (
+                  <div>
+                    <label className="block text-sm text-muted-foreground mb-1">Zlecenie godzinowe (dla wszystkich)</label>
+                    <select
+                      value={globalOrderId}
+                      onChange={(e) => {
+                        const orderId = e.target.value;
+                        setGlobalOrderId(orderId);
+                        const order = hourlyOrders.find(o => o.id === orderId);
+                        if (order) {
+                          if (order.wallet_id) {
+                            setGlobalWalletId(order.wallet_id);
+                            setEntries(prev => prev.map(en => ({ ...en, order_id: orderId, wallet_id: order.wallet_id!, hourly_rate: String(order.hourly_rate) })));
+                          } else {
+                            setEntries(prev => prev.map(en => ({ ...en, order_id: orderId, hourly_rate: String(order.hourly_rate) })));
+                          }
+                          setGlobalRate(String(order.hourly_rate));
+                        } else {
+                          setEntries(prev => prev.map(en => ({ ...en, order_id: '' })));
+                        }
+                      }}
+                      className={inputClass}
+                    >
+                      <option value="">Brak (reczny wpis)</option>
+                      {hourlyOrders.map(o => (
+                        <option key={o.id} value={o.id}>{o.title} ({o.hourly_rate} PLN/h)</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm text-muted-foreground mb-1">Portfel (dla wszystkich)</label>
@@ -513,6 +550,29 @@ export function ScanTogglModal({ isOpen, onClose }: ScanTogglModalProps) {
                               />
                             </div>
                           </div>
+                          {hourlyOrders.length > 0 && (
+                            <div>
+                              <label className="block text-xs text-muted-foreground mb-1">Zlecenie</label>
+                              <select
+                                value={entry.order_id}
+                                onChange={(e) => {
+                                  const oid = e.target.value;
+                                  updateEntry(i, 'order_id', oid);
+                                  const order = hourlyOrders.find(o => o.id === oid);
+                                  if (order) {
+                                    if (order.wallet_id) updateEntry(i, 'wallet_id', order.wallet_id);
+                                    if (order.hourly_rate) updateEntry(i, 'hourly_rate', String(order.hourly_rate));
+                                  }
+                                }}
+                                className={inputClass}
+                              >
+                                <option value="">Brak</option>
+                                {hourlyOrders.map(o => (
+                                  <option key={o.id} value={o.id}>{o.title} ({o.hourly_rate} PLN/h)</option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
                           <div className="grid grid-cols-2 gap-2">
                             <div>
                               <label className="block text-xs text-muted-foreground mb-1">Portfel</label>

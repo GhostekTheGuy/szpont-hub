@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Play, Pause, Square, X } from 'lucide-react';
+import { Play, Pause, Square, X, Briefcase } from 'lucide-react';
 import { addCalendarEvent } from '@/app/actions';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '@/components/Toast';
-import type { Wallet } from '@/hooks/useFinanceStore';
+import type { Wallet, Order } from '@/hooks/useFinanceStore';
 
 interface TimerState {
   originalStartTime: number;
@@ -16,6 +16,7 @@ interface TimerState {
   walletId: string;
   walletName: string;
   hourlyRate: number;
+  orderId: string | null;
 }
 
 const STORAGE_KEY = 'calendar-timer';
@@ -55,12 +56,13 @@ function formatEarnings(ms: number, hourlyRate: number): string {
 
 interface TimerWidgetProps {
   wallets: Wallet[];
+  orders?: Order[];
   onStop: () => void;
 }
 
 type ViewState = 'idle' | 'form' | 'running';
 
-export function TimerWidget({ wallets, onStop }: TimerWidgetProps) {
+export function TimerWidget({ wallets, orders = [], onStop }: TimerWidgetProps) {
   const { toast, confirm } = useToast();
   const [timerState, setTimerState] = useState<TimerState | null>(null);
   const [elapsed, setElapsed] = useState(0);
@@ -70,9 +72,13 @@ export function TimerWidget({ wallets, onStop }: TimerWidgetProps) {
   const [title, setTitle] = useState('');
   const [walletId, setWalletId] = useState('');
   const [hourlyRate, setHourlyRate] = useState('');
+  const [selectedOrderId, setSelectedOrderId] = useState<string>('');
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
+
+  // Hourly orders available for timer
+  const hourlyOrders = orders.filter(o => o.billing_type === 'hourly' && o.status !== 'settled' && o.hourly_rate);
 
   useEffect(() => {
     const saved = loadTimerState();
@@ -112,6 +118,19 @@ export function TimerWidget({ wallets, onStop }: TimerWidgetProps) {
     }
   }, [showForm]);
 
+  // When selecting an hourly order, auto-fill fields
+  const handleOrderSelect = useCallback((orderId: string) => {
+    setSelectedOrderId(orderId);
+    if (!orderId) return;
+
+    const order = hourlyOrders.find(o => o.id === orderId);
+    if (!order) return;
+
+    setTitle(order.title);
+    if (order.wallet_id) setWalletId(order.wallet_id);
+    if (order.hourly_rate) setHourlyRate(order.hourly_rate.toString());
+  }, [hourlyOrders]);
+
   const handleStart = useCallback(() => {
     if (!title.trim() || !walletId || !hourlyRate) return;
     const wallet = wallets.find(w => w.id === walletId);
@@ -125,11 +144,12 @@ export function TimerWidget({ wallets, onStop }: TimerWidgetProps) {
       walletId,
       walletName: wallet?.name ?? '',
       hourlyRate: parseFloat(hourlyRate),
+      orderId: selectedOrderId || null,
     };
     saveTimerState(state);
     setTimerState(state);
     setShowForm(false);
-  }, [title, walletId, hourlyRate, wallets]);
+  }, [title, walletId, hourlyRate, wallets, selectedOrderId]);
 
   const handlePauseResume = useCallback(() => {
     if (!timerState) return;
@@ -165,23 +185,25 @@ export function TimerWidget({ wallets, onStop }: TimerWidgetProps) {
         end_time: new Date().toISOString(),
         is_recurring: false,
         recurrence_rule: null,
+        order_id: timerState.orderId,
       });
       clearTimerState();
       setTimerState(null);
       setTitle('');
       setHourlyRate('');
       setWalletId('');
+      setSelectedOrderId('');
       onStop();
     } catch (error) {
       console.error('Error saving timer event:', error);
-      toast('Błąd zapisu wydarzenia', 'error');
+      toast('Blad zapisu wydarzenia', 'error');
     } finally {
       setSaving(false);
     }
-  }, [timerState, onStop]);
+  }, [timerState, onStop, toast]);
 
   const handleCancel = useCallback(async () => {
-    if (!await confirm({ title: 'Anulować timer?', description: 'Czas nie zostanie zapisany.', variant: 'danger', confirmLabel: 'Anuluj timer' })) return;
+    if (!await confirm({ title: 'Anulowac timer?', description: 'Czas nie zostanie zapisany.', variant: 'danger', confirmLabel: 'Anuluj timer' })) return;
     clearTimerState();
     setTimerState(null);
   }, [confirm]);
@@ -232,11 +254,19 @@ export function TimerWidget({ wallets, onStop }: TimerWidgetProps) {
                   {timerState!.title}
                 </span>
               </div>
-              {timerState!.walletName && (
-                <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-full shrink-0 ml-2">
-                  {timerState!.walletName}
-                </span>
-              )}
+              <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                {timerState!.orderId && (
+                  <span className="text-xs text-primary bg-primary/10 px-1.5 py-0.5 rounded-full flex items-center gap-1">
+                    <Briefcase className="w-3 h-3" />
+                    Zlecenie
+                  </span>
+                )}
+                {timerState!.walletName && (
+                  <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">
+                    {timerState!.walletName}
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* Timer + earnings */}
@@ -266,7 +296,7 @@ export function TimerWidget({ wallets, onStop }: TimerWidgetProps) {
                 {isPaused ? (
                   <>
                     <Play className="w-3.5 h-3.5" />
-                    Wznów
+                    Wznow
                   </>
                 ) : (
                   <>
@@ -306,18 +336,34 @@ export function TimerWidget({ wallets, onStop }: TimerWidgetProps) {
           className="w-full"
         >
           <div className="bg-card border border-border rounded-xl px-3 py-3 space-y-2">
+            {/* Hourly order quick-select */}
+            {hourlyOrders.length > 0 && (
+              <select
+                value={selectedOrderId}
+                onChange={e => handleOrderSelect(e.target.value)}
+                className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
+              >
+                <option value="">Reczny wpis...</option>
+                {hourlyOrders.map(o => (
+                  <option key={o.id} value={o.id}>
+                    {o.title} ({o.hourly_rate} PLN/h)
+                  </option>
+                ))}
+              </select>
+            )}
+
             <div className="flex items-center gap-2">
               <input
                 ref={titleInputRef}
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="Tytuł..."
+                placeholder="Tytul..."
                 className="bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-ring flex-1 min-w-0"
                 onKeyDown={(e) => e.key === 'Enter' && handleStart()}
               />
               <button
-                onClick={() => setShowForm(false)}
+                onClick={() => { setShowForm(false); setSelectedOrderId(''); }}
                 className="p-1.5 hover:bg-secondary rounded-lg transition-colors text-muted-foreground shrink-0"
               >
                 <X className="w-4 h-4" />

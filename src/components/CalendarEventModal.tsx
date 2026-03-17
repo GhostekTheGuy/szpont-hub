@@ -22,7 +22,8 @@ function timeToString(h: number, m: number): string {
 
 export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate, prefillHour }: CalendarEventModalProps) {
   const { toast, confirm } = useToast();
-  const { wallets } = useFinanceStore();
+  const { wallets, orders } = useFinanceStore();
+  const hourlyOrders = orders.filter(o => o.billing_type === 'hourly' && o.status !== 'settled' && o.hourly_rate);
 
   const [eventType, setEventType] = useState<'work' | 'personal'>('work');
   const [title, setTitle] = useState('');
@@ -33,6 +34,7 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
   const [endTime, setEndTime] = useState('10:00');
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurrenceRule, setRecurrenceRule] = useState<string | null>(null);
+  const [orderId, setOrderId] = useState('');
   const [loading, setLoading] = useState(false);
 
   const isGoogleEvent = !!editingEvent?.google_event_id;
@@ -52,6 +54,7 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
       setEndTime(timeToString(end.getHours(), end.getMinutes()));
       setIsRecurring(editingEvent.is_recurring);
       setRecurrenceRule(editingEvent.recurrence_rule);
+      setOrderId(editingEvent.order_id || '');
     } else {
       setEventType('work');
       setTitle('');
@@ -71,6 +74,7 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
       }
       setIsRecurring(false);
       setRecurrenceRule(null);
+      setOrderId('');
     }
   }, [editingEvent, isOpen, wallets, prefillDate, prefillHour]);
 
@@ -96,6 +100,7 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
       is_recurring: isRecurring,
       recurrence_rule: isRecurring ? recurrenceRule : null,
       event_type: eventType,
+      order_id: orderId || null,
     };
 
     try {
@@ -306,6 +311,31 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
                     />
                   </div>
                 </>
+              )}
+
+              {!isPersonal && hourlyOrders.length > 0 && (
+                <div>
+                  <label className="block text-sm text-muted-foreground mb-2">Zlecenie godzinowe</label>
+                  <select
+                    value={orderId}
+                    onChange={(e) => {
+                      const oid = e.target.value;
+                      setOrderId(oid);
+                      const order = hourlyOrders.find(o => o.id === oid);
+                      if (order) {
+                        setTitle(order.title);
+                        if (order.wallet_id) setWalletId(order.wallet_id);
+                        if (order.hourly_rate) setHourlyRate(order.hourly_rate.toString());
+                      }
+                    }}
+                    className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
+                  >
+                    <option value="">Brak (reczny wpis)</option>
+                    {hourlyOrders.map(o => (
+                      <option key={o.id} value={o.id}>{o.title} ({o.hourly_rate} PLN/h)</option>
+                    ))}
+                  </select>
+                </div>
               )}
 
               {!isGoogleEvent && !isRecurringInstance && (

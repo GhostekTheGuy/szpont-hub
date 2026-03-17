@@ -44,7 +44,16 @@
       "Bash(git add:*)",
       "Bash(git push:*)",
       "Bash(git remote:*)",
-      "Bash(git fetch:*)"
+      "Bash(git fetch:*)",
+      "Bash(NODE_PATH=./node_modules node /tmp/test-smtp.js)",
+      "Bash(node:*)",
+      "Bash(pnpm install:*)",
+      "Bash(nslookup poczta.home.pl)",
+      "Bash(nslookup mail.home.pl)",
+      "Bash(nslookup ssl0.ovh.net)",
+      "Bash(dig MX szponthub.pl +short)",
+      "Bash(nslookup:*)",
+      "Bash(pnpm add:*)"
     ]
   }
 }

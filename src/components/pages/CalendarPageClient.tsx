@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { useFinanceStore, type Wallet, type CalendarEvent } from '@/hooks/useFinanceStore';
+import { useFinanceStore, type Wallet, type CalendarEvent, type Order } from '@/hooks/useFinanceStore';
 import { getCalendarEvents, toggleEventConfirmed, moveCalendarEvent, moveRecurringEvent, getUnsettledCount, settleAllUnsettledAction } from '@/app/actions';
 import { WeeklyCalendar } from '@/components/WeeklyCalendar';
 import { CalendarEventModal } from '@/components/CalendarEventModal';
@@ -35,14 +35,15 @@ interface GoogleConnection {
 interface Props {
   initialEvents: CalendarEvent[];
   initialWallets: Wallet[];
+  initialOrders?: Order[];
   googleConnection?: GoogleConnection | null;
 }
 
 const SYNC_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
 
-export function CalendarPageClient({ initialEvents, initialWallets, googleConnection }: Props) {
+export function CalendarPageClient({ initialEvents, initialWallets, initialOrders, googleConnection }: Props) {
   const { confirm, toast } = useToast();
-  const { calendarEvents, setCalendarEvents, setWallets, wallets } = useFinanceStore();
+  const { calendarEvents, setCalendarEvents, setWallets, wallets, orders, setOrders } = useFinanceStore();
 
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
@@ -75,8 +76,9 @@ export function CalendarPageClient({ initialEvents, initialWallets, googleConnec
   useEffect(() => {
     setWallets(initialWallets);
     setCalendarEvents(initialEvents);
+    if (initialOrders) setOrders(initialOrders);
     refreshUnsettledCount();
-  }, [initialWallets, initialEvents, setWallets, setCalendarEvents, refreshUnsettledCount]);
+  }, [initialWallets, initialEvents, initialOrders, setWallets, setCalendarEvents, setOrders, refreshUnsettledCount]);
 
   const loadMonth = useCallback(async (date: Date) => {
     setLoading(true);
@@ -351,13 +353,8 @@ export function CalendarPageClient({ initialEvents, initialWallets, googleConnec
         </div>
       )}
 
-      {/* Header */}
-      <div className="mb-4 px-4 lg:px-0">
-        <h1 className="text-3xl font-bold text-foreground">Praca</h1>
-      </div>
-
       {/* Content */}
-      <div className={`px-4 lg:px-0 ${loading ? 'opacity-50 pointer-events-none transition-opacity' : 'transition-opacity'}`}>
+      <div className={`${loading ? 'opacity-50 pointer-events-none transition-opacity' : 'transition-opacity'}`}>
         <WeeklyCalendar
           events={calendarEvents}
           currentMonth={currentMonth}
@@ -371,7 +368,7 @@ export function CalendarPageClient({ initialEvents, initialWallets, googleConnec
           onNextMonth={goToNextMonth}
           onToday={goToToday}
           loading={loading}
-          topWidget={<TimerWidget wallets={wallets} onStop={() => loadMonth(currentMonth)} />}
+          topWidget={<TimerWidget wallets={wallets} orders={orders} onStop={() => loadMonth(currentMonth)} />}
           actionButtons={
             <>
               {googleConn?.connected ? (
@@ -437,7 +434,7 @@ export function CalendarPageClient({ initialEvents, initialWallets, googleConnec
       </div>
 
       {/* Summary panel below calendar */}
-      <div className="px-4 lg:px-0">
+      <div>
         <WorkSummaryPanel
           weekStart={weekStart.toISOString()}
           weekEnd={weekEnd.toISOString()}

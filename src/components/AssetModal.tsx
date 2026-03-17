@@ -50,7 +50,7 @@ export function AssetModal({ isOpen, onClose, editingAsset, onDelete, wallets = 
   const [deductFromWallet, setDeductFromWallet] = useState(true);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
-  const debounceRef = useRef<NodeJS.Timeout>();
+  const debounceRef = useRef<NodeJS.Timeout>(undefined);
 
   useEffect(() => {
     if (editingAsset) {

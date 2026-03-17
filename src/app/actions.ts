@@ -1170,6 +1170,7 @@ export async function getCalendarEvents(weekStart: string, weekEnd: string) {
     is_settled: e.is_settled,
     is_confirmed: e.is_confirmed ?? false,
     event_type: (e.event_type || (e.google_event_id ? 'personal' : 'work')) as 'work' | 'personal',
+    order_id: e.order_id || null,
     google_event_id: e.google_event_id || null,
     google_calendar_id: e.google_calendar_id || null,
   }));
@@ -1195,6 +1196,7 @@ export async function addCalendarEvent(data: {
   is_recurring: boolean;
   recurrence_rule: string | null;
   event_type?: 'work' | 'personal';
+  order_id?: string | null;
 }) {
   if (!isValidISODate(data.start_time) || !isValidISODate(data.end_time)) throw new Error('Invalid date');
   const userId = await getUserId();
@@ -1217,6 +1219,7 @@ export async function addCalendarEvent(data: {
       is_recurring: data.is_recurring,
       recurrence_rule: data.recurrence_rule,
       event_type: data.event_type || 'work',
+      order_id: data.order_id || null,
       created_at: new Date().toISOString(),
     });
 
@@ -1237,6 +1240,7 @@ export async function editCalendarEvent(id: string, data: {
   is_recurring: boolean;
   recurrence_rule: string | null;
   event_type?: 'work' | 'personal';
+  order_id?: string | null;
 }) {
   if (!isValidISODate(data.start_time) || !isValidISODate(data.end_time)) throw new Error('Invalid date');
   const userId = await getUserId();
@@ -1264,6 +1268,7 @@ export async function editCalendarEvent(id: string, data: {
       is_recurring: data.is_recurring,
       recurrence_rule: data.recurrence_rule,
       event_type: data.event_type || 'work',
+      order_id: data.order_id || null,
     })
     .eq('id', id);
 
@@ -3916,4 +3921,381 @@ export async function skipRecurringExpense(id: string) {
     .eq('id', id);
 
   revalidatePath('/', 'layout');
+}
+
+// --- KLIENCI I ZLECENIA ---
+
+export async function getClients() {
+  const userId = await getUserId();
+  if (!userId) return { clients: [] };
+
+  const [dek, { data: clients }] = await Promise.all([
+    getDEK(),
+    supabaseAdmin.from('clients').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
+  ]);
+
+  const decrypted = (clients || []).map(c => ({
+    id: c.id,
+    name: decryptString(c.name, dek) || c.name,
+    email: c.email ? decryptString(c.email, dek) : null,
+    phone: c.phone ? decryptString(c.phone, dek) : null,
+    nip: c.nip ? decryptString(c.nip, dek) : null,
+    company_name: c.company_name ? decryptString(c.company_name, dek) : null,
+    street: c.street ? decryptString(c.street, dek) : null,
+    postal_code: c.postal_code ? decryptString(c.postal_code, dek) : null,
+    city: c.city ? decryptString(c.city, dek) : null,
+    notes: c.notes ? decryptString(c.notes, dek) : null,
+    created_at: c.created_at,
+  }));
+
+  return { clients: decrypted };
+}
+
+export async function addClient(data: {
+  name: string;
+  email?: string;
+  phone?: string;
+  nip?: string;
+  company_name?: string;
+  street?: string;
+  postal_code?: string;
+  city?: string;
+  notes?: string;
+}) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+  if (!data.name || data.name.length > 200) throw new Error('Invalid name');
+
+  const dek = await getDEK();
+
+  const insertData = {
+    id: nanoid(),
+    user_id: userId,
+    name: encryptString(data.name, dek),
+    email: data.email ? encryptString(data.email, dek) : null,
+    phone: data.phone ? encryptString(data.phone, dek) : null,
+    nip: data.nip ? encryptString(data.nip, dek) : null,
+    company_name: data.company_name ? encryptString(data.company_name, dek) : null,
+    street: data.street ? encryptString(data.street, dek) : null,
+    postal_code: data.postal_code ? encryptString(data.postal_code, dek) : null,
+    city: data.city ? encryptString(data.city, dek) : null,
+    notes: data.notes ? encryptString(data.notes, dek) : null,
+    created_at: new Date().toISOString(),
+  };
+
+  console.log('Inserting client with id:', insertData.id, 'for user:', userId);
+  const { error } = await supabaseAdmin.from('clients').insert(insertData);
+
+  if (error) {
+    console.error('Error adding client:', error.message, error.details, error.hint);
+    throw new Error(`Failed to add client: ${error.message}`);
+  }
+  console.log('Client added successfully');
+
+  revalidatePath('/', 'layout');
+}
+
+export async function editClient(id: string, data: {
+  name: string;
+  email?: string;
+  phone?: string;
+  nip?: string;
+  company_name?: string;
+  street?: string;
+  postal_code?: string;
+  city?: string;
+  notes?: string;
+}) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  const { data: client } = await supabaseAdmin
+    .from('clients')
+    .select('user_id')
+    .eq('id', id)
+    .single();
+
+  if (!client || client.user_id !== userId) throw new Error('Not found');
+
+  const dek = await getDEK();
+
+  await supabaseAdmin.from('clients').update({
+    name: encryptString(data.name, dek),
+    email: data.email ? encryptString(data.email, dek) : null,
+    phone: data.phone ? encryptString(data.phone, dek) : null,
+    nip: data.nip ? encryptString(data.nip, dek) : null,
+    company_name: data.company_name ? encryptString(data.company_name, dek) : null,
+    street: data.street ? encryptString(data.street, dek) : null,
+    postal_code: data.postal_code ? encryptString(data.postal_code, dek) : null,
+    city: data.city ? encryptString(data.city, dek) : null,
+    notes: data.notes ? encryptString(data.notes, dek) : null,
+  }).eq('id', id);
+
+  revalidatePath('/', 'layout');
+}
+
+export async function deleteClient(id: string) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  const { data: client } = await supabaseAdmin
+    .from('clients')
+    .select('user_id')
+    .eq('id', id)
+    .single();
+
+  if (!client || client.user_id !== userId) throw new Error('Not found');
+
+  const { error } = await supabaseAdmin.from('clients').delete().eq('id', id);
+  if (error) {
+    console.error('Error deleting client:', error);
+    throw new Error('Failed to delete client');
+  }
+
+  revalidatePath('/', 'layout');
+}
+
+export async function getOrders() {
+  const userId = await getUserId();
+  if (!userId) return { orders: [] };
+
+  const [dek, { data: orders }, { data: wallets }, { data: linkedEvents }] = await Promise.all([
+    getDEK(),
+    supabaseAdmin.from('orders').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
+    supabaseAdmin.from('wallets').select('id, name').eq('user_id', userId),
+    supabaseAdmin.from('calendar_events').select('order_id, start_time, end_time').eq('user_id', userId).not('order_id', 'is', null),
+  ]);
+
+  const walletMap = new Map<string, string>();
+  for (const w of wallets || []) {
+    walletMap.set(w.id, decryptString(w.name, dek) || w.name);
+  }
+
+  // Calculate tracked hours per order from linked calendar events
+  const hoursMap = new Map<string, number>();
+  for (const ev of linkedEvents || []) {
+    if (!ev.order_id) continue;
+    const ms = new Date(ev.end_time).getTime() - new Date(ev.start_time).getTime();
+    const hours = ms / 3_600_000;
+    hoursMap.set(ev.order_id, (hoursMap.get(ev.order_id) || 0) + hours);
+  }
+
+  const decrypted = (orders || []).map(o => {
+    const billingType = (o.billing_type || 'flat') as 'flat' | 'hourly';
+    const hourlyRate = o.hourly_rate ? decryptNumber(o.hourly_rate, dek) : null;
+    const trackedHours = hoursMap.get(o.id) || 0;
+    const flatAmount = o.amount ? decryptNumber(o.amount, dek) : 0;
+    const computedAmount = billingType === 'hourly' && hourlyRate
+      ? trackedHours * hourlyRate
+      : flatAmount;
+
+    return {
+      id: o.id,
+      client_id: o.client_id,
+      title: decryptString(o.title, dek) || o.title,
+      description: o.description ? decryptString(o.description, dek) : null,
+      amount: computedAmount,
+      billing_type: billingType,
+      hourly_rate: hourlyRate,
+      tracked_hours: trackedHours,
+      wallet_id: o.wallet_id,
+      walletName: o.wallet_id ? (walletMap.get(o.wallet_id) || '') : '',
+      status: o.status as 'pending' | 'in_progress' | 'completed' | 'settled',
+      tags: Array.isArray(o.tags) ? o.tags.map((t: string) => decryptString(t, dek) || t) : [],
+      completion_date: o.completion_date,
+      is_settled: o.is_settled,
+      settled_at: o.settled_at,
+      created_at: o.created_at,
+    };
+  });
+
+  return { orders: decrypted };
+}
+
+export async function addOrder(data: {
+  client_id: string;
+  title: string;
+  description?: string;
+  amount: number;
+  billing_type?: 'flat' | 'hourly';
+  hourly_rate?: number;
+  wallet_id?: string;
+  status?: 'pending' | 'in_progress' | 'completed' | 'settled';
+  tags?: string[];
+  completion_date?: string;
+}) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+  if (!data.title || !data.client_id) throw new Error('Missing required fields');
+  const isHourly = data.billing_type === 'hourly';
+  if (!isHourly && (typeof data.amount !== 'number' || !isFinite(data.amount) || data.amount < 0)) throw new Error('Invalid amount');
+  if (isHourly && (typeof data.hourly_rate !== 'number' || !isFinite(data.hourly_rate) || data.hourly_rate <= 0)) throw new Error('Invalid hourly rate');
+
+  const { data: client } = await supabaseAdmin
+    .from('clients')
+    .select('user_id')
+    .eq('id', data.client_id)
+    .single();
+  if (!client || client.user_id !== userId) throw new Error('Client not found');
+
+  const dek = await getDEK();
+
+  const { error } = await supabaseAdmin.from('orders').insert({
+    id: nanoid(),
+    user_id: userId,
+    client_id: data.client_id,
+    title: encryptString(data.title, dek),
+    description: data.description ? encryptString(data.description, dek) : null,
+    amount: isHourly ? null : encryptNumber(data.amount, dek),
+    billing_type: data.billing_type || 'flat',
+    hourly_rate: isHourly && data.hourly_rate ? encryptNumber(data.hourly_rate, dek) : null,
+    wallet_id: data.wallet_id || null,
+    status: data.status || 'pending',
+    tags: data.tags ? data.tags.map(t => encryptString(t, dek)) : [],
+    completion_date: data.completion_date || null,
+    created_at: new Date().toISOString(),
+  });
+
+  if (error) {
+    console.error('Error adding order:', error);
+    throw new Error('Failed to add order');
+  }
+
+  revalidatePath('/', 'layout');
+}
+
+export async function editOrder(id: string, data: {
+  title: string;
+  description?: string;
+  amount: number;
+  billing_type?: 'flat' | 'hourly';
+  hourly_rate?: number;
+  wallet_id?: string;
+  status?: 'pending' | 'in_progress' | 'completed' | 'settled';
+  tags?: string[];
+  completion_date?: string;
+}) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  const { data: order } = await supabaseAdmin
+    .from('orders')
+    .select('user_id')
+    .eq('id', id)
+    .single();
+
+  if (!order || order.user_id !== userId) throw new Error('Not found');
+
+  const dek = await getDEK();
+  const isHourly = data.billing_type === 'hourly';
+
+  await supabaseAdmin.from('orders').update({
+    title: encryptString(data.title, dek),
+    description: data.description ? encryptString(data.description, dek) : null,
+    amount: isHourly ? null : encryptNumber(data.amount, dek),
+    billing_type: data.billing_type || 'flat',
+    hourly_rate: isHourly && data.hourly_rate ? encryptNumber(data.hourly_rate, dek) : null,
+    wallet_id: data.wallet_id || null,
+    status: data.status || 'pending',
+    tags: data.tags ? data.tags.map(t => encryptString(t, dek)) : [],
+    completion_date: data.completion_date || null,
+  }).eq('id', id);
+
+  revalidatePath('/', 'layout');
+}
+
+export async function deleteOrder(id: string) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  const { data: order } = await supabaseAdmin
+    .from('orders')
+    .select('user_id')
+    .eq('id', id)
+    .single();
+
+  if (!order || order.user_id !== userId) throw new Error('Not found');
+
+  const { error } = await supabaseAdmin.from('orders').delete().eq('id', id);
+  if (error) {
+    console.error('Error deleting order:', error);
+    throw new Error('Failed to delete order');
+  }
+
+  revalidatePath('/', 'layout');
+}
+
+export async function settleOrdersAction(orderIds: string[]) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+  if (!Array.isArray(orderIds) || orderIds.length === 0) throw new Error('No orders selected');
+
+  const dek = await getDEK();
+
+  const { data: orders } = await supabaseAdmin
+    .from('orders')
+    .select('*')
+    .in('id', orderIds)
+    .eq('user_id', userId);
+
+  if (!orders || orders.length === 0) throw new Error('No orders found');
+
+  const unsettled = orders.filter(o => !o.is_settled);
+  if (unsettled.length === 0) return { settled: 0 };
+
+  const rates = await getExchangeRates();
+  const now = new Date().toISOString();
+  let settledCount = 0;
+
+  for (const order of unsettled) {
+    if (!order.wallet_id) continue;
+
+    const amount = decryptNumber(order.amount, dek);
+    if (amount <= 0) continue;
+
+    const { error: txError } = await supabaseAdmin
+      .from('transactions')
+      .insert({
+        id: nanoid(),
+        amount: encryptNumber(amount, dek),
+        category: encryptString('Zlecenie', dek),
+        description: encryptString(decryptString(order.title, dek) || 'Zlecenie', dek),
+        type: 'income',
+        date: new Date().toISOString().split('T')[0],
+        wallet_id: order.wallet_id,
+        currency: 'PLN',
+        created_at: now,
+      });
+
+    if (txError) {
+      console.error('Error creating transaction for order:', txError);
+      continue;
+    }
+
+    const { data: wallet } = await supabaseAdmin
+      .from('wallets')
+      .select('balance')
+      .eq('id', order.wallet_id)
+      .single();
+
+    if (wallet) {
+      const currentBalance = decryptNumber(wallet.balance, dek);
+      const amountInPLN = convertAmount(amount, 'PLN', 'PLN', rates);
+      await supabaseAdmin
+        .from('wallets')
+        .update({ balance: encryptNumber(currentBalance + amountInPLN, dek) })
+        .eq('id', order.wallet_id);
+    }
+
+    await supabaseAdmin.from('orders').update({
+      is_settled: true,
+      settled_at: now,
+      status: 'settled',
+    }).eq('id', order.id);
+
+    settledCount++;
+  }
+
+  revalidatePath('/', 'layout');
+  return { settled: settledCount };
 }
