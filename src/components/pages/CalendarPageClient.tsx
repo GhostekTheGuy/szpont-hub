@@ -408,9 +408,9 @@ export function CalendarPageClient({ initialEvents, initialWallets, initialOrder
               <button
                 onClick={handleSettle}
                 disabled={unsettledCount === 0 || settling}
-                className={`relative flex items-center gap-2 px-3 py-2 rounded-lg transition-all text-sm ${
+                className={`relative flex items-center justify-center w-9 h-9 rounded-lg transition-all duration-200 ${
                   unsettledCount > 0
-                    ? 'bg-green-600 hover:bg-green-700 text-white'
+                    ? 'bg-green-600 hover:bg-green-700 text-white active:scale-75'
                     : 'bg-secondary text-muted-foreground cursor-not-allowed'
                 }`}
                 title={unsettledCount === 0 ? 'Brak transakcji do zatwierdzenia' : `${unsettledCount} do zatwierdzenia`}
@@ -420,7 +420,6 @@ export function CalendarPageClient({ initialEvents, initialWallets, initialOrder
                 ) : (
                   <Check className="w-4 h-4" />
                 )}
-                Zatwierdź transakcje
                 {unsettledCount > 0 && (
                   <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
                     {unsettledCount}

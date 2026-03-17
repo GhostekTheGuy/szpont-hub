@@ -4299,3 +4299,120 @@ export async function settleOrdersAction(orderIds: string[]) {
   revalidatePath('/', 'layout');
   return { settled: settledCount };
 }
+
+// ─── Kugaru Partner API ───
+
+export async function submitKugaruInvoice(data: {
+  name: string;
+  email: string;
+  phone: string;
+  items: { name: string; quantity: number; unit: string; netPrice: number; vatRate: number }[];
+  rightsTransfer: string;
+  orderValue: number;
+  currency: string;
+  amountType: string;
+  contractType: string;
+  isStudent: boolean;
+  clientType: string;
+  clientNip: string;
+  clientCompanyName: string;
+  clientStreet: string;
+  clientPostalCode: string;
+  clientCity: string;
+  clientEmail: string;
+  description: string;
+  notes: string;
+  paymentDays: number;
+  skipProforma: boolean;
+  verifyBeforeSending: boolean;
+  sendIndependently: boolean;
+  subscriptionInsteadOfFee: boolean;
+  noLegalProceedings: boolean;
+  acceptTerms: boolean;
+}): Promise<{ ok: boolean; invoiceId?: string; error?: string }> {
+  const partnerId = process.env.KUGARU_PARTNER_ID;
+  const partnerSecret = process.env.KUGARU_PARTNER_SECRET;
+
+  if (!partnerId || !partnerSecret) {
+    return { ok: false, error: 'Brak konfiguracji Kugaru API (KUGARU_PARTNER_ID / KUGARU_PARTNER_SECRET)' };
+  }
+
+  const { createHmac } = await import('crypto');
+
+  const rightsMap: Record<string, string> = {
+    przekazuje: 'przekazanie praw',
+    udziela_licencji: 'udzielenie licencji',
+    nie_przekazuje: 'brak przekazania praw',
+  };
+
+  const payload = {
+    type: 'polska' as const,
+    payload: {
+      name: data.name,
+      email: data.email,
+      phone: data.phone || undefined,
+      rightsTransfer: rightsMap[data.rightsTransfer] || data.rightsTransfer,
+      orderValue: data.orderValue,
+      currency: data.currency,
+      amountType: data.amountType,
+      contractType: data.contractType,
+      isStudent: data.isStudent,
+      clientType: data.clientType === 'firma' ? 'firma' : 'osoba_fizyczna',
+      clientNip: data.clientNip || undefined,
+      clientCompanyName: data.clientType === 'firma' ? data.clientCompanyName : undefined,
+      clientPersonName: data.clientType !== 'firma' ? data.clientCompanyName : undefined,
+      clientStreet: data.clientStreet,
+      clientPostalCode: data.clientPostalCode,
+      clientCity: data.clientCity,
+      clientEmail: data.clientEmail,
+      description: data.description,
+      notes: data.notes || undefined,
+      paymentDays: data.paymentDays,
+      skipProforma: data.skipProforma,
+      verifyBeforeSending: data.verifyBeforeSending,
+      sendIndependently: data.sendIndependently,
+      subscriptionInsteadOfFee: data.subscriptionInsteadOfFee,
+      noLegalProceedings: data.noLegalProceedings,
+      acceptTerms: data.acceptTerms,
+      items: data.items.map((item) => ({
+        name: item.name,
+        quantity: item.quantity,
+        unit: item.unit,
+        netPrice: item.netPrice,
+        vatRate: item.vatRate,
+      })),
+    },
+  };
+
+  const rawBody = JSON.stringify(payload);
+  const timestamp = Date.now().toString();
+  const signature = createHmac('sha256', partnerSecret)
+    .update(`${timestamp}.${rawBody}`)
+    .digest('hex');
+
+  try {
+    const res = await fetch(
+      'https://kugaru.netlify.app/.netlify/functions/partner-invoice-submit',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-kugaru-partner': partnerId,
+          'x-kugaru-timestamp': timestamp,
+          'x-kugaru-signature': signature,
+        },
+        body: rawBody,
+      }
+    );
+
+    const result = await res.json();
+
+    if (!res.ok) {
+      return { ok: false, error: result.error || `Błąd API Kugaru (${res.status})` };
+    }
+
+    return { ok: true, invoiceId: result.invoiceId };
+  } catch (err) {
+    return { ok: false, error: 'Nie udało się połączyć z API Kugaru' };
+  }
+}

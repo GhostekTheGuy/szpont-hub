@@ -112,11 +112,6 @@ export const COPYRIGHT_OPTIONS: { value: CopyrightType; label: string }[] = [
 export const CONTRACT_OPTIONS: { value: ContractType; label: string; description?: string }[] = [
   { value: 'umowa_o_dzielo', label: 'umowa o dzieło' },
   { value: 'umowa_zlecenie', label: 'umowa-zlecenie' },
-  {
-    value: 'dzielo_zlecenie',
-    label: 'umowa o dzieło + umowa-zlecenie',
-    description: 'uwzględnia ubezpieczenie zdrowotne, minimalna kwota dla umowy-zlecenia to 30% wartości Twojego zlecenia',
-  },
 ];
 
 export const CURRENCY_OPTIONS = ['PLN', 'EUR', 'USD', 'GBP'] as const;
