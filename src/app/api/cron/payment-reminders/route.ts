@@ -94,8 +94,13 @@ export async function GET(request: Request) {
       <head><meta charset="utf-8"></head>
       <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#1a1a1a;">
         <div style="background:linear-gradient(135deg,#6366f1,#8b5cf6);padding:24px;border-radius:12px 12px 0 0;">
-          <h1 style="color:#fff;margin:0;font-size:20px;">Szpont Hub</h1>
-          <p style="color:#e0e7ff;margin:4px 0 0;font-size:14px;">Przypomnienie o płatnościach</p>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <img src="https://szponthub.pl/logo-icon.png" alt="Szpont Hub" width="40" height="40" style="display:block;border-radius:8px;" />
+            <div>
+              <h1 style="color:#fff;margin:0;font-size:20px;">Szpont Hub</h1>
+              <p style="color:#e0e7ff;margin:4px 0 0;font-size:14px;">Przypomnienie o płatnościach</p>
+            </div>
+          </div>
         </div>
         <div style="background:#fff;padding:24px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;">
           <p style="margin:0 0 16px;">Masz <strong>${count}</strong> ${count === 1 ? 'nadchodzącą opłatę' : 'nadchodzących opłat'} w ciągu najbliższych ${REMIND_DAYS_BEFORE} dni:</p>
