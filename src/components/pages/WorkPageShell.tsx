@@ -44,9 +44,9 @@ export function WorkPageShell({ calendarView, projectsView }: Props) {
         </div>
       </div>
 
-      {/* Views — only render active view */}
+      {/* Views — hide inactive view via CSS to preserve state (avoids re-sync on switch) */}
       <div className="px-4 lg:px-0">
-        {view === 'calendar' && calendarView}
+        <div className={view !== 'calendar' ? 'hidden' : undefined}>{calendarView}</div>
         {view === 'projects' && projectsView}
       </div>
     </>
