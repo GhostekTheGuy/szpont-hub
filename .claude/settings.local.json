@@ -53,7 +53,8 @@
       "Bash(nslookup ssl0.ovh.net)",
       "Bash(dig MX szponthub.pl +short)",
       "Bash(nslookup:*)",
-      "Bash(pnpm add:*)"
+      "Bash(pnpm add:*)",
+      "Bash(NEXT_TELEMETRY_DISABLED=1 pnpm run build)"
     ]
   }
 }

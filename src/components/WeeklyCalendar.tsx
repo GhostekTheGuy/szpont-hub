@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useEffect, useRef, useState, useCallback } from 'react';
+import { useMemo, useEffect, useRef, useState, useCallback, memo } from 'react';
 import {
   format,
   isToday,
@@ -654,7 +654,7 @@ export function WeeklyCalendar({
 
 /* ── Desktop day time grid (Apple Calendar style) ── */
 
-function DayTimeGrid({
+const DayTimeGrid = memo(function DayTimeGrid({
   selectedDate,
   events,
   onSlotClick,
@@ -687,6 +687,9 @@ function DayTimeGrid({
     scrollRef.current.scrollTop = scrollToHour * HOUR_HEIGHT;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate]);
+
+  // Memoize layout computation
+  const layoutedEvents = useMemo(() => layoutEvents(events), [events]);
 
   // Current time indicator (updates every minute)
   const nowMinutes = useNowMinutes();
@@ -731,7 +734,7 @@ function DayTimeGrid({
           )}
 
           {/* Events */}
-          {layoutEvents(events).map(({ event, col, totalCols }) => {
+          {layoutedEvents.map(({ event, col, totalCols }) => {
             const start = parseISO(event.start_time);
             const end = parseISO(event.end_time);
             const startMin = start.getHours() * 60 + start.getMinutes();
@@ -840,11 +843,11 @@ function DayTimeGrid({
       </div>
     </div>
   );
-}
+});
 
 /* ── Desktop week time grid (Apple Calendar week view) ── */
 
-function WeekTimeGrid({
+const WeekTimeGrid = memo(function WeekTimeGrid({
   weekDays,
   eventsByDay,
   selectedDate,
@@ -895,6 +898,17 @@ function WeekTimeGrid({
     scrollRef.current.scrollTop = scrollToHour * HOUR_HEIGHT;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weekDays]);
+
+  // Memoize layout computation per day
+  const layoutByDay = useMemo(() => {
+    const map = new Map<string, LayoutedEvent[]>();
+    for (const day of weekDays) {
+      const key = format(day, 'yyyy-MM-dd');
+      const dayEvents = eventsByDay.get(key) || [];
+      map.set(key, layoutEvents(dayEvents));
+    }
+    return map;
+  }, [weekDays, eventsByDay]);
 
   const nowMinutes = useNowMinutes();
   const nowTop = ((nowMinutes - DAY_START_HOUR * 60) / 60) * HOUR_HEIGHT;
@@ -956,7 +970,6 @@ function WeekTimeGrid({
           <div ref={dayColumnsRef} className="flex-1 flex relative">
           {weekDays.map((day, dayIndex) => {
             const key = format(day, 'yyyy-MM-dd');
-            const dayEvents = eventsByDay.get(key) || [];
             const today = isToday(day);
             const isDragTarget = activeDrag && activeDrag.currentDayIndex === dayIndex && activeDrag.originalDayIndex !== dayIndex;
 
@@ -981,7 +994,7 @@ function WeekTimeGrid({
                 )}
 
                 {/* Events */}
-                {layoutEvents(dayEvents).map(({ event, col, totalCols }) => {
+                {(layoutByDay.get(key) || []).map(({ event, col, totalCols }) => {
                   const start = parseISO(event.start_time);
                   const end = parseISO(event.end_time);
                   const startMin = start.getHours() * 60 + start.getMinutes();
@@ -1122,4 +1135,4 @@ function WeekTimeGrid({
       </div>
     </div>
   );
-}
+});

@@ -1,17 +1,18 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } from 'react';
 import { useFinanceStore, type Wallet, type CalendarEvent, type Order } from '@/hooks/useFinanceStore';
 import { getCalendarEvents, toggleEventConfirmed, moveCalendarEvent, moveRecurringEvent, getUnsettledCount, settleAllUnsettledAction } from '@/app/actions';
 import { WeeklyCalendar } from '@/components/WeeklyCalendar';
-import { CalendarEventModal } from '@/components/CalendarEventModal';
-import { InvoiceModal } from '@/components/InvoiceModal';
-import { ScanTogglModal } from '@/components/ScanTogglModal';
 import { TimerWidget } from '@/components/TimerWidget';
-import { GoogleCalendarSettings } from '@/components/GoogleCalendarSettings';
 import { WorkSummaryPanel } from '@/components/WorkSummaryPanel';
 import { useToast } from '@/components/Toast';
 import { Check, Timer, AlertTriangle, Loader2, BarChart3 } from 'lucide-react';
+
+const CalendarEventModal = lazy(() => import('@/components/CalendarEventModal').then(m => ({ default: m.CalendarEventModal })));
+const InvoiceModal = lazy(() => import('@/components/InvoiceModal').then(m => ({ default: m.InvoiceModal })));
+const ScanTogglModal = lazy(() => import('@/components/ScanTogglModal').then(m => ({ default: m.ScanTogglModal })));
+const GoogleCalendarSettings = lazy(() => import('@/components/GoogleCalendarSettings').then(m => ({ default: m.GoogleCalendarSettings })));
 import {
   format,
   startOfWeek,
@@ -444,38 +445,52 @@ export function CalendarPageClient({ initialEvents, initialWallets, initialOrder
         />
       </div>
 
-      {/* Modals */}
-      <CalendarEventModal
-        isOpen={isEventModalOpen}
-        onClose={handleModalClose}
-        editingEvent={editingEvent}
-        prefillDate={prefillDate}
-        prefillHour={prefillHour}
-      />
+      {/* Modals — lazy loaded */}
+      {isEventModalOpen && (
+        <Suspense fallback={null}>
+          <CalendarEventModal
+            isOpen={isEventModalOpen}
+            onClose={handleModalClose}
+            editingEvent={editingEvent}
+            prefillDate={prefillDate}
+            prefillHour={prefillHour}
+          />
+        </Suspense>
+      )}
 
-      <InvoiceModal
-        isOpen={isInvoiceModalOpen}
-        onClose={() => setIsInvoiceModalOpen(false)}
-        workEvents={invoiceWorkEvents}
-        monthLabel={format(currentMonth, 'LLLL yyyy', { locale: pl })}
-      />
+      {isInvoiceModalOpen && (
+        <Suspense fallback={null}>
+          <InvoiceModal
+            isOpen={isInvoiceModalOpen}
+            onClose={() => setIsInvoiceModalOpen(false)}
+            workEvents={invoiceWorkEvents}
+            monthLabel={format(currentMonth, 'LLLL yyyy', { locale: pl })}
+          />
+        </Suspense>
+      )}
 
-      <ScanTogglModal
-        isOpen={isScanTogglOpen}
-        onClose={() => { setIsScanTogglOpen(false); loadMonth(currentMonth); }}
-      />
+      {isScanTogglOpen && (
+        <Suspense fallback={null}>
+          <ScanTogglModal
+            isOpen={isScanTogglOpen}
+            onClose={() => { setIsScanTogglOpen(false); loadMonth(currentMonth); }}
+          />
+        </Suspense>
+      )}
 
-      {googleConn?.connected && (
-        <GoogleCalendarSettings
-          isOpen={isGoogleSettingsOpen}
-          onClose={() => setIsGoogleSettingsOpen(false)}
-          connectionEmail={googleConn.email}
-          onSync={syncGoogleCalendar}
-          onDisconnected={() => {
-            setGoogleConn(null);
-            loadMonth(currentMonth);
-          }}
-        />
+      {googleConn?.connected && isGoogleSettingsOpen && (
+        <Suspense fallback={null}>
+          <GoogleCalendarSettings
+            isOpen={isGoogleSettingsOpen}
+            onClose={() => setIsGoogleSettingsOpen(false)}
+            connectionEmail={googleConn.email}
+            onSync={syncGoogleCalendar}
+            onDisconnected={() => {
+              setGoogleConn(null);
+              loadMonth(currentMonth);
+            }}
+          />
+        </Suspense>
       )}
 
       {/* Sticky scroll-to-summary button */}

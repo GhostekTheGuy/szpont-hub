@@ -44,9 +44,10 @@ export function WorkPageShell({ calendarView, projectsView }: Props) {
         </div>
       </div>
 
-      {/* Views */}
+      {/* Views — only render active view */}
       <div className="px-4 lg:px-0">
-        {view === 'calendar' ? calendarView : projectsView}
+        {view === 'calendar' && calendarView}
+        {view === 'projects' && projectsView}
       </div>
     </>
   );
