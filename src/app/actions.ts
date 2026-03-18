@@ -1679,32 +1679,39 @@ export async function toggleEventConfirmed(id: string, confirmed: boolean, rever
     }
   } else {
     // Regular (non-recurring) event
-    const { data: event } = await supabaseAdmin
-      .from('calendar_events')
-      .select('*')
-      .eq('id', id)
-      .single();
-
-    if (!event || event.user_id !== userId) return;
-
     if (confirmed) {
+      // Simple confirm — no need to fetch first
       await supabaseAdmin
         .from('calendar_events')
         .update({ is_confirmed: true })
-        .eq('id', id);
+        .eq('id', id)
+        .eq('user_id', userId);
     } else {
-      if (reverseTransaction && event.is_settled && event.wallet_id) {
-        await reverseSettledEvent(event);
+      // Need event data only when reversing settled transaction
+      if (reverseTransaction) {
+        const { data: event } = await supabaseAdmin
+          .from('calendar_events')
+          .select('*')
+          .eq('id', id)
+          .eq('user_id', userId)
+          .single();
+
+        if (!event) return;
+
+        if (event.is_settled && event.wallet_id) {
+          await reverseSettledEvent(event);
+        }
       }
 
       await supabaseAdmin
         .from('calendar_events')
         .update({ is_confirmed: false, is_settled: false })
-        .eq('id', id);
+        .eq('id', id)
+        .eq('user_id', userId);
     }
   }
 
-  revalidatePath('/', 'layout');
+  revalidatePath('/calendar', 'page');
 }
 
 async function reverseSettledEvent(event: { wallet_id: string; hourly_rate: string; start_time: string; end_time: string; title: string }) {
@@ -2241,8 +2248,9 @@ export async function settleAllUnsettledAction() {
     }
   }));
 
-  revalidatePath('/', 'layout');
-  return { settled: filteredEvents.length };
+  revalidatePath('/calendar', 'page');
+  revalidatePath('/wallets', 'page');
+  return { settled: filteredEvents.length, settledIds: eventIds };
 }
 
 // --- YAHOO FINANCE ---
