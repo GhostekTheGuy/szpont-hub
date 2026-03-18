@@ -1,157 +1,138 @@
-# Finance Hub 💰
+# Szpont Hub
 
-Nowoczesna aplikacja do zarządzania finansami osobistymi i śledzenia inwestycji.
+Kompleksowa aplikacja do zarządzania finansami osobistymi, pracy i inwestycji z szyfrowaniem end-to-end.
 
-## 🚀 Technologie
+## Technologie
 
-- **Next.js 14+** (App Router)
-- **TypeScript**
+- **Next.js 14** (App Router, Server Actions)
+- **TypeScript** (strict mode)
+- **Supabase** (PostgreSQL, Auth)
 - **Tailwind CSS** (Dark Mode)
-- **Recharts** (Wykresy finansowe)
-- **Zustand** (Zarządzanie stanem)
-- **Lucide React** (Ikony)
+- **Recharts** (wykresy finansowe)
+- **Zustand** (zarządzanie stanem)
+- **Framer Motion** (animacje)
+- **Stripe** (subskrypcje)
+- **Radix UI** (dostępne komponenty)
 
-## ✨ Główne funkcjonalności
+## Funkcjonalności
 
-### 📊 Dashboard
-- Przegląd Net Worth (całkowitego majątku)
-- Statystyki: Total Income, Total Outcome, Profit/Loss
-- Podział na portfele (Gotówka, Konto Bankowe, Krypto, Giełda)
+### Portfele i transakcje
+- Wiele portfeli z własnymi kolorami i ikonami
+- Obsługa wielu walut (PLN, USD, EUR i inne)
+- Transakcje: przychody, wydatki, transfery
+- Kategorie transakcji (Jedzenie, Transport, Zakupy, Rozrywka, Zdrowie, Edukacja itp.)
+- Przeliczanie sald i historia
 
-### 📈 Wykresy i Analiza
-- **Wykres wartości portfela** z przełącznikiem interwałów (1D, 1W, 1M)
-- **Miesięczny cashflow** - porównanie przychodów i wydatków
-- **Wykres skumulowanego zysku** - trend w czasie
-- **Widget BTC/PLN** - kurs Bitcoina z API CoinGecko
+### Aktywa i inwestycje
+- Kryptowaluty (CoinGecko API) i akcje (Yahoo Finance API)
+- Automatyczna aktualizacja cen i zmiana 24h
+- Przypisywanie aktywów do portfeli
+- Śledzenie cost basis i kalkulacja zysku/straty
+- Sprzedaż aktywów z rocznym podsumowaniem podatkowym (Belka 19%)
+- Oddzielne opłacanie podatku (pojedynczo lub zbiorczo)
 
-### 💼 Aktywa
-- Lista posiadanych aktywów (Bitcoin, Ethereum, akcje, złoto)
-- Automatyczne przeliczanie wartości
-- Zmiana 24h dla każdego aktywa
+### Kalendarz i praca
+- Integracja z Google Calendar (OAuth, synchronizacja)
+- Wydarzenia robocze z ustawianiem stawki godzinowej
+- Rozliczanie godzin pracy
+- Import czasu z Toggl Track (PDF)
+- Podsumowania pracy AI
 
-### 💸 Transakcje
-- Lista ostatnich transakcji
-- Kolorystyka: zielony (Income), czerwony (Outcome)
-- Modal do dodawania nowych transakcji
+### Klienci i zlecenia
+- Baza klientów (osoba/firma) z danymi kontaktowymi
+- Zarządzanie zleceniami i ich statusami
+- Rozliczanie zleceń
+- Fakturowanie przez Kugaru API
 
-## 🛠️ Instalacja i uruchomienie
+### Faktury (Kugaru)
+- Generowanie faktur z pozycjami i VAT
+- Obsługa typów umowy i praw autorskich
+- Automatyczne kalkulacje netto/brutto/VAT
+- Generowanie PDF
+
+### Nawyki
+- Codzienne śledzenie nawyków
+- Wizualizacja streak i radar chart
+- Historia wpisów
+
+### Cele finansowe
+- Ustawianie celów z kwotą docelową i terminem
+- Śledzenie postępu
+- Przypisanie do portfela
+
+### Wydatki cykliczne
+- Zarządzanie subskrypcjami i stałymi opłatami
+- Przypomnienia e-mail (3 dni przed terminem, cron)
+- Pomijanie lub opłacanie wydatków
+
+### AI i automatyzacja
+- **Tygodniowy raport finansowy** - analiza AI (Groq/Llama): przychody vs wydatki, kategorie, godziny pracy, nawyki
+- **Skanowanie paragonów** - OCR z AI, automatyczne tworzenie transakcji
+- **Podsumowania kalendarza** - AI-generowane streszczenia wydarzeń
+
+### Wykresy
+- Wartość portfela w czasie (1W, 1M, 3M, 1Y)
+- Miesięczny cashflow (przychody vs wydatki)
+- Wykres kołowy wydatków
+- Widget BTC/PLN
+- Projekcja net worth
+- Procent składany
+- Poduszka finansowa
+
+## Bezpieczeństwo
+
+### Szyfrowanie E2E
+- KEK (Key Encryption Key) z hasła przez PBKDF2 (100k iteracji)
+- DEK (Data Encryption Key) per użytkownik
+- Szyfrowanie AES-256-GCM na poziomie pól (nazwy portfeli, kwoty, opisy, kategorie)
+- Sesyjny DEK w httpOnly encrypted cookies
+
+### Autentykacja
+- Email/hasło przez Supabase Auth
+- Weryfikacja email przy rejestracji
+- Reset hasła przez email
+- Sesje z 24h expiry
+
+## Subskrypcje (Stripe)
+- Plan Free: 3 skany/tydzień, 1 raport/tydzień
+- Plan Pro: bez limitów
+- Zarządzanie subskrypcją przez portal Stripe
+
+## Instalacja
 
 ### Wymagania
 - Node.js 18+
-- npm lub yarn
+- pnpm
 
 ### Kroki
 
-1. **Instalacja zależności**
 ```bash
-npm install
-# lub
-yarn install
+# Instalacja zależności
+pnpm install
+
+# Uruchomienie dev
+pnpm run dev
+
+# Build produkcyjny
+pnpm run build
+pnpm start
 ```
 
-2. **Uruchomienie w trybie deweloperskim**
-```bash
-npm run dev
-# lub
-yarn dev
-```
+### Zmienne środowiskowe
 
-3. **Otwórz przeglądarkę**
-```
-http://localhost:3000
-```
+Wymagane zmienne w `.env`:
+- `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `GROQ_API_KEY`
+- `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` / `NEXT_PUBLIC_STRIPE_PRICE_ID`
+- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`
+- `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD`
+- `KUGARU_API_KEY`
 
-4. **Build produkcyjny**
-```bash
-npm run build
-npm start
-```
+## Design
 
-## 📁 Struktura projektu
-
-```
-finance-hub/
-├── src/
-│   ├── app/
-│   │   ├── layout.tsx          # Główny layout
-│   │   ├── page.tsx            # Strona główna (Dashboard)
-│   │   └── globals.css         # Style globalne
-│   ├── components/
-│   │   ├── DashboardLayout.tsx # Layout z sidebar
-│   │   ├── WalletCard.tsx      # Karta portfela
-│   │   ├── FinancialChart.tsx  # Główny wykres z interwałami
-│   │   ├── MonthlyIncomeChart.tsx  # Wykres miesięczny
-│   │   ├── ProfitChart.tsx     # Wykres zysków
-│   │   ├── BTCWidget.tsx       # Widget BTC/PLN
-│   │   ├── AssetList.tsx       # Lista aktywów
-│   │   ├── TransactionList.tsx # Lista transakcji
-│   │   └── TransactionModal.tsx # Modal dodawania transakcji
-│   └── hooks/
-│       └── useFinanceStore.ts  # Zustand store z danymi
-├── tailwind.config.ts
-├── tsconfig.json
-├── package.json
-└── README.md
-```
-
-## 🎨 Funkcjonalności
-
-### Zarządzanie stanem (Zustand)
-- Dane zapisywane w localStorage
-- Automatyczne przeliczanie totalów
-- Dodawanie transakcji z automatyczną aktualizacją portfeli
-
-### Wykresy (Recharts)
-- **AreaChart** - wartość portfela w czasie
-- **BarChart** - miesięczny cashflow
-- **LineChart** - trend zysków i kurs BTC
-- Custom tooltips z formatowaniem walut
-
-### API Integration
-- Widget BTC/PLN pobiera dane z CoinGecko API
-- Automatyczna aktualizacja co minutę
-- Fallback na dane mockowe przy błędzie
-
-## 🎯 Mock Data
-
-Aplikacja zawiera bogaty zestaw danych testowych:
-- 4 portfele z różnymi balansami
-- 15+ transakcji z różnych kategorii
-- 6 aktywów (BTC, ETH, akcje, złoto)
-- Dane do wykresów (dzienne, tygodniowe, miesięczne)
-
-## 🔧 Konfiguracja
-
-### Dark Mode
-Aplikacja wykorzystuje ciemny motyw z akcentami:
-- Fioletowy (główny akcent)
-- Zielony (przychody)
-- Czerwony (wydatki)
-- Niebieski/Cyan (wykresy)
-- Pomarańczowy (krypto)
-
-### Responsywność
-- Mobile-first design
-- Sidebar ukryty na mobile (<lg)
-- Grid layouts dostosowane do rozmiaru ekranu
-
-## 📝 Dodatkowe notatki
-
-- Wszystkie kwoty formatowane dla PLN
-- Daty w formacie polskim
-- Kompatybilność z latest Node.js
-- TypeScript strict mode włączony
-
-## 🚀 Następne kroki
-
-Możliwe rozszerzenia:
-- Backend API (Next.js API Routes)
-- Autentykacja użytkowników
-- Więcej źródeł danych (akcje, forex)
-- Eksport raportów (PDF, CSV)
-- Powiadomienia o zmianach cen
-- Dark/Light mode toggle
-
----
-
-**Finance Hub** - Zarządzaj swoimi finansami profesjonalnie! 💎
+- Dark mode z fioletowo-niebieskimi akcentami
+- Responsive (mobile-first)
+- Animowane przejścia (Framer Motion)
+- Custom toast/confirm system
+- Sidebar z nawigacją i sekcjami
