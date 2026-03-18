@@ -105,7 +105,7 @@ export function OnboardingTutorial() {
   const [rect, setRect] = useState<DOMRect | null>(null);
   const [, setTick] = useState(0);
   const stepRef = useRef(0);
-  const measureTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const measureTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const measureCurrent = useCallback(() => {
     const t = steps[stepRef.current].target;
