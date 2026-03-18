@@ -1,14 +1,15 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
   Sparkles,
   LayoutDashboard,
   Wallet,
+  FileText,
   CalendarDays,
-  PiggyBank,
   Target,
   ChevronLeft,
   ChevronRight,
@@ -17,9 +18,19 @@ import {
 import { useFinanceStore } from '@/hooks/useFinanceStore';
 import { setOnboardingDone } from '@/app/actions';
 
-const steps = [
+interface TutorialStep {
+  target: string | null;
+  route: string | null;
+  icon: typeof Sparkles;
+  color: string;
+  title: string;
+  description: string;
+}
+
+const steps: TutorialStep[] = [
   {
     target: null,
+    route: null,
     icon: Sparkles,
     color: 'bg-violet-500/15 text-violet-400',
     title: 'Witaj w SzpontHub!',
@@ -28,6 +39,7 @@ const steps = [
   },
   {
     target: 'dashboard',
+    route: '/dashboard',
     icon: LayoutDashboard,
     color: 'bg-blue-500/15 text-blue-400',
     title: 'Dashboard',
@@ -36,6 +48,7 @@ const steps = [
   },
   {
     target: 'wallets',
+    route: '/wallets',
     icon: Wallet,
     color: 'bg-emerald-500/15 text-emerald-400',
     title: 'Portfele',
@@ -43,7 +56,17 @@ const steps = [
       'Twórz portfele gotówkowe, krypto i giełdowe. Dodawaj transakcje, śledź salda i analizuj przepływy pieniędzy między kontami.',
   },
   {
+    target: 'invoices',
+    route: '/invoices',
+    icon: FileText,
+    color: 'bg-orange-500/15 text-orange-400',
+    title: 'Faktury',
+    description:
+      'Generuj i zarządzaj fakturami. Wystawiaj dokumenty, śledź statusy płatności i eksportuj faktury do PDF.',
+  },
+  {
     target: 'calendar',
+    route: '/calendar',
     icon: CalendarDays,
     color: 'bg-amber-500/15 text-amber-400',
     title: 'Praca / Kalendarz',
@@ -51,15 +74,8 @@ const steps = [
       'Planuj eventy pracy, rozliczaj godziny i generuj faktury. Kalendarz automatycznie liczy Twoje zarobki na podstawie stawki godzinowej.',
   },
   {
-    target: 'assets',
-    icon: PiggyBank,
-    color: 'bg-pink-500/15 text-pink-400',
-    title: 'Aktywa',
-    description:
-      'Dodaj swoje kryptowaluty i akcje. Ceny aktualizują się automatycznie, a Ty widzisz zyski, straty i wartość portfela w czasie rzeczywistym.',
-  },
-  {
     target: 'habits',
+    route: '/habits',
     icon: Target,
     color: 'bg-cyan-500/15 text-cyan-400',
     title: 'Nawyki',
@@ -81,13 +97,15 @@ function findVisibleElement(target: string): Element | null {
 }
 
 export function OnboardingTutorial() {
+  const router = useRouter();
+  const pathname = usePathname();
   const showOnboarding = useFinanceStore((s) => s.showOnboarding);
   const setShowOnboarding = useFinanceStore((s) => s.setShowOnboarding);
   const [step, setStep] = useState(0);
   const [rect, setRect] = useState<DOMRect | null>(null);
-  // Force re-render on resize so isMobile recalculates
   const [, setTick] = useState(0);
   const stepRef = useRef(0);
+  const measureTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
   const measureCurrent = useCallback(() => {
     const t = steps[stepRef.current].target;
@@ -99,16 +117,44 @@ export function OnboardingTutorial() {
     setRect(el ? el.getBoundingClientRect() : null);
   }, []);
 
-  const goToStep = useCallback(
+  // Retry measurement a few times (element may not be visible yet after navigation)
+  const measureWithRetry = useCallback(() => {
+    let attempts = 0;
+    const tryMeasure = () => {
+      measureCurrent();
+      const t = steps[stepRef.current].target;
+      if (t) {
+        const el = findVisibleElement(t);
+        if (!el && attempts < 10) {
+          attempts++;
+          measureTimerRef.current = setTimeout(tryMeasure, 100);
+          return;
+        }
+      }
+    };
+    tryMeasure();
+  }, [measureCurrent]);
+
+  const navigateToStep = useCallback(
     (s: number) => {
       stepRef.current = s;
       setStep(s);
-      measureCurrent();
+
+      const stepData = steps[s];
+      if (stepData.route) {
+        router.push(stepData.route);
+        // Measure after navigation settles
+        if (measureTimerRef.current) clearTimeout(measureTimerRef.current);
+        measureTimerRef.current = setTimeout(measureWithRetry, 150);
+      } else {
+        setRect(null);
+      }
     },
-    [measureCurrent],
+    [router, measureWithRetry],
   );
 
   const handleClose = useCallback(() => {
+    if (measureTimerRef.current) clearTimeout(measureTimerRef.current);
     setShowOnboarding(false);
     setOnboardingDone(true).catch(console.error);
     stepRef.current = 0;
@@ -116,20 +162,30 @@ export function OnboardingTutorial() {
     setRect(null);
   }, [setShowOnboarding]);
 
-  // Initial measurement + resize
+  // Re-measure when pathname changes (navigation completed)
   useEffect(() => {
     if (!showOnboarding) return;
-    const id = requestAnimationFrame(measureCurrent);
+    const id = requestAnimationFrame(measureWithRetry);
+    return () => cancelAnimationFrame(id);
+  }, [showOnboarding, pathname, measureWithRetry]);
+
+  // Resize handler
+  useEffect(() => {
+    if (!showOnboarding) return;
     const onResize = () => {
       measureCurrent();
       setTick((t) => t + 1);
     };
     window.addEventListener('resize', onResize);
-    return () => {
-      cancelAnimationFrame(id);
-      window.removeEventListener('resize', onResize);
-    };
+    return () => window.removeEventListener('resize', onResize);
   }, [showOnboarding, measureCurrent]);
+
+  // Cleanup timers
+  useEffect(() => {
+    return () => {
+      if (measureTimerRef.current) clearTimeout(measureTimerRef.current);
+    };
+  }, []);
 
   // Keyboard navigation
   useEffect(() => {
@@ -137,36 +193,38 @@ export function OnboardingTutorial() {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') handleClose();
       else if (e.key === 'ArrowRight') {
-        if (step < steps.length - 1) goToStep(step + 1);
+        if (step < steps.length - 1) navigateToStep(step + 1);
         else handleClose();
       } else if (e.key === 'ArrowLeft') {
-        if (step > 0) goToStep(step - 1);
+        if (step > 0) navigateToStep(step - 1);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [showOnboarding, step, goToStep, handleClose]);
+  }, [showOnboarding, step, navigateToStep, handleClose]);
 
   const current = steps[step];
   const Icon = current.icon;
   const isLast = step === steps.length - 1;
-  const hasSpotlight = current.target !== null && rect !== null;
+  const isIntro = step === 0;
+  const hasSpotlight = !isIntro && rect !== null;
 
-  // Compute mobile directly from viewport — no stale state issues
   const isMobile =
     typeof window !== 'undefined' && window.innerWidth < 1024;
 
-  // ── Tooltip positioning ──
-  // Mobile: bottom-sheet above bottom nav
-  // Desktop: floating card to the right of sidebar item
+  // Tooltip positioning
   let tipStyle: React.CSSProperties = {};
-  if (rect) {
+  if (rect && !isIntro) {
     if (isMobile) {
       tipStyle = {
         position: 'fixed',
         left: 12,
         right: 12,
-        bottom: (typeof window !== 'undefined' ? window.innerHeight : 800) - rect.top + PAD + 8,
+        bottom:
+          (typeof window !== 'undefined' ? window.innerHeight : 800) -
+          rect.top +
+          PAD +
+          8,
       };
     } else {
       tipStyle = {
@@ -185,7 +243,7 @@ export function OnboardingTutorial() {
       {steps.map((_, i) => (
         <button
           key={i}
-          onClick={() => goToStep(i)}
+          onClick={() => navigateToStep(i)}
           className={`h-1.5 rounded-full transition-all ${
             i === step
               ? 'bg-primary w-4'
@@ -196,10 +254,9 @@ export function OnboardingTutorial() {
     </div>
   );
 
-  // Shared tooltip content (spotlight mode)
-  const tooltipContent = (
+  // Step content used in both spotlight tooltip and fallback card
+  const stepContent = (
     <>
-      {/* Close */}
       <button
         onClick={handleClose}
         className="absolute top-3 right-3 text-muted-foreground hover:text-foreground transition-colors"
@@ -223,27 +280,25 @@ export function OnboardingTutorial() {
         </div>
       </div>
 
-      {/* Mobile: arrow pointing down to the highlighted nav item */}
-      {isMobile && (
+      {isMobile && hasSpotlight && (
         <div className="flex justify-center mt-3 -mb-1">
           <ChevronsDown className="w-4 h-4 text-primary/60 animate-bounce" />
         </div>
       )}
 
-      {/* Footer */}
       <div className="flex items-center justify-between mt-3">
         {dots}
         <div className="flex items-center gap-1.5">
           {step > 0 && (
             <button
-              onClick={() => goToStep(step - 1)}
+              onClick={() => navigateToStep(step - 1)}
               className="p-2 rounded-md hover:bg-accent transition-colors"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
           )}
           <button
-            onClick={isLast ? handleClose : () => goToStep(step + 1)}
+            onClick={isLast ? handleClose : () => navigateToStep(step + 1)}
             className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors"
           >
             {isLast ? 'Zaczynamy!' : 'Dalej'}
@@ -264,13 +319,53 @@ export function OnboardingTutorial() {
           exit={{ opacity: 0 }}
           transition={{ duration: 0.25 }}
         >
-          {hasSpotlight ? (
+          {isIntro ? (
+            /* ── Welcome modal (step 0 only) ── */
+            <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+              <motion.div
+                className="bg-card border border-border rounded-xl p-6 w-full max-w-md shadow-xl relative"
+                initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+              >
+                <button
+                  onClick={handleClose}
+                  className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+
+                <div className="flex flex-col items-center text-center pt-2">
+                  <div
+                    className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 ${current.color}`}
+                  >
+                    <Icon className="w-8 h-8" />
+                  </div>
+                  <h2 className="text-xl font-bold text-card-foreground mb-2">
+                    {current.title}
+                  </h2>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    {current.description}
+                  </p>
+                </div>
+
+                <div className="flex justify-center mt-6 mb-5">{dots}</div>
+
+                <button
+                  onClick={() => navigateToStep(1)}
+                  className="w-full flex items-center justify-center gap-1 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+                >
+                  Rozpocznij tour
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </motion.div>
+            </div>
+          ) : hasSpotlight ? (
             /* ── Spotlight mode ── */
             <>
-              {/* Click blocker */}
               <div className="absolute inset-0" />
 
-              {/* Spotlight cutout */}
               <motion.div
                 key={`spot-${step}`}
                 initial={{ opacity: 0 }}
@@ -287,7 +382,6 @@ export function OnboardingTutorial() {
                 }}
               />
 
-              {/* Pulsing ring */}
               <motion.div
                 key={`pulse-${step}`}
                 initial={{ opacity: 0, scale: 0.92 }}
@@ -310,7 +404,6 @@ export function OnboardingTutorial() {
                 }}
               />
 
-              {/* Tooltip card */}
               <AnimatePresence mode="wait">
                 <motion.div
                   key={step}
@@ -325,60 +418,21 @@ export function OnboardingTutorial() {
                   className="bg-card border border-border rounded-xl p-4 shadow-xl relative"
                   style={{ ...tipStyle, zIndex: 2 }}
                 >
-                  {tooltipContent}
+                  {stepContent}
                 </motion.div>
               </AnimatePresence>
             </>
           ) : (
-            /* ── Centered intro modal ── */
+            /* ── Fallback: centered card while waiting for element ── */
             <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
               <motion.div
-                className="bg-card border border-border rounded-xl p-6 w-full max-w-md shadow-xl relative"
-                initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+                key={`fallback-${step}`}
+                className="bg-card border border-border rounded-xl p-4 w-full max-w-sm shadow-xl relative"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.2 }}
               >
-                {/* Close */}
-                <button
-                  onClick={handleClose}
-                  className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    key={step}
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    transition={{ duration: 0.2 }}
-                    className="flex flex-col items-center text-center pt-2"
-                  >
-                    <div
-                      className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 ${current.color}`}
-                    >
-                      <Icon className="w-8 h-8" />
-                    </div>
-                    <h2 className="text-xl font-bold text-card-foreground mb-2">
-                      {current.title}
-                    </h2>
-                    <p className="text-sm text-muted-foreground leading-relaxed">
-                      {current.description}
-                    </p>
-                  </motion.div>
-                </AnimatePresence>
-
-                <div className="flex justify-center mt-6 mb-5">{dots}</div>
-
-                <button
-                  onClick={() => goToStep(1)}
-                  className="w-full flex items-center justify-center gap-1 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
-                >
-                  Rozpocznij tour
-                  <ChevronRight className="w-4 h-4" />
-                </button>
+                {stepContent}
               </motion.div>
             </div>
           )}
