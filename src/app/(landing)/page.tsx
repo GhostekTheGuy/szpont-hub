@@ -4,7 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Sparkles, Wallet, PiggyBank, CalendarDays, Target, Monitor, Smartphone, Check, ScanLine, Bot, Send, X, Menu, ChevronDown } from 'lucide-react';
+import { ArrowRight, Sparkles, Wallet, PiggyBank, CalendarDays, Target, Monitor, Smartphone, Check, ScanLine, Bot, X, Menu, ChevronDown } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -1254,68 +1254,44 @@ export default function LandingPage() {
             </BlurFade>
           </div>
 
-          {/* Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-3xl mx-auto">
-            {/* Discord */}
-            <BlurFade delay={0.25} inView>
-              <div className="glow-card group bg-card border border-border rounded-2xl p-8 flex flex-col justify-between h-full transition-all duration-500 hover:shadow-xl hover:shadow-violet-500/5 hover:-translate-y-1">
-                <div>
-                  <div className="flex items-center justify-between mb-8">
-                    <div className="w-12 h-12 rounded-xl bg-[#5865F2] flex items-center justify-center transition-transform duration-300 group-hover:scale-110">
-                      <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.9 19.9 0 005.993 3.03.078.078 0 00.084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 00-.041-.106 13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128 10.2 10.2 0 00.372-.292.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.12.098.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.839 19.839 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
-                      </svg>
-                    </div>
-                    <span className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground">320 członków</span>
-                  </div>
+          {/* Discord Card with decorative logos */}
+          <BlurFade delay={0.25} inView>
+            <div className="relative max-w-lg mx-auto">
+              {/* Left decorative Discord logo - dark blue/gray, partially hidden */}
+              <svg className="absolute -left-24 sm:-left-16 md:-left-28 top-1/2 -translate-y-1/2 w-48 h-48 sm:w-56 sm:h-56 text-[#5865F2]/15 pointer-events-none select-none" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.9 19.9 0 005.993 3.03.078.078 0 00.084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 00-.041-.106 13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128 10.2 10.2 0 00.372-.292.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.12.098.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.839 19.839 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
+              </svg>
 
-                  <h3 className="text-lg font-bold text-foreground mb-2">Discord</h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed mb-6">
-                    Rozmawiaj z innymi szponciarzami, zgłaszaj pomysły i testuj nowe funkcje jako pierwszy.
-                  </p>
+              {/* Right decorative Discord logo - white/light, partially hidden */}
+              <svg className="absolute -right-24 sm:-right-16 md:-right-28 top-1/2 -translate-y-1/2 w-48 h-48 sm:w-56 sm:h-56 text-white/[0.06] pointer-events-none select-none" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.9 19.9 0 005.993 3.03.078.078 0 00.084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 00-.041-.106 13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128 10.2 10.2 0 00.372-.292.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.12.098.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.839 19.839 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
+              </svg>
+
+              {/* Main card */}
+              <div className="relative z-10 glow-card group bg-card border border-border rounded-2xl p-8 sm:p-10 flex flex-col items-center text-center transition-all duration-500 hover:shadow-xl hover:shadow-violet-500/5 hover:-translate-y-1">
+                <div className="w-14 h-14 rounded-xl bg-[#5865F2] flex items-center justify-center mb-8 transition-transform duration-300 group-hover:scale-110">
+                  <svg className="w-7 h-7 text-white" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.9 19.9 0 005.993 3.03.078.078 0 00.084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 00-.041-.106 13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128 10.2 10.2 0 00.372-.292.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.12.098.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.839 19.839 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
+                  </svg>
                 </div>
 
+                <h3 className="text-xl font-bold text-foreground mb-3">Discord</h3>
+                <p className="text-sm sm:text-base text-muted-foreground leading-relaxed mb-8">
+                  Rozmawiaj z innymi szponciarzami, zgłaszaj pomysły i testuj nowe funkcje jako pierwszy.
+                </p>
+
                 <a
-                  href="https://discord.gg/szponthub"
+                  href="https://discord.gg/cveFpy4d9H"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 rounded-full border border-border px-5 py-2.5 text-sm font-medium text-foreground transition-all duration-300 hover:bg-violet-500/10 hover:border-violet-500/30 hover:text-violet-400 w-fit"
+                  className="inline-flex items-center gap-2 rounded-full border border-border px-6 py-3 text-sm font-medium text-foreground transition-all duration-300 hover:bg-violet-500/10 hover:border-violet-500/30 hover:text-violet-400 w-fit"
                 >
                   Dołącz
                   <ArrowRight className="w-3.5 h-3.5" />
                 </a>
               </div>
-            </BlurFade>
-
-            {/* Telegram */}
-            <BlurFade delay={0.3} inView>
-              <div className="glow-card group bg-card border border-border rounded-2xl p-8 flex flex-col justify-between h-full transition-all duration-500 hover:shadow-xl hover:shadow-violet-500/5 hover:-translate-y-1">
-                <div>
-                  <div className="flex items-center justify-between mb-8">
-                    <div className="w-12 h-12 rounded-xl bg-[#2AABEE] flex items-center justify-center transition-transform duration-300 group-hover:scale-110">
-                      <Send className="w-6 h-6 text-white" />
-                    </div>
-                    <span className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground">210 członków</span>
-                  </div>
-
-                  <h3 className="text-lg font-bold text-foreground mb-2">Telegram</h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed mb-6">
-                    Dołącz do społeczności szponciarzy. Pytania, pomysły i early access do nowych funkcji.
-                  </p>
-                </div>
-
-                <a
-                  href="https://t.me/szponthub"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 rounded-full border border-border px-5 py-2.5 text-sm font-medium text-foreground transition-all duration-300 hover:bg-violet-500/10 hover:border-violet-500/30 hover:text-violet-400 w-fit"
-                >
-                  Dołącz
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </a>
-              </div>
-            </BlurFade>
-          </div>
+            </div>
+          </BlurFade>
 
           <BlurFade delay={0.4} inView>
             <div className="flex justify-center mt-14">
@@ -1423,13 +1399,10 @@ export default function LandingPage() {
                 </p>
                 {/* Social icons */}
                 <div className="flex items-center gap-2 mt-6">
-                  <a href="https://discord.gg/szponthub" target="_blank" rel="noopener noreferrer" className="w-9 h-9 rounded-full bg-muted/50 border border-border/40 flex items-center justify-center text-muted-foreground transition-all duration-300 hover:bg-violet-500/15 hover:text-violet-400 hover:border-violet-500/30">
+                  <a href="https://discord.gg/cveFpy4d9H" target="_blank" rel="noopener noreferrer" className="w-9 h-9 rounded-full bg-muted/50 border border-border/40 flex items-center justify-center text-muted-foreground transition-all duration-300 hover:bg-violet-500/15 hover:text-violet-400 hover:border-violet-500/30">
                     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
                       <path d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.9 19.9 0 005.993 3.03.078.078 0 00.084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 00-.041-.106 13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128 10.2 10.2 0 00.372-.292.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.12.098.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.839 19.839 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
                     </svg>
-                  </a>
-                  <a href="https://t.me/szponthub" target="_blank" rel="noopener noreferrer" className="w-9 h-9 rounded-full bg-muted/50 border border-border/40 flex items-center justify-center text-muted-foreground transition-all duration-300 hover:bg-violet-500/15 hover:text-violet-400 hover:border-violet-500/30">
-                    <Send className="w-4 h-4" />
                   </a>
                 </div>
               </div>
