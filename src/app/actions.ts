@@ -4448,6 +4448,8 @@ export async function submitKugaruInvoice(data: {
   name: string;
   email: string;
   phone: string;
+  pesel: string;
+  citizenship: string;
   items: { name: string; quantity: number; unit: string; netPrice: number; vatRate: number }[];
   rightsTransfer: string;
   orderValue: number;
@@ -4464,7 +4466,8 @@ export async function submitKugaruInvoice(data: {
   clientEmail: string;
   description: string;
   notes: string;
-  paymentDays: number;
+  paymentTerm: string;
+  customPaymentTerm?: string;
   skipProforma: boolean;
   verifyBeforeSending: boolean;
   sendIndependently: boolean;
@@ -4483,8 +4486,14 @@ export async function submitKugaruInvoice(data: {
 
   const rightsMap: Record<string, string> = {
     przekazuje: 'przekazanie praw',
-    udziela_licencji: 'udzielenie licencji',
-    nie_przekazuje: 'brak przekazania praw',
+    udziela_licencji: 'licencja',
+    nie_przekazuje: 'brak',
+  };
+
+  const settlementMap: Record<string, string> = {
+    umowa_o_dzielo: 'dzieło',
+    umowa_zlecenie: 'zlecenie',
+    dzielo_zlecenie: 'mieszana',
   };
 
   const payload = {
@@ -4493,13 +4502,14 @@ export async function submitKugaruInvoice(data: {
       name: data.name,
       email: data.email,
       phone: data.phone || undefined,
+      pesel: data.pesel,
+      citizenship: data.citizenship,
       rightsTransfer: rightsMap[data.rightsTransfer] || data.rightsTransfer,
-      orderValue: data.orderValue,
       currency: data.currency,
       amountType: data.amountType,
-      contractType: data.contractType,
-      isStudent: data.isStudent,
-      clientType: data.clientType === 'firma' ? 'firma' : 'osoba_fizyczna',
+      settlementType: settlementMap[data.contractType] || data.contractType,
+      isStudent26: data.isStudent,
+      clientType: data.clientType === 'firma' ? 'firma' : 'osoba',
       clientNip: data.clientNip || undefined,
       clientCompanyName: data.clientType === 'firma' ? data.clientCompanyName : undefined,
       clientPersonName: data.clientType !== 'firma' ? data.clientCompanyName : undefined,
@@ -4508,13 +4518,14 @@ export async function submitKugaruInvoice(data: {
       clientCity: data.clientCity,
       clientEmail: data.clientEmail,
       description: data.description,
-      notes: data.notes || undefined,
-      paymentDays: data.paymentDays,
+      comments: data.notes || undefined,
+      paymentTerm: data.paymentTerm,
+      customPaymentTerm: data.customPaymentTerm || undefined,
       skipProforma: data.skipProforma,
-      verifyBeforeSending: data.verifyBeforeSending,
-      sendIndependently: data.sendIndependently,
-      subscriptionInsteadOfFee: data.subscriptionInsteadOfFee,
-      noLegalProceedings: data.noLegalProceedings,
+      verifyInvoice: data.verifyBeforeSending,
+      sendInvoiceSelf: data.sendIndependently,
+      useSubscription: data.subscriptionInsteadOfFee,
+      confirmNoDebt: data.noLegalProceedings,
       acceptTerms: data.acceptTerms,
       items: data.items.map((item) => ({
         name: item.name,
@@ -4539,7 +4550,7 @@ export async function submitKugaruInvoice(data: {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Origin': process.env.NEXT_PUBLIC_APP_URL || 'https://szpont.com',
+          'Origin': 'https://szponthub.pl',
           'x-kugaru-partner': partnerId,
           'x-kugaru-timestamp': timestamp,
           'x-kugaru-signature': signature,

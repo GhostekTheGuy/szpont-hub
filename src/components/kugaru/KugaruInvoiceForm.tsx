@@ -157,6 +157,22 @@ export function KugaruInvoiceForm() {
   const [miasto, setMiasto] = useState('');
   const [emailZleceniodawcy, setEmailZleceniodawcy] = useState('');
 
+  // PESEL & citizenship (persisted)
+  const [pesel, setPesel] = useState(() => {
+    if (typeof window !== 'undefined') return localStorage.getItem('kugaru_pesel') || '';
+    return '';
+  });
+  const [obywatelstwo, setObywatelstwo] = useState(() => {
+    if (typeof window !== 'undefined') return localStorage.getItem('kugaru_citizenship') || 'polskie';
+    return 'polskie';
+  });
+  useEffect(() => {
+    localStorage.setItem('kugaru_pesel', pesel);
+  }, [pesel]);
+  useEffect(() => {
+    localStorage.setItem('kugaru_citizenship', obywatelstwo);
+  }, [obywatelstwo]);
+
   // Work description
   const [opisDziela, setOpisDziela] = useState('');
   const [zalacznik, setZalacznik] = useState<File | null>(null);
@@ -269,14 +285,13 @@ export function KugaruInvoiceForm() {
 
     setLoading(true);
 
-    const paymentDays =
-      terminPlatnosci === 'custom' ? parseInt(customTermin) || 7 : parseInt(terminPlatnosci);
-
     try {
       const result = await submitKugaruInvoice({
         name: imieNazwisko,
         email,
         phone: telefon,
+        pesel,
+        citizenship: obywatelstwo,
         items: pozycje.map((p) => ({
           name: p.nazwa,
           quantity: p.ilosc,
@@ -299,7 +314,8 @@ export function KugaruInvoiceForm() {
         clientEmail: emailZleceniodawcy,
         description: opisDziela,
         notes: uwagi,
-        paymentDays,
+        paymentTerm: terminPlatnosci === 'custom' ? 'custom' : `${terminPlatnosci} dni`,
+        customPaymentTerm: terminPlatnosci === 'custom' ? customTermin : undefined,
         skipProforma: pomijaProforme,
         verifyBeforeSending: weryfikacjaPrzedWyslaniem,
         sendIndependently: samodzielnieWysyla,
@@ -467,6 +483,33 @@ export function KugaruInvoiceForm() {
                       className={inputClass}
                       placeholder="czasami tak jest szybciej"
                     />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className={labelClass}>
+                        PESEL <span className="text-destructive">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={pesel}
+                        onChange={(e) => setPesel(e.target.value)}
+                        className={inputClass}
+                        placeholder="00000000000"
+                        maxLength={11}
+                      />
+                    </div>
+                    <div>
+                      <label className={labelClass}>
+                        Obywatelstwo <span className="text-destructive">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={obywatelstwo}
+                        onChange={(e) => setObywatelstwo(e.target.value)}
+                        className={inputClass}
+                        placeholder="polskie"
+                      />
+                    </div>
                   </div>
                 </section>
 
