@@ -4539,6 +4539,7 @@ export async function submitKugaruInvoice(data: {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Origin': process.env.NEXT_PUBLIC_APP_URL || 'https://szpont.com',
           'x-kugaru-partner': partnerId,
           'x-kugaru-timestamp': timestamp,
           'x-kugaru-signature': signature,
