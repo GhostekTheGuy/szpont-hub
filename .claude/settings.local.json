@@ -32,7 +32,11 @@
       "Bash(git push:*)",
       "Bash(git remote:*)",
       "Bash(git fetch:*)",
-      "Bash(cd:*)"
+      "Bash(cd:*)",
+      "Bash(openssl rand:*)",
+      "Bash(git reset:*)",
+      "Bash(git checkout:*)",
+      "Bash(python3 -m json.tool)"
     ]
   }
 }
