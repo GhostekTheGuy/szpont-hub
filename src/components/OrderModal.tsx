@@ -45,8 +45,18 @@ export function OrderModal({ isOpen, onClose, editingOrder, preselectedClientId 
   const [tagInput, setTagInput] = useState('');
   const [completionDate, setCompletionDate] = useState('');
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const isHourly = billingType === 'hourly';
+
+  const validate = (): Record<string, string> => {
+    const errs: Record<string, string> = {};
+    if (!clientId) errs.clientId = 'Wybierz klienta';
+    if (!title.trim()) errs.title = 'Tytuł zlecenia jest wymagany';
+    if (billingType === 'flat' && (!amount || parseFloat(amount) <= 0)) errs.amount = 'Kwota musi być większa od 0';
+    if (billingType === 'hourly' && (!hourlyRate || parseFloat(hourlyRate) <= 0)) errs.hourlyRate = 'Stawka godzinowa musi być większa od 0';
+    return errs;
+  };
 
   useEffect(() => {
     if (editingOrder) {
@@ -73,6 +83,7 @@ export function OrderModal({ isOpen, onClose, editingOrder, preselectedClientId 
       setTagInput('');
       setCompletionDate('');
     }
+    setErrors({});
   }, [editingOrder, isOpen, wallets, preselectedClientId]);
 
   const addTag = (tag: string) => {
@@ -96,9 +107,11 @@ export function OrderModal({ isOpen, onClose, editingOrder, preselectedClientId 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !clientId) return;
-    if (!isHourly && !amount) return;
-    if (isHourly && !hourlyRate) return;
+    const validationErrors = validate();
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
     setLoading(true);
 
     try {
@@ -159,20 +172,21 @@ export function OrderModal({ isOpen, onClose, editingOrder, preselectedClientId 
                 <label className={labelClass}>Klient *</label>
                 <select
                   value={clientId}
-                  onChange={e => setClientId(e.target.value)}
-                  className={selectClass}
-                  required
+                  onChange={e => { setClientId(e.target.value); if (errors.clientId) setErrors(prev => { const {clientId: _, ...rest} = prev; return rest; }); }}
+                  className={`${selectClass}${errors.clientId ? ' border-destructive' : ''}`}
                 >
                   <option value="">Wybierz klienta...</option>
                   {clients.map(c => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
                 </select>
+                {errors.clientId && <p className="text-xs text-destructive mt-1">{errors.clientId}</p>}
               </div>
 
               <div>
                 <label className={labelClass}>Tytul zlecenia *</label>
-                <input type="text" value={title} onChange={e => setTitle(e.target.value)} className={inputClass} placeholder="np. Projekt logo" required />
+                <input type="text" value={title} onChange={e => { setTitle(e.target.value); if (errors.title) setErrors(prev => { const {title: _, ...rest} = prev; return rest; }); }} className={`${inputClass}${errors.title ? ' border-destructive' : ''}`} placeholder="np. Projekt logo" />
+                {errors.title && <p className="text-xs text-destructive mt-1">{errors.title}</p>}
               </div>
 
               {/* Billing type toggle */}
@@ -210,12 +224,14 @@ export function OrderModal({ isOpen, onClose, editingOrder, preselectedClientId 
                 {isHourly ? (
                   <div>
                     <label className={labelClass}>Stawka /h (PLN) *</label>
-                    <input type="number" step="0.01" min="0" value={hourlyRate} onChange={e => setHourlyRate(e.target.value)} className={inputClass} placeholder="0.00" required />
+                    <input type="number" step="0.01" min="0" value={hourlyRate} onChange={e => { setHourlyRate(e.target.value); if (errors.hourlyRate) setErrors(prev => { const {hourlyRate: _, ...rest} = prev; return rest; }); }} className={`${inputClass}${errors.hourlyRate ? ' border-destructive' : ''}`} placeholder="0.00" />
+                    {errors.hourlyRate && <p className="text-xs text-destructive mt-1">{errors.hourlyRate}</p>}
                   </div>
                 ) : (
                   <div>
                     <label className={labelClass}>Kwota (PLN) *</label>
-                    <input type="number" step="0.01" min="0" value={amount} onChange={e => setAmount(e.target.value)} className={inputClass} placeholder="0.00" required />
+                    <input type="number" step="0.01" min="0" value={amount} onChange={e => { setAmount(e.target.value); if (errors.amount) setErrors(prev => { const {amount: _, ...rest} = prev; return rest; }); }} className={`${inputClass}${errors.amount ? ' border-destructive' : ''}`} placeholder="0.00" />
+                    {errors.amount && <p className="text-xs text-destructive mt-1">{errors.amount}</p>}
                   </div>
                 )}
                 <div>
@@ -308,7 +324,7 @@ export function OrderModal({ isOpen, onClose, editingOrder, preselectedClientId 
 
               <button
                 type="submit"
-                disabled={loading || !title.trim() || !clientId || (isHourly ? !hourlyRate : !amount)}
+                disabled={loading}
                 className="w-full py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground font-medium rounded-lg transition-colors disabled:opacity-50"
               >
                 {loading ? 'Zapisywanie...' : editingOrder ? 'Zapisz zmiany' : 'Dodaj zlecenie'}

@@ -46,6 +46,13 @@ export function HabitModal({ isOpen, onClose, editingHabit }: Props) {
   const [icon, setIcon] = useState('star');
   const [frequency, setFrequency] = useState('daily');
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const validate = (): Record<string, string> => {
+    const errs: Record<string, string> = {};
+    if (!name.trim()) errs.name = 'Nazwa nawyku jest wymagana';
+    return errs;
+  };
 
   useEffect(() => {
     if (editingHabit) {
@@ -59,11 +66,16 @@ export function HabitModal({ isOpen, onClose, editingHabit }: Props) {
       setIcon('star');
       setFrequency('daily');
     }
+    if (isOpen) setErrors({});
   }, [editingHabit, isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    const validationErrors = validate();
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
 
     setLoading(true);
     try {
@@ -141,12 +153,12 @@ export function HabitModal({ isOpen, onClose, editingHabit }: Props) {
                 <label className="block text-sm text-muted-foreground mb-2">Nazwa</label>
                 <input
                   type="text"
-                  required
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
+                  onChange={(e) => { setName(e.target.value); if (errors.name) setErrors(prev => { const {name: _, ...rest} = prev; return rest; }); }}
+                  className={`w-full bg-input border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all ${errors.name ? 'border-destructive' : 'border-border'}`}
                   placeholder="np. Medytacja, Ćwiczenia..."
                 />
+                {errors.name && <p className="text-xs text-destructive mt-1">{errors.name}</p>}
               </div>
 
               {/* Frequency */}
@@ -222,7 +234,7 @@ export function HabitModal({ isOpen, onClose, editingHabit }: Props) {
                 )}
                 <button
                   type="submit"
-                  disabled={loading || !name.trim()}
+                  disabled={loading}
                   className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground font-medium py-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loading ? 'Zapisywanie...' : editingHabit ? 'Zapisz' : 'Dodaj'}

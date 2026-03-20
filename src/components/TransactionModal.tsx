@@ -37,9 +37,22 @@ export function TransactionModal({ isOpen, onClose, editingTransaction, defaultT
   const [toWalletId, setToWalletId] = useState('');
   const [currency, setCurrency] = useState<Currency>('PLN');
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
+  const validate = (): Record<string, string> => {
+    const errs: Record<string, string> = {};
+    if (!amount || parseFloat(amount) <= 0) errs.amount = 'Kwota musi być większa od 0';
+    if (type !== 'transfer' && !category.trim()) errs.category = 'Kategoria jest wymagana';
+    if (!walletId) errs.walletId = 'Wybierz portfel';
+    if (type === 'transfer') {
+      if (!toWalletId) errs.toWalletId = 'Wybierz portfel docelowy';
+      else if (walletId === toWalletId) errs.toWalletId = 'Portfele muszą się różnić';
+    }
+    return errs;
+  };
 
   useEffect(() => {
+    setErrors({});
     if (editingTransaction) {
       setAmount(Math.abs(editingTransaction.amount).toString());
       setCategory(editingTransaction.category);
@@ -62,8 +75,11 @@ export function TransactionModal({ isOpen, onClose, editingTransaction, defaultT
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!walletId) return;
-    if (type === 'transfer' && (!toWalletId || walletId === toWalletId)) return;
+    const validationErrors = validate();
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
     setLoading(true);
 
     try {
@@ -177,8 +193,8 @@ export function TransactionModal({ isOpen, onClose, editingTransaction, defaultT
                 step="0.01"
                 required
                 value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                className="flex-1 bg-input border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
+                onChange={(e) => { setAmount(e.target.value); if (errors.amount) setErrors(prev => { const {amount, ...rest} = prev; return rest; }); }}
+                className={`flex-1 bg-input border ${errors.amount ? 'border-destructive' : 'border-border'} rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all`}
                 placeholder="0.00"
               />
               <select
@@ -191,6 +207,7 @@ export function TransactionModal({ isOpen, onClose, editingTransaction, defaultT
                 <option value="EUR">EUR</option>
               </select>
             </div>
+            {errors.amount && <p className="text-xs text-destructive mt-1">{errors.amount}</p>}
           </div>
 
           {type !== 'transfer' && (
@@ -200,10 +217,11 @@ export function TransactionModal({ isOpen, onClose, editingTransaction, defaultT
                 type="text"
                 required
                 value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
+                onChange={(e) => { setCategory(e.target.value); if (errors.category) setErrors(prev => { const {category, ...rest} = prev; return rest; }); }}
+                className={`w-full bg-input border ${errors.category ? 'border-destructive' : 'border-border'} rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all`}
                 placeholder="np. Jedzenie"
               />
+              {errors.category && <p className="text-xs text-destructive mt-1">{errors.category}</p>}
             </div>
           )}
 
@@ -224,22 +242,23 @@ export function TransactionModal({ isOpen, onClose, editingTransaction, defaultT
                 <label className="block text-sm text-muted-foreground mb-2">Z portfela</label>
                 <select
                   value={walletId}
-                  onChange={(e) => setWalletId(e.target.value)}
-                  className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
+                  onChange={(e) => { setWalletId(e.target.value); if (errors.walletId) setErrors(prev => { const {walletId, ...rest} = prev; return rest; }); }}
+                  className={`w-full bg-input border ${errors.walletId ? 'border-destructive' : 'border-border'} rounded-lg px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring transition-all`}
                 >
                   {wallets.length === 0 && <option value="">Brak portfeli</option>}
                   {wallets.map(w => (
                     <option key={w.id} value={w.id}>{w.name}</option>
                   ))}
                 </select>
+                {errors.walletId && <p className="text-xs text-destructive mt-1">{errors.walletId}</p>}
               </div>
               <div>
                 <label className="block text-sm text-muted-foreground mb-2">Do portfela</label>
                 <select
                   value={toWalletId}
-                  onChange={(e) => setToWalletId(e.target.value)}
+                  onChange={(e) => { setToWalletId(e.target.value); if (errors.toWalletId) setErrors(prev => { const {toWalletId, ...rest} = prev; return rest; }); }}
                   className={`w-full bg-input border rounded-lg px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring transition-all ${
-                    walletId && toWalletId && walletId === toWalletId ? 'border-red-500' : 'border-border'
+                    errors.toWalletId ? 'border-destructive' : 'border-border'
                   }`}
                 >
                   {wallets.length === 0 && <option value="">Brak portfeli</option>}
@@ -247,6 +266,7 @@ export function TransactionModal({ isOpen, onClose, editingTransaction, defaultT
                     <option key={w.id} value={w.id}>{w.name}</option>
                   ))}
                 </select>
+                {errors.toWalletId && <p className="text-xs text-destructive mt-1">{errors.toWalletId}</p>}
               </div>
             </div>
           ) : (
@@ -254,14 +274,15 @@ export function TransactionModal({ isOpen, onClose, editingTransaction, defaultT
               <label className="block text-sm text-muted-foreground mb-2">Portfel</label>
               <select
                 value={walletId}
-                onChange={(e) => setWalletId(e.target.value)}
-                className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
+                onChange={(e) => { setWalletId(e.target.value); if (errors.walletId) setErrors(prev => { const {walletId, ...rest} = prev; return rest; }); }}
+                className={`w-full bg-input border ${errors.walletId ? 'border-destructive' : 'border-border'} rounded-lg px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring transition-all`}
               >
                 {wallets.length === 0 && <option value="">Brak portfeli</option>}
                 {wallets.map(w => (
                   <option key={w.id} value={w.id}>{w.name} ({w.balance.toLocaleString()} PLN)</option>
                 ))}
               </select>
+              {errors.walletId && <p className="text-xs text-destructive mt-1">{errors.walletId}</p>}
             </div>
           )}
 

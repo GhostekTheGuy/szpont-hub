@@ -50,9 +50,11 @@ export function AssetModal({ isOpen, onClose, editingAsset, onDelete, wallets = 
   const [deductFromWallet, setDeductFromWallet] = useState(true);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const debounceRef = useRef<NodeJS.Timeout>(undefined);
 
   useEffect(() => {
+    setErrors({});
     if (editingAsset) {
       setAssetType(editingAsset.asset_type || 'crypto');
       if (editingAsset.asset_type === 'stock') {
@@ -156,12 +158,14 @@ export function AssetModal({ isOpen, onClose, editingAsset, onDelete, wallets = 
     setSelectedCoin(coin);
     setQuery('');
     setCoinResults([]);
+    if (errors.selection) setErrors(prev => { const {selection, ...rest} = prev; return rest; });
   };
 
   const handleSelectStock = (stock: StockResult) => {
     setSelectedStock(stock);
     setQuery('');
     setStockResults([]);
+    if (errors.selection) setErrors(prev => { const {selection, ...rest} = prev; return rest; });
   };
 
   const handleTypeChange = (type: AssetType) => {
@@ -176,9 +180,27 @@ export function AssetModal({ isOpen, onClose, editingAsset, onDelete, wallets = 
 
   const hasSelection = assetType === 'crypto' ? !!selectedCoin : !!selectedStock;
 
+  const validate = (): Record<string, string> => {
+    const errs: Record<string, string> = {};
+    if (!editingAsset && !hasSelection) {
+      errs.selection = 'Wybierz aktywo z listy';
+    }
+    if (!quantity || parseFloat(quantity) <= 0) {
+      errs.quantity = 'Ilość musi być większa od 0';
+    }
+    if (costBasis && (isNaN(parseFloat(costBasis)) || parseFloat(costBasis) <= 0)) {
+      errs.costBasis = 'Cena zakupu musi być liczbą dodatnią';
+    }
+    return errs;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!hasSelection || !quantity) return;
+    const validationErrors = validate();
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
     setLoading(true);
 
     try {
@@ -347,8 +369,8 @@ export function AssetModal({ isOpen, onClose, editingAsset, onDelete, wallets = 
                     <input
                       type="text"
                       value={query}
-                      onChange={(e) => setQuery(e.target.value)}
-                      className="w-full bg-input border border-border rounded-lg pl-9 pr-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
+                      onChange={(e) => { setQuery(e.target.value); if (errors.selection) setErrors(prev => { const {selection, ...rest} = prev; return rest; }); }}
+                      className={`w-full bg-input border rounded-lg pl-9 pr-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all ${errors.selection ? 'border-destructive' : 'border-border'}`}
                       placeholder={assetType === 'crypto' ? 'Szukaj kryptowaluty...' : 'Szukaj akcji, ETF, surowców...'}
                       autoFocus
                     />
@@ -395,6 +417,7 @@ export function AssetModal({ isOpen, onClose, editingAsset, onDelete, wallets = 
                     ))}
                   </div>
                 )}
+                {errors.selection && <p className="text-xs text-destructive mt-1">{errors.selection}</p>}
               </div>
 
               {/* Quantity */}
@@ -405,10 +428,11 @@ export function AssetModal({ isOpen, onClose, editingAsset, onDelete, wallets = 
                   step="any"
                   required
                   value={quantity}
-                  onChange={(e) => setQuantity(e.target.value)}
-                  className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
+                  onChange={(e) => { setQuantity(e.target.value); if (errors.quantity) setErrors(prev => { const {quantity, ...rest} = prev; return rest; }); }}
+                  className={`w-full bg-input border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all ${errors.quantity ? 'border-destructive' : 'border-border'}`}
                   placeholder="0.00"
                 />
+                {errors.quantity && <p className="text-xs text-destructive mt-1">{errors.quantity}</p>}
               </div>
 
               {/* Cost basis */}
@@ -422,8 +446,8 @@ export function AssetModal({ isOpen, onClose, editingAsset, onDelete, wallets = 
                     type="number"
                     step="any"
                     value={costBasis}
-                    onChange={(e) => setCostBasis(e.target.value)}
-                    className="flex-1 bg-input border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
+                    onChange={(e) => { setCostBasis(e.target.value); if (errors.costBasis) setErrors(prev => { const {costBasis, ...rest} = prev; return rest; }); }}
+                    className={`flex-1 bg-input border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all ${errors.costBasis ? 'border-destructive' : 'border-border'}`}
                     placeholder="Automatyczna"
                   />
                   <select
@@ -435,6 +459,7 @@ export function AssetModal({ isOpen, onClose, editingAsset, onDelete, wallets = 
                     <option value="USD">USD</option>
                   </select>
                 </div>
+                {errors.costBasis && <p className="text-xs text-destructive mt-1">{errors.costBasis}</p>}
               </div>
 
               {/* Wallet picker */}
@@ -517,7 +542,7 @@ export function AssetModal({ isOpen, onClose, editingAsset, onDelete, wallets = 
                 )}
                 <button
                   type="submit"
-                  disabled={loading || !hasSelection || !quantity}
+                  disabled={loading}
                   className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground font-medium py-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loading ? 'Zapisywanie...' : (editingAsset ? 'Zapisz zmiany' : 'Dodaj aktywo')}

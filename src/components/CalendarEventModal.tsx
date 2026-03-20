@@ -54,6 +54,7 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
   const [orderId, setOrderId] = useState('');
   const [loading, setLoading] = useState(false);
   const [showDeleteOptions, setShowDeleteOptions] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const isGoogleEvent = !!editingEvent?.google_event_id;
   const isRecurringInstance = !!(editingEvent && /_\d{4}-\d{2}-\d{2}$/.test(editingEvent.id));
@@ -95,15 +96,31 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
       setOrderId('');
     }
     setShowDeleteOptions(false);
+    setErrors({});
   }, [editingEvent, isOpen, wallets, prefillDate, prefillHour]);
 
   const timeInvalid = startTime === endTime;
   const isOvernight = startTime > endTime;
 
+  const validate = (): Record<string, string> => {
+    const errs: Record<string, string> = {};
+    if (!title.trim()) errs.title = 'Nazwa wydarzenia jest wymagana';
+    if (!date) errs.date = 'Data jest wymagana';
+    if (!isPersonal) {
+      if (!walletId) errs.walletId = 'Wybierz portfel';
+      if (!hourlyRate || parseFloat(hourlyRate) <= 0) errs.hourlyRate = 'Stawka godzinowa musi być większa od 0';
+    }
+    return errs;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isPersonal && (!walletId || !hourlyRate)) return;
-    if (!title || timeInvalid) return;
+    const validationErrors = validate();
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
+    if (timeInvalid) return;
     setLoading(true);
 
     const startDt = new Date(`${date}T${startTime}:00`);
@@ -375,25 +392,25 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
                 <label className="block text-sm text-muted-foreground mb-2">Nazwa wydarzenia</label>
                 <input
                   type="text"
-                  required
                   value={title}
-                  onChange={(e) => setTitle(e.target.value)}
+                  onChange={(e) => { setTitle(e.target.value); if (errors.title) setErrors(prev => { const {title: _, ...rest} = prev; return rest; }); }}
                   disabled={isGoogleEvent}
-                  className={`w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all ${isGoogleEvent ? 'opacity-60 cursor-not-allowed' : ''}`}
+                  className={`w-full bg-input border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all ${errors.title ? 'border-destructive' : 'border-border'} ${isGoogleEvent ? 'opacity-60 cursor-not-allowed' : ''}`}
                   placeholder={isPersonal ? 'np. Call z klientem' : 'np. Freelance - projekt X'}
                 />
+                {errors.title && <p className="text-xs text-destructive mt-1">{errors.title}</p>}
               </div>
 
               <div>
                 <label className="block text-sm text-muted-foreground mb-2">Data</label>
                 <input
                   type="date"
-                  required
                   value={date}
-                  onChange={(e) => setDate(e.target.value)}
+                  onChange={(e) => { setDate(e.target.value); if (errors.date) setErrors(prev => { const {date: _, ...rest} = prev; return rest; }); }}
                   disabled={isGoogleEvent || isRecurringInstance}
-                  className={`w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring transition-all ${isGoogleEvent || isRecurringInstance ? 'opacity-60 cursor-not-allowed' : ''}`}
+                  className={`w-full bg-input border rounded-lg px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring transition-all ${errors.date ? 'border-destructive' : 'border-border'} ${isGoogleEvent || isRecurringInstance ? 'opacity-60 cursor-not-allowed' : ''}`}
                 />
+                {errors.date && <p className="text-xs text-destructive mt-1">{errors.date}</p>}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -432,14 +449,15 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
                     <label className="block text-sm text-muted-foreground mb-2">Portfel</label>
                     <select
                       value={walletId}
-                      onChange={(e) => setWalletId(e.target.value)}
-                      className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
+                      onChange={(e) => { setWalletId(e.target.value); if (errors.walletId) setErrors(prev => { const {walletId: _, ...rest} = prev; return rest; }); }}
+                      className={`w-full bg-input border rounded-lg px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring transition-all ${errors.walletId ? 'border-destructive' : 'border-border'}`}
                     >
                       {wallets.length === 0 && <option value="">Brak portfeli</option>}
                       {wallets.map(w => (
                         <option key={w.id} value={w.id}>{w.name}</option>
                       ))}
                     </select>
+                    {errors.walletId && <p className="text-xs text-destructive mt-1">{errors.walletId}</p>}
                   </div>
 
                   <div>
@@ -448,12 +466,12 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
                       type="number"
                       step="0.01"
                       min="0"
-                      required
                       value={hourlyRate}
-                      onChange={(e) => setHourlyRate(e.target.value)}
-                      className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
+                      onChange={(e) => { setHourlyRate(e.target.value); if (errors.hourlyRate) setErrors(prev => { const {hourlyRate: _, ...rest} = prev; return rest; }); }}
+                      className={`w-full bg-input border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all ${errors.hourlyRate ? 'border-destructive' : 'border-border'}`}
                       placeholder="0.00"
                     />
+                    {errors.hourlyRate && <p className="text-xs text-destructive mt-1">{errors.hourlyRate}</p>}
                   </div>
                 </>
               )}

@@ -56,6 +56,7 @@ export function WalletModal({ isOpen, onClose, editingWallet }: WalletModalProps
   const [grainColor1, setGrainColor1] = useState('#FF9FFC');
   const [grainColor2, setGrainColor2] = useState('#5227FF');
   const [grainColor3, setGrainColor3] = useState('#B19EEF');
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (editingWallet) {
@@ -87,6 +88,7 @@ export function WalletModal({ isOpen, onClose, editingWallet }: WalletModalProps
       setGrainColor2('#5227FF');
       setGrainColor3('#B19EEF');
     }
+    setErrors({});
   }, [editingWallet, isOpen]);
 
   const buildColor = (): string => {
@@ -97,8 +99,20 @@ export function WalletModal({ isOpen, onClose, editingWallet }: WalletModalProps
     }
   };
 
+  const validate = (): Record<string, string> => {
+    const errs: Record<string, string> = {};
+    if (!name.trim()) errs.name = 'Nazwa portfela jest wymagana';
+    if (balance !== '' && isNaN(parseFloat(balance))) errs.balance = 'Podaj poprawną kwotę';
+    return errs;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const validationErrors = validate();
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
     setLoading(true);
     const color = buildColor();
 
@@ -151,12 +165,12 @@ export function WalletModal({ isOpen, onClose, editingWallet }: WalletModalProps
                 <label className="block text-sm text-muted-foreground mb-2">Nazwa</label>
                 <input
                   type="text"
-                  required
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
+                  onChange={(e) => { setName(e.target.value); if (errors.name) setErrors(prev => { const {name, ...rest} = prev; return rest; }); }}
+                  className={`w-full bg-input border ${errors.name ? 'border-destructive' : 'border-border'} rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all`}
                   placeholder="np. Oszczędności"
                 />
+                {errors.name && <p className="text-xs text-destructive mt-1">{errors.name}</p>}
               </div>
 
               <div>
@@ -201,10 +215,11 @@ export function WalletModal({ isOpen, onClose, editingWallet }: WalletModalProps
                   type="number"
                   step="0.01"
                   value={balance}
-                  onChange={(e) => setBalance(e.target.value)}
-                  className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
+                  onChange={(e) => { setBalance(e.target.value); if (errors.balance) setErrors(prev => { const {balance, ...rest} = prev; return rest; }); }}
+                  className={`w-full bg-input border ${errors.balance ? 'border-destructive' : 'border-border'} rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all`}
                   placeholder="0.00"
                 />
+                {errors.balance && <p className="text-xs text-destructive mt-1">{errors.balance}</p>}
                 <p className="text-xs text-muted-foreground mt-1">Saldo portfela na dzień rozpoczęcia śledzenia</p>
               </div>
 

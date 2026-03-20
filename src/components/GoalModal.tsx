@@ -39,6 +39,15 @@ export function GoalModal({ isOpen, onClose, editingGoal, wallets }: GoalModalPr
   const [icon, setIcon] = useState('target');
   const [walletId, setWalletId] = useState('');
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const validate = (): Record<string, string> => {
+    const errs: Record<string, string> = {};
+    if (!name.trim()) errs.name = 'Nazwa celu jest wymagana';
+    if (!targetAmount || parseFloat(targetAmount) <= 0) errs.targetAmount = 'Kwota docelowa musi być większa od 0';
+    if (currentAmount && (isNaN(parseFloat(currentAmount)) || parseFloat(currentAmount) < 0)) errs.currentAmount = 'Kwota aktualna musi być liczbą nieujemną';
+    return errs;
+  };
 
   useEffect(() => {
     if (isOpen && editingGoal) {
@@ -58,10 +67,15 @@ export function GoalModal({ isOpen, onClose, editingGoal, wallets }: GoalModalPr
       setIcon('target');
       setWalletId('');
     }
+    if (isOpen) setErrors({});
   }, [isOpen, editingGoal]);
 
   const handleSubmit = async () => {
-    if (!name.trim() || !targetAmount) return;
+    const validationErrors = validate();
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
     setLoading(true);
 
     try {
@@ -122,10 +136,11 @@ export function GoalModal({ isOpen, onClose, editingGoal, wallets }: GoalModalPr
                 <label className="text-xs text-muted-foreground">Nazwa</label>
                 <input
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(e) => { setName(e.target.value); if (errors.name) setErrors(prev => { const {name: _, ...rest} = prev; return rest; }); }}
                   placeholder="np. Fundusz awaryjny"
-                  className={inputClass}
+                  className={`${inputClass} ${errors.name ? '!border-destructive' : ''}`}
                 />
+                {errors.name && <p className="text-xs text-destructive mt-1">{errors.name}</p>}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -134,20 +149,22 @@ export function GoalModal({ isOpen, onClose, editingGoal, wallets }: GoalModalPr
                   <input
                     type="number"
                     value={targetAmount}
-                    onChange={(e) => setTargetAmount(e.target.value)}
+                    onChange={(e) => { setTargetAmount(e.target.value); if (errors.targetAmount) setErrors(prev => { const {targetAmount: _, ...rest} = prev; return rest; }); }}
                     placeholder="10000"
-                    className={inputClass}
+                    className={`${inputClass} ${errors.targetAmount ? '!border-destructive' : ''}`}
                   />
+                  {errors.targetAmount && <p className="text-xs text-destructive mt-1">{errors.targetAmount}</p>}
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground">Kwota aktualna (PLN)</label>
                   <input
                     type="number"
                     value={currentAmount}
-                    onChange={(e) => setCurrentAmount(e.target.value)}
+                    onChange={(e) => { setCurrentAmount(e.target.value); if (errors.currentAmount) setErrors(prev => { const {currentAmount: _, ...rest} = prev; return rest; }); }}
                     placeholder="0"
-                    className={inputClass}
+                    className={`${inputClass} ${errors.currentAmount ? '!border-destructive' : ''}`}
                   />
+                  {errors.currentAmount && <p className="text-xs text-destructive mt-1">{errors.currentAmount}</p>}
                 </div>
               </div>
 
@@ -206,7 +223,7 @@ export function GoalModal({ isOpen, onClose, editingGoal, wallets }: GoalModalPr
 
               <button
                 onClick={handleSubmit}
-                disabled={loading || !name.trim() || !targetAmount}
+                disabled={loading}
                 className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-medium py-2.5 rounded-lg transition-colors disabled:opacity-50"
               >
                 {loading ? 'Zapisywanie...' : editingGoal ? 'Zapisz zmiany' : 'Dodaj cel'}

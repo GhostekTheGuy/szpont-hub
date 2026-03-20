@@ -47,6 +47,16 @@ export function ExpenseModal({ isOpen, onClose, editingExpense }: ExpenseModalPr
   const [color, setColor] = useState('#6366f1');
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const validate = (): Record<string, string> => {
+    const errs: Record<string, string> = {};
+    if (!name.trim()) errs.name = 'Nazwa wydatku jest wymagana';
+    if (!amount || parseFloat(amount) <= 0) errs.amount = 'Kwota musi być większa od 0';
+    const day = parseInt(billingDay);
+    if (!billingDay || isNaN(day) || day < 1 || day > 31) errs.billingDay = 'Dzień rozliczenia musi być między 1 a 31';
+    return errs;
+  };
 
   useEffect(() => {
     if (editingExpense) {
@@ -72,6 +82,7 @@ export function ExpenseModal({ isOpen, onClose, editingExpense }: ExpenseModalPr
       setColor('#6366f1');
       setNotes('');
     }
+    setErrors({});
   }, [editingExpense, isOpen, wallets]);
 
   const computeNextDueDate = (day: number, freq: string): string => {
@@ -92,6 +103,11 @@ export function ExpenseModal({ isOpen, onClose, editingExpense }: ExpenseModalPr
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const validationErrors = validate();
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
     setLoading(true);
     try {
       const day = parseInt(billingDay);
@@ -192,12 +208,12 @@ export function ExpenseModal({ isOpen, onClose, editingExpense }: ExpenseModalPr
                 <label className="block text-sm text-muted-foreground mb-2">Nazwa</label>
                 <input
                   type="text"
-                  required
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
+                  onChange={(e) => { setName(e.target.value); if (errors.name) setErrors(prev => { const {name: _, ...rest} = prev; return rest; }); }}
+                  className={`w-full bg-input border ${errors.name ? 'border-destructive' : 'border-border'} rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all`}
                   placeholder="np. Netflix, Prąd"
                 />
+                {errors.name && <p className="text-xs text-destructive mt-1">{errors.name}</p>}
               </div>
 
               {/* Amount + Currency */}
@@ -207,10 +223,9 @@ export function ExpenseModal({ isOpen, onClose, editingExpense }: ExpenseModalPr
                   <input
                     type="number"
                     step="0.01"
-                    required
                     value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    className="flex-1 bg-input border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
+                    onChange={(e) => { setAmount(e.target.value); if (errors.amount) setErrors(prev => { const {amount: _, ...rest} = prev; return rest; }); }}
+                    className={`flex-1 bg-input border ${errors.amount ? 'border-destructive' : 'border-border'} rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all`}
                     placeholder="0.00"
                   />
                   <select
@@ -223,6 +238,7 @@ export function ExpenseModal({ isOpen, onClose, editingExpense }: ExpenseModalPr
                     <option value="EUR">EUR</option>
                   </select>
                 </div>
+                {errors.amount && <p className="text-xs text-destructive mt-1">{errors.amount}</p>}
               </div>
 
               {/* Category */}
@@ -274,11 +290,11 @@ export function ExpenseModal({ isOpen, onClose, editingExpense }: ExpenseModalPr
                   type="number"
                   min="1"
                   max="31"
-                  required
                   value={billingDay}
-                  onChange={(e) => setBillingDay(e.target.value)}
-                  className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
+                  onChange={(e) => { setBillingDay(e.target.value); if (errors.billingDay) setErrors(prev => { const {billingDay: _, ...rest} = prev; return rest; }); }}
+                  className={`w-full bg-input border ${errors.billingDay ? 'border-destructive' : 'border-border'} rounded-lg px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring transition-all`}
                 />
+                {errors.billingDay && <p className="text-xs text-destructive mt-1">{errors.billingDay}</p>}
               </div>
 
               {/* Wallet */}

@@ -21,6 +21,8 @@ export function SellAssetModal({ isOpen, onClose, asset, wallets }: SellAssetMod
   const router = useRouter();
   const [mode, setMode] = useState<'asset' | 'manual'>(asset ? 'asset' : 'manual');
 
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
   // Asset mode
   const [quantity, setQuantity] = useState('');
   const [walletId, setWalletId] = useState('');
@@ -45,6 +47,7 @@ export function SellAssetModal({ isOpen, onClose, asset, wallets }: SellAssetMod
       setManualSalePrice('');
       setManualCostBasis('');
       setManualDate(new Date().toISOString().split('T')[0]);
+      setErrors({});
     }
   }, [isOpen, asset]);
 
@@ -76,8 +79,46 @@ export function SellAssetModal({ isOpen, onClose, asset, wallets }: SellAssetMod
 
   const calc = mode === 'asset' ? assetCalc : manualCalc;
 
+  const validate = (): Record<string, string> => {
+    const errs: Record<string, string> = {};
+    if (mode === 'asset' && asset) {
+      const qty = parseFloat(quantity);
+      if (!quantity || isNaN(qty) || qty <= 0) {
+        errs.quantity = 'Ilość musi być większa od 0';
+      } else if (qty > asset.quantity) {
+        errs.quantity = 'Nie posiadasz tylu jednostek';
+      }
+      if (!asset.wallet_id && !walletId) {
+        errs.walletId = 'Wybierz portfel';
+      }
+    } else {
+      if (!manualName.trim()) errs.manualName = 'Nazwa jest wymagana';
+      if (!manualSymbol.trim()) errs.manualSymbol = 'Symbol jest wymagany';
+      const qty = parseFloat(manualQty);
+      if (!manualQty || isNaN(qty) || qty <= 0) errs.manualQty = 'Ilość musi być większa od 0';
+      const sp = parseFloat(manualSalePrice);
+      if (!manualSalePrice || isNaN(sp) || sp <= 0) errs.manualSalePrice = 'Cena sprzedaży musi być większa od 0';
+      if (!walletId) errs.walletId = 'Wybierz portfel';
+    }
+    return errs;
+  };
+
+  const clearError = (field: string) => {
+    setErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const validationErrors = validate();
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
     setLoading(true);
 
     try {
@@ -192,18 +233,19 @@ export function SellAssetModal({ isOpen, onClose, asset, wallets }: SellAssetMod
                         max={asset.quantity}
                         required
                         value={quantity}
-                        onChange={(e) => setQuantity(e.target.value)}
-                        className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all pr-16"
+                        onChange={(e) => { setQuantity(e.target.value); clearError('quantity'); }}
+                        className={`w-full bg-input border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all pr-16 ${errors.quantity ? 'border-destructive' : 'border-border'}`}
                         placeholder="0.00"
                       />
                       <button
                         type="button"
-                        onClick={() => setQuantity(asset.quantity.toString())}
+                        onClick={() => { setQuantity(asset.quantity.toString()); clearError('quantity'); }}
                         className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-primary hover:text-primary/80 font-medium"
                       >
                         MAX
                       </button>
                     </div>
+                    {errors.quantity && <p className="text-xs text-destructive mt-1">{errors.quantity}</p>}
                   </div>
                 </>
               ) : (
@@ -216,10 +258,11 @@ export function SellAssetModal({ isOpen, onClose, asset, wallets }: SellAssetMod
                         type="text"
                         required
                         value={manualName}
-                        onChange={(e) => setManualName(e.target.value)}
-                        className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
+                        onChange={(e) => { setManualName(e.target.value); clearError('manualName'); }}
+                        className={`w-full bg-input border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all ${errors.manualName ? 'border-destructive' : 'border-border'}`}
                         placeholder="Bitcoin"
                       />
+                      {errors.manualName && <p className="text-xs text-destructive mt-1">{errors.manualName}</p>}
                     </div>
                     <div>
                       <label className="block text-sm text-muted-foreground mb-2">Symbol</label>
@@ -227,10 +270,11 @@ export function SellAssetModal({ isOpen, onClose, asset, wallets }: SellAssetMod
                         type="text"
                         required
                         value={manualSymbol}
-                        onChange={(e) => setManualSymbol(e.target.value)}
-                        className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
+                        onChange={(e) => { setManualSymbol(e.target.value); clearError('manualSymbol'); }}
+                        className={`w-full bg-input border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all ${errors.manualSymbol ? 'border-destructive' : 'border-border'}`}
                         placeholder="BTC"
                       />
+                      {errors.manualSymbol && <p className="text-xs text-destructive mt-1">{errors.manualSymbol}</p>}
                     </div>
                   </div>
 
@@ -241,10 +285,11 @@ export function SellAssetModal({ isOpen, onClose, asset, wallets }: SellAssetMod
                       step="any"
                       required
                       value={manualQty}
-                      onChange={(e) => setManualQty(e.target.value)}
-                      className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
+                      onChange={(e) => { setManualQty(e.target.value); clearError('manualQty'); }}
+                      className={`w-full bg-input border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all ${errors.manualQty ? 'border-destructive' : 'border-border'}`}
                       placeholder="0.00"
                     />
+                    {errors.manualQty && <p className="text-xs text-destructive mt-1">{errors.manualQty}</p>}
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
@@ -255,10 +300,11 @@ export function SellAssetModal({ isOpen, onClose, asset, wallets }: SellAssetMod
                         step="any"
                         required
                         value={manualSalePrice}
-                        onChange={(e) => setManualSalePrice(e.target.value)}
-                        className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
+                        onChange={(e) => { setManualSalePrice(e.target.value); clearError('manualSalePrice'); }}
+                        className={`w-full bg-input border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all ${errors.manualSalePrice ? 'border-destructive' : 'border-border'}`}
                         placeholder="0.00"
                       />
+                      {errors.manualSalePrice && <p className="text-xs text-destructive mt-1">{errors.manualSalePrice}</p>}
                     </div>
                     <div>
                       <label className="block text-sm text-muted-foreground mb-2">Cena zakupu (PLN)</label>
@@ -298,8 +344,8 @@ export function SellAssetModal({ isOpen, onClose, asset, wallets }: SellAssetMod
                   <select
                     required
                     value={walletId}
-                    onChange={(e) => setWalletId(e.target.value)}
-                    className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
+                    onChange={(e) => { setWalletId(e.target.value); clearError('walletId'); }}
+                    className={`w-full bg-input border rounded-lg px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring transition-all ${errors.walletId ? 'border-destructive' : 'border-border'}`}
                   >
                     <option value="">Wybierz portfel...</option>
                     {wallets.map((w) => (
@@ -307,6 +353,7 @@ export function SellAssetModal({ isOpen, onClose, asset, wallets }: SellAssetMod
                     ))}
                   </select>
                 )}
+                {errors.walletId && <p className="text-xs text-destructive mt-1">{errors.walletId}</p>}
               </div>
 
               {/* Live kalkulacja */}

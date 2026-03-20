@@ -30,6 +30,16 @@ export function ClientModal({ isOpen, onClose, editingClient }: ClientModalProps
   const [city, setCity] = useState('');
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const validate = (): Record<string, string> => {
+    const errs: Record<string, string> = {};
+    if (!name.trim()) errs.name = 'Nazwa / imię i nazwisko jest wymagane';
+    if (email.trim() && !email.includes('@')) errs.email = 'Podaj poprawny adres email';
+    if (nip.trim() && !/^\d{10}$/.test(nip.trim())) errs.nip = 'NIP musi składać się z 10 cyfr';
+    if (postalCode.trim() && !/^\d{2}-\d{3}$/.test(postalCode.trim())) errs.postalCode = 'Kod pocztowy w formacie XX-XXX';
+    return errs;
+  };
 
   useEffect(() => {
     if (editingClient) {
@@ -53,11 +63,16 @@ export function ClientModal({ isOpen, onClose, editingClient }: ClientModalProps
       setCity('');
       setNotes('');
     }
+    setErrors({});
   }, [editingClient, isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    const validationErrors = validate();
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
     setLoading(true);
 
     try {
@@ -112,13 +127,15 @@ export function ClientModal({ isOpen, onClose, editingClient }: ClientModalProps
             <form onSubmit={handleSubmit} className="p-4 space-y-4">
               <div>
                 <label className={labelClass}>Nazwa / Imie i nazwisko *</label>
-                <input type="text" value={name} onChange={e => setName(e.target.value)} className={inputClass} placeholder="Jan Kowalski / Firma XYZ" required />
+                <input type="text" value={name} onChange={e => { setName(e.target.value); if (errors.name) setErrors(prev => { const {name: _, ...rest} = prev; return rest; }); }} className={`${inputClass}${errors.name ? ' border-destructive' : ''}`} placeholder="Jan Kowalski / Firma XYZ" />
+                {errors.name && <p className="text-xs text-destructive mt-1">{errors.name}</p>}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={labelClass}>Email</label>
-                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} className={inputClass} placeholder="email@firma.pl" />
+                  <input type="email" value={email} onChange={e => { setEmail(e.target.value); if (errors.email) setErrors(prev => { const {email: _, ...rest} = prev; return rest; }); }} className={`${inputClass}${errors.email ? ' border-destructive' : ''}`} placeholder="email@firma.pl" />
+                  {errors.email && <p className="text-xs text-destructive mt-1">{errors.email}</p>}
                 </div>
                 <div>
                   <label className={labelClass}>Telefon</label>
@@ -129,7 +146,8 @@ export function ClientModal({ isOpen, onClose, editingClient }: ClientModalProps
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={labelClass}>NIP</label>
-                  <input type="text" value={nip} onChange={e => setNip(e.target.value)} className={inputClass} placeholder="1234567890" />
+                  <input type="text" value={nip} onChange={e => { setNip(e.target.value); if (errors.nip) setErrors(prev => { const {nip: _, ...rest} = prev; return rest; }); }} className={`${inputClass}${errors.nip ? ' border-destructive' : ''}`} placeholder="1234567890" />
+                  {errors.nip && <p className="text-xs text-destructive mt-1">{errors.nip}</p>}
                 </div>
                 <div>
                   <label className={labelClass}>Nazwa firmy</label>
@@ -144,7 +162,8 @@ export function ClientModal({ isOpen, onClose, editingClient }: ClientModalProps
                 </div>
                 <div>
                   <label className={labelClass}>Kod pocztowy</label>
-                  <input type="text" value={postalCode} onChange={e => setPostalCode(e.target.value)} className={inputClass} placeholder="00-000" />
+                  <input type="text" value={postalCode} onChange={e => { setPostalCode(e.target.value); if (errors.postalCode) setErrors(prev => { const {postalCode: _, ...rest} = prev; return rest; }); }} className={`${inputClass}${errors.postalCode ? ' border-destructive' : ''}`} placeholder="00-000" />
+                  {errors.postalCode && <p className="text-xs text-destructive mt-1">{errors.postalCode}</p>}
                 </div>
                 <div>
                   <label className={labelClass}>Miasto</label>
@@ -159,7 +178,7 @@ export function ClientModal({ isOpen, onClose, editingClient }: ClientModalProps
 
               <button
                 type="submit"
-                disabled={loading || !name.trim()}
+                disabled={loading}
                 className="w-full py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground font-medium rounded-lg transition-colors disabled:opacity-50"
               >
                 {loading ? 'Zapisywanie...' : editingClient ? 'Zapisz zmiany' : 'Dodaj klienta'}
