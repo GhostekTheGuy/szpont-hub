@@ -3,7 +3,16 @@
 import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { useFinanceStore, type CalendarEvent } from '@/hooks/useFinanceStore';
-import { addCalendarEvent, editCalendarEvent, deleteCalendarEvent, editRecurringInstance, deleteRecurringInstance } from '@/app/actions';
+import {
+  addCalendarEvent,
+  editCalendarEvent,
+  deleteCalendarEvent,
+  editRecurringInstance,
+  deleteRecurringInstance,
+  deleteRecurringFromDate,
+  deleteAllRecurring,
+  getRecurringSettledInfo,
+} from '@/app/actions';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '@/components/Toast';
 import { format } from 'date-fns';
@@ -16,8 +25,16 @@ interface CalendarEventModalProps {
   prefillHour?: number | null;
 }
 
+type RecurringDeleteMode = 'this' | 'this_and_future' | 'all';
+
 function timeToString(h: number, m: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+function extractParentId(instanceId: string): string {
+  const match = instanceId.match(/_(\d{4}-\d{2}-\d{2})$/);
+  if (!match) return instanceId;
+  return instanceId.slice(0, match.index!);
 }
 
 export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate, prefillHour }: CalendarEventModalProps) {
@@ -36,6 +53,7 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
   const [recurrenceRule, setRecurrenceRule] = useState<string | null>(null);
   const [orderId, setOrderId] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showDeleteOptions, setShowDeleteOptions] = useState(false);
 
   const isGoogleEvent = !!editingEvent?.google_event_id;
   const isRecurringInstance = !!(editingEvent && /_\d{4}-\d{2}-\d{2}$/.test(editingEvent.id));
@@ -76,6 +94,7 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
       setRecurrenceRule(null);
       setOrderId('');
     }
+    setShowDeleteOptions(false);
   }, [editingEvent, isOpen, wallets, prefillDate, prefillHour]);
 
   const timeInvalid = startTime === endTime;
@@ -106,7 +125,6 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
     try {
       if (editingEvent) {
         if (isRecurringInstance) {
-          // Instancja cykliczna — edytuj tylko tę instancję (materializuje jeśli trzeba)
           await editRecurringInstance(editingEvent.id, {
             title: eventData.title,
             wallet_id: eventData.wallet_id,
@@ -128,7 +146,7 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
     }
   };
 
-  const handleDelete = async () => {
+  const handleDeleteRegular = async () => {
     if (!editingEvent) return;
 
     let reverseTransaction = false;
@@ -142,7 +160,6 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
         cancelLabel: 'Nie',
       });
       reverseTransaction = choice;
-      // Confirm deletion regardless
       if (!await confirm({ title: 'Usunąć wydarzenie?', variant: 'danger', confirmLabel: 'Usuń' })) return;
     } else {
       if (!await confirm({ title: 'Usunąć wydarzenie?', variant: 'danger', confirmLabel: 'Usuń' })) return;
@@ -150,16 +167,97 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
 
     setLoading(true);
     try {
-      if (isRecurringInstance) {
-        await deleteRecurringInstance(editingEvent.id);
-      } else {
-        await deleteCalendarEvent(editingEvent.id, reverseTransaction);
-      }
+      await deleteCalendarEvent(editingEvent.id, reverseTransaction);
       onClose(true);
     } catch (error) {
       console.error(error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteRecurring = async (mode: RecurringDeleteMode) => {
+    if (!editingEvent) return;
+    setShowDeleteOptions(false);
+    setLoading(true);
+
+    try {
+      if (mode === 'this') {
+        // Single instance — check if settled
+        if (editingEvent.is_settled && editingEvent.event_type !== 'personal') {
+          const choice = await confirm({
+            title: 'Wydarzenie rozliczone',
+            description: 'To wydarzenie zostało już rozliczone. Czy chcesz również odjąć przydzieloną kwotę z portfela?',
+            variant: 'danger',
+            confirmLabel: 'Tak, odjąć kwotę',
+            cancelLabel: 'Nie, zostaw transakcję',
+          });
+          if (choice) {
+            await deleteCalendarEvent(editingEvent.id, true);
+          } else {
+            await deleteRecurringInstance(editingEvent.id);
+          }
+        } else {
+          await deleteRecurringInstance(editingEvent.id);
+        }
+        onClose(true);
+      } else if (mode === 'this_and_future') {
+        if (!await confirm({
+          title: 'Usunąć to i przyszłe wydarzenia?',
+          description: 'Wszystkie przyszłe wystąpienia tego cyklicznego wydarzenia zostaną usunięte.',
+          variant: 'danger',
+          confirmLabel: 'Usuń',
+        })) {
+          setLoading(false);
+          return;
+        }
+        await deleteRecurringFromDate(editingEvent.id);
+        onClose(true);
+      } else if (mode === 'all') {
+        const parentId = extractParentId(editingEvent.id);
+
+        // Check for settled instances
+        const settledInfo = await getRecurringSettledInfo(parentId);
+
+        if (settledInfo.count > 0) {
+          const reverseChoice = await confirm({
+            title: 'Rozliczone wydarzenia',
+            description: `${settledInfo.count} wydarzeń zostało rozliczonych (łącznie ${settledInfo.totalAmount.toFixed(2)} PLN). Czy chcesz cofnąć transakcje z portfela?`,
+            variant: 'danger',
+            confirmLabel: 'Usuń i cofnij transakcje',
+            cancelLabel: 'Usuń, zostaw transakcje',
+          });
+
+          await deleteAllRecurring(parentId, reverseChoice);
+        } else {
+          if (!await confirm({
+            title: 'Usunąć wszystkie wydarzenia?',
+            description: 'Wszystkie wystąpienia tego cyklicznego wydarzenia zostaną trwale usunięte.',
+            variant: 'danger',
+            confirmLabel: 'Usuń wszystkie',
+          })) {
+            setLoading(false);
+            return;
+          }
+          await deleteAllRecurring(parentId, false);
+        }
+        onClose(true);
+      }
+    } catch (error) {
+      console.error(error);
+      toast('Wystąpił błąd usuwania', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = () => {
+    if (!editingEvent) return;
+
+    if (isRecurringInstance) {
+      setShowDeleteOptions(true);
+    } else {
+      handleDeleteRegular();
     }
   };
 
@@ -198,6 +296,53 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
                 <X className="w-5 h-5" />
               </button>
             </div>
+
+            {/* Recurring delete options overlay */}
+            <AnimatePresence>
+              {showDeleteOptions && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 10 }}
+                  transition={{ duration: 0.15 }}
+                  className="mb-6 p-4 bg-destructive/5 border border-destructive/20 rounded-xl space-y-2"
+                >
+                  <p className="text-sm font-medium text-card-foreground mb-3">Jak chcesz usunąć to wydarzenie?</p>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteRecurring('this')}
+                    disabled={loading}
+                    className="w-full text-left px-3 py-2.5 text-sm rounded-lg hover:bg-destructive/10 text-foreground transition-colors disabled:opacity-50"
+                  >
+                    Tylko to wydarzenie
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteRecurring('this_and_future')}
+                    disabled={loading}
+                    className="w-full text-left px-3 py-2.5 text-sm rounded-lg hover:bg-destructive/10 text-foreground transition-colors disabled:opacity-50"
+                  >
+                    To i przyszłe wydarzenia
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteRecurring('all')}
+                    disabled={loading}
+                    className="w-full text-left px-3 py-2.5 text-sm rounded-lg hover:bg-destructive/10 text-foreground transition-colors disabled:opacity-50"
+                  >
+                    Wszystkie wydarzenia
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowDeleteOptions(false)}
+                    disabled={loading}
+                    className="w-full text-center px-3 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                  >
+                    Anuluj
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* Event type toggle */}

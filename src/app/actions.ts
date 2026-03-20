@@ -1593,6 +1593,140 @@ export async function deleteRecurringInstance(instanceId: string) {
   revalidatePath('/', 'layout');
 }
 
+/**
+ * Delete a recurring instance and all future instances from a given date.
+ * Stops recurrence by deleting the parent event and keeping only past materialized instances.
+ */
+export async function deleteRecurringFromDate(instanceId: string) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  const parsed = parseInstanceId(instanceId);
+  if (!parsed) throw new Error('Invalid instance ID');
+  const { parentId, dateStr } = parsed;
+
+  // Verify parent belongs to user
+  const { data: parent } = await supabaseAdmin
+    .from('calendar_events')
+    .select('id, user_id')
+    .eq('id', parentId)
+    .eq('user_id', userId)
+    .single();
+
+  if (!parent) return;
+
+  // Delete all materialized instances from this date onwards (including EXCLUDED markers)
+  await supabaseAdmin
+    .from('calendar_events')
+    .delete()
+    .like('id', `${parentId}_%`)
+    .eq('user_id', userId)
+    .gte('start_time', `${dateStr}T00:00:00Z`);
+
+  // Delete the parent (stops all future expansion)
+  await supabaseAdmin
+    .from('calendar_events')
+    .delete()
+    .eq('id', parentId)
+    .eq('user_id', userId);
+
+  revalidatePath('/calendar', 'page');
+}
+
+/**
+ * Get info about settled instances for a recurring parent event.
+ * Used to show the user how many events are settled before deleting all.
+ */
+export async function getRecurringSettledInfo(parentId: string): Promise<{ count: number; totalAmount: number }> {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  const { data: instances } = await supabaseAdmin
+    .from('calendar_events')
+    .select('hourly_rate, start_time, end_time')
+    .like('id', `${parentId}_%`)
+    .eq('user_id', userId)
+    .eq('is_settled', true)
+    .neq('recurrence_rule', 'EXCLUDED');
+
+  if (!instances || instances.length === 0) return { count: 0, totalAmount: 0 };
+
+  const dek = await getDEK();
+  let totalAmount = 0;
+  for (const inst of instances) {
+    const rate = decryptNumber(inst.hourly_rate, dek);
+    const start = new Date(inst.start_time);
+    const end = new Date(inst.end_time);
+    const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+    totalAmount += hours * rate;
+  }
+
+  return { count: instances.length, totalAmount: Math.round(totalAmount * 100) / 100 };
+}
+
+/**
+ * Delete all instances of a recurring event (parent + all materialized instances).
+ * Optionally reverses transactions for settled instances.
+ */
+export async function deleteAllRecurring(parentId: string, reverseTransactions: boolean) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  // Verify parent belongs to user
+  const { data: parent } = await supabaseAdmin
+    .from('calendar_events')
+    .select('id, user_id')
+    .eq('id', parentId)
+    .eq('user_id', userId)
+    .single();
+
+  if (!parent) return;
+
+  if (reverseTransactions) {
+    // Find all settled materialized instances
+    const { data: settledInstances } = await supabaseAdmin
+      .from('calendar_events')
+      .select('*')
+      .like('id', `${parentId}_%`)
+      .eq('user_id', userId)
+      .eq('is_settled', true)
+      .neq('recurrence_rule', 'EXCLUDED');
+
+    if (settledInstances && settledInstances.length > 0) {
+      const dek = await getDEK();
+
+      for (const inst of settledInstances) {
+        if (inst.wallet_id) {
+          await reverseSettledEvent({
+            wallet_id: inst.wallet_id,
+            hourly_rate: inst.hourly_rate,
+            start_time: inst.start_time,
+            end_time: inst.end_time,
+            title: inst.title,
+          });
+        }
+      }
+    }
+  }
+
+  // Delete all materialized instances (including EXCLUDED markers)
+  await supabaseAdmin
+    .from('calendar_events')
+    .delete()
+    .like('id', `${parentId}_%`)
+    .eq('user_id', userId);
+
+  // Delete the parent event
+  await supabaseAdmin
+    .from('calendar_events')
+    .delete()
+    .eq('id', parentId)
+    .eq('user_id', userId);
+
+  revalidatePath('/calendar', 'page');
+  revalidatePath('/wallets', 'page');
+}
+
 export async function toggleEventConfirmed(id: string, confirmed: boolean, reverseTransaction = false) {
   const userId = await getUserId();
   if (!userId) throw new Error('Unauthorized');
