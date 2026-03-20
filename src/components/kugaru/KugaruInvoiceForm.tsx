@@ -313,8 +313,9 @@ export function KugaruInvoiceForm() {
       } else {
         toast(result.error || 'Błąd wysyłania faktury', 'error');
       }
-    } catch {
-      toast('Nie udało się wysłać formularza', 'error');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Nieznany błąd';
+      toast(`Nie udało się wysłać formularza: ${message}`, 'error');
     } finally {
       setLoading(false);
     }
