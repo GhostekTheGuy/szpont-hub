@@ -4506,6 +4506,7 @@ export async function submitKugaruInvoice(data: {
       citizenship: data.citizenship,
       rightsTransfer: rightsMap[data.rightsTransfer] || data.rightsTransfer,
       currency: data.currency,
+      amountType: data.amountType,
       settlementType: settlementMap[data.contractType] || data.contractType,
       isStudent: data.isStudent,
       clientType: data.clientType === 'firma' ? 'firma' : 'osoba',
