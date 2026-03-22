@@ -36,7 +36,8 @@
       "Bash(openssl rand:*)",
       "Bash(git reset:*)",
       "Bash(git checkout:*)",
-      "Bash(python3 -m json.tool)"
+      "Bash(python3 -m json.tool)",
+      "Bash(npx vercel:*)"
     ]
   }
 }
