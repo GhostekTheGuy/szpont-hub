@@ -22,14 +22,18 @@ import {
   CURRENCY_OPTIONS,
 } from '@/lib/kugaru';
 
-const inputClass =
-  'w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all';
+const baseInputClass =
+  'w-full bg-input border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all';
+const inputClass = `${baseInputClass} border-border`;
+const inputErrorClass = `${baseInputClass} border-destructive`;
 
-const selectClass =
-  'w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring transition-all appearance-none';
+const baseSelectClass =
+  'w-full bg-input border rounded-lg px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring transition-all appearance-none';
+const selectClass = `${baseSelectClass} border-border`;
 
 const labelClass = 'block text-sm font-medium text-foreground mb-1.5';
 const hintClass = 'text-xs text-muted-foreground mt-1';
+const errorClass = 'text-xs text-destructive mt-1';
 const sectionClass = 'space-y-4';
 const sectionTitleClass = 'text-lg font-bold text-foreground';
 
@@ -191,6 +195,47 @@ export function KugaruInvoiceForm() {
   const [akceptujeRegulamin, setAkceptujeRegulamin] = useState(false);
 
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const validateStep = useCallback((s: number): Record<string, string> => {
+    const errs: Record<string, string> = {};
+
+    if (s === 1) {
+      if (!imieNazwisko.trim()) errs.imieNazwisko = 'Imię i nazwisko jest wymagane';
+      if (!email.trim()) errs.email = 'Email jest wymagany';
+      else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errs.email = 'Nieprawidłowy format email';
+      if (!pesel.trim()) errs.pesel = 'PESEL jest wymagany';
+      else if (!/^\d{11}$/.test(pesel)) errs.pesel = 'PESEL musi mieć 11 cyfr';
+      if (!obywatelstwo.trim()) errs.obywatelstwo = 'Obywatelstwo jest wymagane';
+    }
+
+    if (s === 2) {
+      const hasValidItem = pozycje.some(p => p.nazwa.trim() && p.cenaNetto > 0);
+      if (!hasValidItem) errs.pozycje = 'Dodaj co najmniej jedną pozycję z nazwą i ceną większą od 0';
+    }
+
+    if (s === 3) {
+      if (typKlienta === 'firma' && !nip.trim()) errs.nip = 'NIP jest wymagany';
+      if (!nazwaFirmy.trim()) errs.nazwaFirmy = typKlienta === 'firma' ? 'Nazwa firmy jest wymagana' : 'Imię i nazwisko jest wymagane';
+      if (!ulica.trim()) errs.ulica = 'Ulica jest wymagana';
+      if (!kodPocztowy.trim()) errs.kodPocztowy = 'Kod pocztowy jest wymagany';
+      if (!miasto.trim()) errs.miasto = 'Miasto jest wymagane';
+      if (!emailZleceniodawcy.trim()) errs.emailZleceniodawcy = 'Email zleceniodawcy jest wymagany';
+      else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailZleceniodawcy)) errs.emailZleceniodawcy = 'Nieprawidłowy format email';
+      if (emailZleceniodawcy.trim() && email.trim() && emailZleceniodawcy.trim().toLowerCase() === email.trim().toLowerCase()) {
+        errs.emailZleceniodawcy = 'Email zleceniodawcy musi być inny niż Twój email';
+      }
+    }
+
+    if (s === 4) {
+      if (!opisDziela.trim()) errs.opisDziela = 'Opis dzieła jest wymagany';
+      if (terminPlatnosci === 'custom' && !customTermin.trim()) errs.customTermin = 'Podaj termin płatności';
+      if (!brakPostepowan) errs.brakPostepowan = 'Musisz potwierdzić brak postępowań';
+      if (!akceptujeRegulamin) errs.akceptujeRegulamin = 'Musisz zaakceptować regulamin';
+    }
+
+    return errs;
+  }, [imieNazwisko, email, pesel, obywatelstwo, pozycje, typKlienta, nip, nazwaFirmy, ulica, kodPocztowy, miasto, emailZleceniodawcy, opisDziela, terminPlatnosci, customTermin, brakPostepowan, akceptujeRegulamin]);
 
   // Fetch clients on mount
   useEffect(() => {
@@ -274,12 +319,9 @@ export function KugaruInvoiceForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!brakPostepowan) {
-      toast('Musisz potwierdzić brak postępowań', 'error');
-      return;
-    }
-    if (!akceptujeRegulamin) {
-      toast('Musisz zaakceptować regulamin', 'error');
+    const stepErrors = validateStep(4);
+    if (Object.keys(stepErrors).length > 0) {
+      setErrors(stepErrors);
       return;
     }
 
@@ -338,8 +380,19 @@ export function KugaruInvoiceForm() {
   };
 
 
-  const goNext = () => setStep((s) => Math.min(s + 1, 4));
-  const goPrev = () => setStep((s) => Math.max(s - 1, 1));
+  const goNext = () => {
+    const stepErrors = validateStep(step);
+    if (Object.keys(stepErrors).length > 0) {
+      setErrors(stepErrors);
+      return;
+    }
+    setErrors({});
+    setStep((s) => Math.min(s + 1, 4));
+  };
+  const goPrev = () => {
+    setErrors({});
+    setStep((s) => Math.max(s - 1, 1));
+  };
 
   return (
     <motion.div
@@ -456,10 +509,11 @@ export function KugaruInvoiceForm() {
                       <input
                         type="text"
                         value={imieNazwisko}
-                        onChange={(e) => setImieNazwisko(e.target.value)}
-                        className={inputClass}
+                        onChange={(e) => { setImieNazwisko(e.target.value); if (errors.imieNazwisko) setErrors(prev => { const {imieNazwisko: _, ...rest} = prev; return rest; }); }}
+                        className={errors.imieNazwisko ? inputErrorClass : inputClass}
                         placeholder="Jan Kowalski"
                       />
+                      {errors.imieNazwisko && <p className={errorClass}>{errors.imieNazwisko}</p>}
                     </div>
                     <div>
                       <label className={labelClass}>
@@ -468,10 +522,11 @@ export function KugaruInvoiceForm() {
                       <input
                         type="email"
                         value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className={inputClass}
+                        onChange={(e) => { setEmail(e.target.value); if (errors.email) setErrors(prev => { const {email: _, ...rest} = prev; return rest; }); }}
+                        className={errors.email ? inputErrorClass : inputClass}
                         placeholder="jan@example.com"
                       />
+                      {errors.email && <p className={errorClass}>{errors.email}</p>}
                     </div>
                   </div>
                   <div className="md:w-1/2">
@@ -492,11 +547,12 @@ export function KugaruInvoiceForm() {
                       <input
                         type="text"
                         value={pesel}
-                        onChange={(e) => setPesel(e.target.value)}
-                        className={inputClass}
+                        onChange={(e) => { setPesel(e.target.value); if (errors.pesel) setErrors(prev => { const {pesel: _, ...rest} = prev; return rest; }); }}
+                        className={errors.pesel ? inputErrorClass : inputClass}
                         placeholder="00000000000"
                         maxLength={11}
                       />
+                      {errors.pesel && <p className={errorClass}>{errors.pesel}</p>}
                     </div>
                     <div>
                       <label className={labelClass}>
@@ -505,10 +561,11 @@ export function KugaruInvoiceForm() {
                       <input
                         type="text"
                         value={obywatelstwo}
-                        onChange={(e) => setObywatelstwo(e.target.value)}
-                        className={inputClass}
+                        onChange={(e) => { setObywatelstwo(e.target.value); if (errors.obywatelstwo) setErrors(prev => { const {obywatelstwo: _, ...rest} = prev; return rest; }); }}
+                        className={errors.obywatelstwo ? inputErrorClass : inputClass}
                         placeholder="polskie"
                       />
+                      {errors.obywatelstwo && <p className={errorClass}>{errors.obywatelstwo}</p>}
                     </div>
                   </div>
                 </section>
@@ -530,7 +587,8 @@ export function KugaruInvoiceForm() {
                 {/* Pozycje na fakturze */}
                 <section className={sectionClass}>
                   <h2 className={sectionTitleClass}>Pozycje na fakturze</h2>
-                  <InvoiceItemsTable items={pozycje} onChange={setPozycje} />
+                  <InvoiceItemsTable items={pozycje} onChange={(items) => { setPozycje(items); if (errors.pozycje) setErrors(prev => { const {pozycje: _, ...rest} = prev; return rest; }); }} />
+                  {errors.pozycje && <p className={errorClass}>{errors.pozycje}</p>}
                 </section>
 
                 {/* Prawa autorskie & Wartość */}
@@ -699,10 +757,11 @@ export function KugaruInvoiceForm() {
                       <input
                         type="text"
                         value={nip}
-                        onChange={(e) => setNip(e.target.value)}
-                        className={inputClass}
+                        onChange={(e) => { setNip(e.target.value); if (errors.nip) setErrors(prev => { const {nip: _, ...rest} = prev; return rest; }); }}
+                        className={errors.nip ? inputErrorClass : inputClass}
                         placeholder="Wpisz NIP firmy"
                       />
+                      {errors.nip && <p className={errorClass}>{errors.nip}</p>}
                     </div>
                   )}
 
@@ -714,9 +773,10 @@ export function KugaruInvoiceForm() {
                     <input
                       type="text"
                       value={nazwaFirmy}
-                      onChange={(e) => setNazwaFirmy(e.target.value)}
-                      className={inputClass}
+                      onChange={(e) => { setNazwaFirmy(e.target.value); if (errors.nazwaFirmy) setErrors(prev => { const {nazwaFirmy: _, ...rest} = prev; return rest; }); }}
+                      className={errors.nazwaFirmy ? inputErrorClass : inputClass}
                     />
+                    {errors.nazwaFirmy && <p className={errorClass}>{errors.nazwaFirmy}</p>}
                   </div>
 
                   <div>
@@ -726,10 +786,11 @@ export function KugaruInvoiceForm() {
                     <input
                       type="text"
                       value={ulica}
-                      onChange={(e) => setUlica(e.target.value)}
-                      className={inputClass}
+                      onChange={(e) => { setUlica(e.target.value); if (errors.ulica) setErrors(prev => { const {ulica: _, ...rest} = prev; return rest; }); }}
+                      className={errors.ulica ? inputErrorClass : inputClass}
                       placeholder={typKlienta === 'firma' ? 'Automatycznie pobierane po NIP' : ''}
                     />
+                    {errors.ulica && <p className={errorClass}>{errors.ulica}</p>}
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -740,10 +801,11 @@ export function KugaruInvoiceForm() {
                       <input
                         type="text"
                         value={kodPocztowy}
-                        onChange={(e) => setKodPocztowy(e.target.value)}
-                        className={inputClass}
+                        onChange={(e) => { setKodPocztowy(e.target.value); if (errors.kodPocztowy) setErrors(prev => { const {kodPocztowy: _, ...rest} = prev; return rest; }); }}
+                        className={errors.kodPocztowy ? inputErrorClass : inputClass}
                         placeholder={typKlienta === 'firma' ? 'Automatycznie pobierane po NIP' : ''}
                       />
+                      {errors.kodPocztowy && <p className={errorClass}>{errors.kodPocztowy}</p>}
                     </div>
                     <div>
                       <label className={labelClass}>
@@ -752,9 +814,10 @@ export function KugaruInvoiceForm() {
                       <input
                         type="text"
                         value={miasto}
-                        onChange={(e) => setMiasto(e.target.value)}
-                        className={inputClass}
+                        onChange={(e) => { setMiasto(e.target.value); if (errors.miasto) setErrors(prev => { const {miasto: _, ...rest} = prev; return rest; }); }}
+                        className={errors.miasto ? inputErrorClass : inputClass}
                       />
+                      {errors.miasto && <p className={errorClass}>{errors.miasto}</p>}
                     </div>
                   </div>
 
@@ -765,10 +828,10 @@ export function KugaruInvoiceForm() {
                     <input
                       type="email"
                       value={emailZleceniodawcy}
-                      onChange={(e) => setEmailZleceniodawcy(e.target.value)}
-                      className={inputClass}
+                      onChange={(e) => { setEmailZleceniodawcy(e.target.value); if (errors.emailZleceniodawcy) setErrors(prev => { const {emailZleceniodawcy: _, ...rest} = prev; return rest; }); }}
+                      className={errors.emailZleceniodawcy ? inputErrorClass : inputClass}
                     />
-                    <p className={hintClass}>Musi różnić się od e-maila Zleceniobiorcy.</p>
+                    {errors.emailZleceniodawcy ? <p className={errorClass}>{errors.emailZleceniodawcy}</p> : <p className={hintClass}>Musi różnić się od e-maila Zleceniobiorcy.</p>}
                   </div>
                 </section>
               </motion.div>
@@ -808,10 +871,11 @@ export function KugaruInvoiceForm() {
                     </label>
                     <textarea
                       value={opisDziela}
-                      onChange={(e) => setOpisDziela(e.target.value)}
+                      onChange={(e) => { setOpisDziela(e.target.value); if (errors.opisDziela) setErrors(prev => { const {opisDziela: _, ...rest} = prev; return rest; }); }}
                       rows={4}
-                      className={`${inputClass} resize-y`}
+                      className={`${errors.opisDziela ? inputErrorClass : inputClass} resize-y`}
                     />
+                    {errors.opisDziela && <p className={errorClass}>{errors.opisDziela}</p>}
                   </div>
 
                   <div>
@@ -871,14 +935,17 @@ export function KugaruInvoiceForm() {
                       Wprowadź własny termin:
                     </label>
                     {terminPlatnosci === 'custom' && (
-                      <input
-                        type="number"
-                        min="1"
-                        value={customTermin}
-                        onChange={(e) => setCustomTermin(e.target.value)}
-                        className="w-24 bg-input border border-border rounded-lg px-3 py-1.5 text-foreground text-sm outline-none focus:ring-2 focus:ring-ring transition-all"
-                        placeholder="dni"
-                      />
+                      <div>
+                        <input
+                          type="number"
+                          min="1"
+                          value={customTermin}
+                          onChange={(e) => { setCustomTermin(e.target.value); if (errors.customTermin) setErrors(prev => { const {customTermin: _, ...rest} = prev; return rest; }); }}
+                          className={`w-24 bg-input border rounded-lg px-3 py-1.5 text-foreground text-sm outline-none focus:ring-2 focus:ring-ring transition-all ${errors.customTermin ? 'border-destructive' : 'border-border'}`}
+                          placeholder="dni"
+                        />
+                        {errors.customTermin && <p className={errorClass}>{errors.customTermin}</p>}
+                      </div>
                     )}
                   </div>
                 </section>
@@ -911,38 +978,44 @@ export function KugaruInvoiceForm() {
                     </span>
                   </label>
 
-                  <label className="flex items-start gap-3 text-sm text-foreground cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={brakPostepowan}
-                      onChange={(e) => setBrakPostepowan(e.target.checked)}
-                      className="accent-primary w-4 h-4 mt-0.5 shrink-0"
-                    />
-                    <div>
-                      <span>
-                        Potwierdzam, że w momencie wypełniania formularza nie toczy się wobec mnie aktywne postępowanie
-                        windykacyjne, egzekucyjne, komornicze.
-                      </span>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        W przypadku konieczności udzielenia pisemnej odpowiedzi na pisma ze strony instytucji/podmiotów
-                        zgłaszających roszczenia finansowe wobec Freelancera, Kugaru zastrzega sobie prawo do potrącenia
-                        opłaty manipulacyjnej w wysokości 120 PLN netto.
-                      </p>
-                    </div>
-                  </label>
+                  <div>
+                    <label className="flex items-start gap-3 text-sm text-foreground cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={brakPostepowan}
+                        onChange={(e) => { setBrakPostepowan(e.target.checked); if (errors.brakPostepowan) setErrors(prev => { const {brakPostepowan: _, ...rest} = prev; return rest; }); }}
+                        className="accent-primary w-4 h-4 mt-0.5 shrink-0"
+                      />
+                      <div>
+                        <span>
+                          Potwierdzam, że w momencie wypełniania formularza nie toczy się wobec mnie aktywne postępowanie
+                          windykacyjne, egzekucyjne, komornicze.
+                        </span>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          W przypadku konieczności udzielenia pisemnej odpowiedzi na pisma ze strony instytucji/podmiotów
+                          zgłaszających roszczenia finansowe wobec Freelancera, Kugaru zastrzega sobie prawo do potrącenia
+                          opłaty manipulacyjnej w wysokości 120 PLN netto.
+                        </p>
+                      </div>
+                    </label>
+                    {errors.brakPostepowan && <p className={`${errorClass} ml-7`}>{errors.brakPostepowan}</p>}
+                  </div>
 
-                  <label className="flex items-start gap-3 text-sm text-foreground cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={akceptujeRegulamin}
-                      onChange={(e) => setAkceptujeRegulamin(e.target.checked)}
-                      className="accent-primary w-4 h-4 mt-0.5 shrink-0"
-                    />
-                    <span>
-                      Akceptuję Regulamin i Politykę Prywatności Serwisu.{' '}
-                      <span className="text-destructive">*</span>
-                    </span>
-                  </label>
+                  <div>
+                    <label className="flex items-start gap-3 text-sm text-foreground cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={akceptujeRegulamin}
+                        onChange={(e) => { setAkceptujeRegulamin(e.target.checked); if (errors.akceptujeRegulamin) setErrors(prev => { const {akceptujeRegulamin: _, ...rest} = prev; return rest; }); }}
+                        className="accent-primary w-4 h-4 mt-0.5 shrink-0"
+                      />
+                      <span>
+                        Akceptuję Regulamin i Politykę Prywatności Serwisu.{' '}
+                        <span className="text-destructive">*</span>
+                      </span>
+                    </label>
+                    {errors.akceptujeRegulamin && <p className={`${errorClass} ml-7`}>{errors.akceptujeRegulamin}</p>}
+                  </div>
                 </section>
               </motion.div>
             )}
