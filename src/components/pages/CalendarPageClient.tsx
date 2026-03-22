@@ -65,6 +65,7 @@ export function CalendarPageClient({ initialEvents, initialWallets, initialOrder
   const lastSyncRef = useRef<number>(0);
   const [syncError, setSyncError] = useState<string | null>(null);
   const syncErrorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [summaryRefreshKey, setSummaryRefreshKey] = useState(0);
 
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
@@ -238,6 +239,7 @@ export function CalendarPageClient({ initialEvents, initialWallets, initialOrder
 
     try {
       await toggleEventConfirmed(event.id, confirmed, reverseTransaction);
+      setSummaryRefreshKey(k => k + 1);
     } catch {
       setCalendarEvents(snapshot);
       refreshUnsettledCount();
@@ -278,7 +280,10 @@ export function CalendarPageClient({ initialEvents, initialWallets, initialOrder
     setEditingEvent(null);
     setPrefillDate(null);
     setPrefillHour(null);
-    if (didChange) loadMonth(currentMonth);
+    if (didChange) {
+      loadMonth(currentMonth);
+      setSummaryRefreshKey(k => k + 1);
+    }
   };
 
   const handleSettle = useCallback(async () => {
@@ -303,6 +308,7 @@ export function CalendarPageClient({ initialEvents, initialWallets, initialOrder
       }
       // Refresh count in background (don't block UI)
       refreshUnsettledCount();
+      setSummaryRefreshKey(k => k + 1);
     } catch {
       // Rollback optimistic update
       setCalendarEvents(snapshot);
@@ -463,6 +469,7 @@ export function CalendarPageClient({ initialEvents, initialWallets, initialOrder
           monthEnd={monthEnd.toISOString()}
           monthLabel={format(currentMonth, 'LLLL yyyy', { locale: pl })}
           onGenerateInvoice={() => setIsInvoiceModalOpen(true)}
+          refreshKey={summaryRefreshKey}
         />
       </div>
 

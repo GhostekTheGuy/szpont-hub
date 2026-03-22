@@ -42,9 +42,10 @@ interface WorkSummaryPanelProps {
   monthEnd: string;
   monthLabel: string;
   onGenerateInvoice?: () => void;
+  refreshKey?: number;
 }
 
-export function WorkSummaryPanel({ weekStart, weekEnd, monthStart, monthEnd, monthLabel, onGenerateInvoice }: WorkSummaryPanelProps) {
+export function WorkSummaryPanel({ weekStart, weekEnd, monthStart, monthEnd, monthLabel, onGenerateInvoice, refreshKey }: WorkSummaryPanelProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [mode, setMode] = useState<SummaryMode>('week');
   const [summary, setSummary] = useState<SummaryData | null>(null);
@@ -77,7 +78,7 @@ export function WorkSummaryPanel({ weekStart, weekEnd, monthStart, monthEnd, mon
     if (!collapsed) {
       loadSummary(mode);
     }
-  }, [collapsed, weekStart, weekEnd, monthStart, monthEnd]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [collapsed, weekStart, weekEnd, monthStart, monthEnd, refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const switchMode = (m: SummaryMode) => {
     setMode(m);
