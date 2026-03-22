@@ -4,6 +4,7 @@ Kompleksowa aplikacja do zarządzania finansami osobistymi, pracy i inwestycji z
 
 ## Technologie
 
+
 - **Next.js 14** (App Router, Server Actions)
 - **TypeScript** (strict mode)
 - **Supabase** (PostgreSQL, Auth)
