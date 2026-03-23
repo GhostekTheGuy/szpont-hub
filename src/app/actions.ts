@@ -328,103 +328,34 @@ export async function getWalletChartData(
   const wallet = wallets.find(w => w.id === walletId);
   if (!wallet) return null;
 
-  // Odfiltruj transakcje z kategorii "Praca" (settle/cofnięcia) — zastąpimy je dziennymi zarobkami z kalendarza
-  // Odfiltruj transakcje zakupu/sprzedaży aktywów — to konwersja cash↔aktywo, nie zmiana wartości portfela
-  const nonWorkTransactions = transactions.filter(t => t.wallet === walletId && t.category !== 'Praca' && t.category !== 'Zakup aktywa' && t.category !== 'Sprzedaż aktywa');
+  // Uwzględnij WSZYSTKIE transakcje dla tego portfela — saldo = initial_balance + sum(transactions)
+  const walletTransactions = transactions.filter(t => t.wallet === walletId);
 
-  const dek = await getDEK();
+  const currentRates = await getExchangeRates();
 
-  // Pobierz potwierdzone wydarzenia z kalendarza dla tego portfela
-  const { data: calendarEvents } = await supabaseAdmin
-    .from('calendar_events')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('wallet_id', walletId)
-    .eq('is_confirmed', true)
-    .neq('event_type', 'personal');
-
-  // Oblicz dzienne zarobki z rozliczonych wydarzeń kalendarza
-  const dailyEarnings = new Map<string, number>();
-  for (const ev of calendarEvents || []) {
-    if (!ev.is_settled) continue;
-    const eventDate = ev.start_time.split('T')[0];
-    const hourlyRate = decryptNumber(ev.hourly_rate, dek);
-    const start = new Date(ev.start_time);
-    const end = new Date(ev.end_time);
-    const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-    const earnings = hours * hourlyRate;
-    dailyEarnings.set(eventDate, (dailyEarnings.get(eventDate) || 0) + earnings);
-  }
-
-  const [historicalRates, currentRates] = await Promise.all([
-    getHistoricalRates(startStr, endStr),
-    getExchangeRates(),
-  ]);
-
-  // Pobierz aktywa przypisane do tego portfela
-  const { data: walletAssets } = await supabaseAdmin
-    .from('assets')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('wallet_id', walletId);
-
-  const decryptedWalletAssets = (walletAssets || []).map(a => ({
-    total_value: decryptNumber(a.total_value, dek),
-    cost_basis: a.cost_basis ? decryptNumber(a.cost_basis, dek) : 0,
-    quantity: decryptNumber(a.quantity, dek),
-    created_at: (a.created_at || new Date().toISOString()) as string,
-  }));
-
-  // Wartość portfela = saldo gotówkowe + wartość przypisanych aktywów
-  const assignedAssetsValue = decryptedWalletAssets.reduce((sum, a) => sum + a.total_value, 0);
-  const realBalance = convertAmount(wallet.balance + assignedAssetsValue, 'PLN', displayCurrency, currentRates);
+  const currentBalance = convertAmount(wallet.balance, 'PLN', displayCurrency, currentRates);
 
   // Normalizuj kwoty transakcji
   function getSignedAmount(t: { amount: number; type: string; currency: Currency }) {
     const converted = convertAmount(t.amount, t.currency || 'PLN', displayCurrency, currentRates);
-    if (t.type === 'expense' && converted > 0) return -converted;
+    if ((t.type as string) === 'expense' && converted > 0) return -converted;
     return converted;
   }
 
-  // Prekomputacja: grupuj delty po dacie (O(n) zamiast O(days×n))
+  // Prekomputacja: grupuj delty po dacie
   const txByDate = new Map<string, number>();
-  for (const t of nonWorkTransactions) {
+  for (const t of walletTransactions) {
     const d = t.date.slice(0, 10);
     txByDate.set(d, (txByDate.get(d) || 0) + getSignedAmount(t));
   }
 
-  const calByDate = new Map<string, number>();
-  for (const [evDate, earnings] of Array.from(dailyEarnings.entries())) {
-    calByDate.set(evDate, convertAmount(earnings, 'PLN', displayCurrency, currentRates));
-  }
-
-  const assetAdjByDate = new Map<string, number>();
-  for (const asset of decryptedWalletAssets) {
-    if (asset.cost_basis > 0) {
-      const purchaseDate = asset.created_at.slice(0, 10);
-      const unrealizedPL = asset.total_value - (asset.cost_basis * asset.quantity);
-      const adj = convertAmount(unrealizedPL, 'PLN', displayCurrency, currentRates);
-      assetAdjByDate.set(purchaseDate, (assetAdjByDate.get(purchaseDate) || 0) + adj);
-    }
-  }
-
-  // Oblicz sumy skumulowane
+  // Oblicz sumę przyszłych transakcji (od startDate+1 do dziś)
   let runningFutureTx = 0;
   for (const v of Array.from(txByDate.values())) runningFutureTx += v;
-  let runningFutureCal = 0;
-  for (const v of Array.from(calByDate.values())) runningFutureCal += v;
-  let runningAssetAdj = 0;
-  for (const v of Array.from(assetAdjByDate.values())) runningAssetAdj += v;
 
   const startDateStr = startDate.toISOString().split('T')[0];
   for (const [d, v] of Array.from(txByDate.entries())) {
     if (d <= startDateStr) runningFutureTx -= v;
-  }
-  for (const [d, v] of Array.from(calByDate.entries())) {
-    if (d <= startDateStr) runningFutureCal -= v;
-  }
-  for (const [d, v] of Array.from(assetAdjByDate.entries())) {
-    if (d <= startDateStr) runningAssetAdj -= v;
   }
 
   const data: { date: string; value: number }[] = [];
@@ -433,15 +364,13 @@ export async function getWalletChartData(
   while (current <= today) {
     const dateStr = current.toISOString().split('T')[0];
 
-    data.push({ date: dateStr, value: realBalance - runningFutureTx - runningFutureCal - runningAssetAdj });
+    data.push({ date: dateStr, value: currentBalance - runningFutureTx });
 
     runningFutureTx -= (txByDate.get(dateStr) || 0);
-    runningFutureCal -= (calByDate.get(dateStr) || 0);
-    runningAssetAdj -= (assetAdjByDate.get(dateStr) || 0);
     current.setDate(current.getDate() + 1);
   }
 
-  return { data, currentBalance: realBalance };
+  return { data, currentBalance };
 }
 
 // --- HISTORYCZNE KURSY DLA DASHBOARDU ---
