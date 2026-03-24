@@ -116,26 +116,38 @@ function useEventDrag(
       }
     };
 
-    const handleUp = () => {
+    const handleUp = (e: PointerEvent) => {
       const info = dragRef.current;
       if (longPressRef.current) {
         clearTimeout(longPressRef.current);
         longPressRef.current = null;
       }
       if (info?.active && onEventMove) {
+        // Recalculate column from final pointer position to avoid stale currentDayIndex
+        if (gridRef?.current && weekDaysRef?.current) {
+          const rect = gridRef.current.getBoundingClientRect();
+          const relX = e.clientX - rect.left;
+          const colWidth = rect.width / weekDaysRef.current.length;
+          info.currentDayIndex = Math.max(0, Math.min(weekDaysRef.current.length - 1, Math.floor(relX / colWidth)));
+        }
+
         const timeChanged = info.currentStartMin !== info.originalStartMin;
         const dayChanged = info.currentDayIndex !== info.originalDayIndex;
 
         if (timeChanged || dayChanged) {
-          let baseDate: Date;
-          if (weekDaysRef?.current) {
-            baseDate = weekDaysRef.current[info.currentDayIndex];
-          } else {
-            baseDate = parseISO(info.event.start_time);
-          }
           const durationMs = parseISO(info.event.end_time).getTime() - parseISO(info.event.start_time).getTime();
-          const newStart = new Date(baseDate);
-          newStart.setHours(Math.floor(info.currentStartMin / 60), info.currentStartMin % 60, 0, 0);
+          const hours = Math.floor(info.currentStartMin / 60);
+          const mins = info.currentStartMin % 60;
+
+          let dateStr: string;
+          if (weekDaysRef?.current) {
+            dateStr = format(weekDaysRef.current[info.currentDayIndex], 'yyyy-MM-dd');
+          } else {
+            dateStr = format(parseISO(info.event.start_time), 'yyyy-MM-dd');
+          }
+          // Construct local date-time string and parse as local time (same approach as CalendarEventModal)
+          const pad = (n: number) => String(n).padStart(2, '0');
+          const newStart = new Date(`${dateStr}T${pad(hours)}:${pad(mins)}:00`);
           const newEnd = new Date(newStart.getTime() + durationMs);
           onEventMove(info.event, newStart.toISOString(), newEnd.toISOString());
         }
