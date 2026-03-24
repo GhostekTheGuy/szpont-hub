@@ -149,6 +149,21 @@ function useEventDrag(
           const pad = (n: number) => String(n).padStart(2, '0');
           const newStart = new Date(`${dateStr}T${pad(hours)}:${pad(mins)}:00`);
           const newEnd = new Date(newStart.getTime() + durationMs);
+
+          // DEBUG: remove after fixing
+          console.log('[DRAG DEBUG]', {
+            originalDayIndex: info.originalDayIndex,
+            currentDayIndex: info.currentDayIndex,
+            weekDay: weekDaysRef?.current?.[info.currentDayIndex]?.toString(),
+            dateStr,
+            timeStr: `${pad(hours)}:${pad(mins)}`,
+            localDateStr: `${dateStr}T${pad(hours)}:${pad(mins)}:00`,
+            newStartLocal: newStart.toString(),
+            newStartISO: newStart.toISOString(),
+            originalStartTime: info.event.start_time,
+            parsedOriginal: parseISO(info.event.start_time).toString(),
+          });
+
           onEventMove(info.event, newStart.toISOString(), newEnd.toISOString());
         }
       }
