@@ -6,7 +6,6 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
   LayoutDashboard,
   Wallet,
-  PiggyBank,
   CalendarDays,
   Target,
   Settings,
@@ -16,7 +15,6 @@ import {
 const routes = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/wallets', label: 'Portfele', icon: Wallet },
-  { href: '/assets', label: 'Aktywa', icon: PiggyBank },
   { href: '/calendar', label: 'Praca', icon: CalendarDays },
   { href: '/habits', label: 'Nawyki', icon: Target },
   { href: '/settings', label: 'Ustawienia', icon: Settings },

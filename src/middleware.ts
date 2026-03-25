@@ -38,7 +38,7 @@ export async function middleware(request: NextRequest) {
   const user = session?.user ?? null;
 
   // Chronione ścieżki - przekieruj na login jeśli nie zalogowany
-  const protectedPaths = ['/dashboard', '/wallets', '/assets', '/settings', '/calendar', '/habits'];
+  const protectedPaths = ['/dashboard', '/wallets', '/settings', '/calendar', '/habits'];
   const isProtectedPath = protectedPaths.some(
     (path) => request.nextUrl.pathname === path || request.nextUrl.pathname.startsWith(path + '/')
   );
