@@ -1276,7 +1276,8 @@ export async function moveRecurringEvent(
       const durationMs = origEnd.getTime() - origStart.getTime();
       // Shift parent date by the same day-of-week delta
       const instanceOrigDate = new Date(parsedInstance.dateStr + 'T00:00:00Z');
-      const dayDelta = Math.round((newStart.getTime() - instanceOrigDate.getTime()) / 86400000);
+      const newStartDateOnly = new Date(Date.UTC(newStart.getUTCFullYear(), newStart.getUTCMonth(), newStart.getUTCDate()));
+      const dayDelta = Math.round((newStartDateOnly.getTime() - instanceOrigDate.getTime()) / 86400000);
       const shiftedStart = new Date(origStart);
       shiftedStart.setUTCDate(shiftedStart.getUTCDate() + dayDelta);
       shiftedStart.setUTCHours(newStart.getUTCHours(), newStart.getUTCMinutes(), 0, 0);
