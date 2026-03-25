@@ -6,7 +6,7 @@ import dynamic from 'next/dynamic';
 import { WalletCard } from '@/components/WalletCard';
 import { TransactionList } from '@/components/TransactionList';
 import { FinancialChart } from '@/components/FinancialChart';
-import { useFinanceStore, Transaction, Wallet, Asset, Goal, RecurringExpense } from '@/hooks/useFinanceStore';
+import { useFinanceStore, Transaction, Wallet, Asset, Goal, RecurringExpense, Habit, HabitEntry } from '@/hooks/useFinanceStore';
 import { GoalCard } from '@/components/GoalCard';
 import { SectionNav } from '@/components/SectionNav';
 
@@ -24,7 +24,8 @@ const GoalModal = dynamic(() => import('@/components/GoalModal').then(m => ({ de
 const ExpenseModal = dynamic(() => import('@/components/ExpenseModal').then(m => ({ default: m.ExpenseModal })));
 const PayExpenseModal = dynamic(() => import('@/components/PayExpenseModal').then(m => ({ default: m.PayExpenseModal })));
 import { useToast } from '@/components/Toast';
-import { TrendingUp, Wallet as WalletIcon, ArrowUpRight, ArrowDownRight, Plus, ArrowRight, Target, Sparkles, RotateCcw } from 'lucide-react';
+import { TrendingUp, Wallet as WalletIcon, ArrowUpRight, ArrowDownRight, Plus, ArrowRight, Target, Sparkles, RotateCcw, Flame, Check } from 'lucide-react';
+import { HabitStreakBars } from '@/components/HabitStreakBars';
 import { subDays, format } from 'date-fns';
 import { pl } from 'date-fns/locale';
 import { deleteTransactionAction, deleteWalletAction, deleteGoalAction, recalculateWalletBalance } from '@/app/actions';
@@ -40,6 +41,8 @@ interface Props {
   exchangeRates: ExchangeRates;
   userName: string;
   workEarningsByDate: Record<string, number>;
+  initialHabits: Habit[];
+  initialHabitEntries: HabitEntry[];
 }
 
 function getGreeting(): string {
@@ -50,7 +53,7 @@ function getGreeting(): string {
   return 'Dobrej nocy';
 }
 
-export function DashboardOverview({ initialWallets, initialTransactions, initialAssets, initialGoals, initialRecurringExpenses, exchangeRates, userName, workEarningsByDate }: Props) {
+export function DashboardOverview({ initialWallets, initialTransactions, initialAssets, initialGoals, initialRecurringExpenses, exchangeRates, userName, workEarningsByDate, initialHabits, initialHabitEntries }: Props) {
   const { confirm } = useToast();
   const [isTransModalOpen, setIsTransModalOpen] = useState(false);
   const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
@@ -193,6 +196,7 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
         { id: 'm-wallets', label: 'Portfele' },
         { id: 'm-goals', label: 'Cele' },
         { id: 'm-expenses', label: 'Stałe wydatki' },
+        ...(initialHabits.length > 0 ? [{ id: 'm-habits', label: 'Nawyki' }] : []),
         { id: 'charts', label: 'Wykresy' },
         { id: 'projected', label: 'Prognozowany Net-Worth' },
         { id: 'assets', label: 'Aktywa' },
@@ -317,6 +321,13 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
             onPay={(exp) => { setPayingExpense(exp); setIsPayModalOpen(true); }}
           />
         </div>
+
+        {/* Habits - mobile */}
+        {initialHabits.length > 0 && (
+          <div id="m-habits" className="scroll-mt-24">
+            <HabitsWidget habits={initialHabits} entries={initialHabitEntries} />
+          </div>
+        )}
 
         {/* E. Quick stats row */}
         <div className="grid grid-cols-3 gap-2">
@@ -511,6 +522,11 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
             onPay={(exp) => { setPayingExpense(exp); setIsPayModalOpen(true); }}
           />
 
+          {/* Habits */}
+          {initialHabits.length > 0 && (
+            <HabitsWidget habits={initialHabits} entries={initialHabitEntries} />
+          )}
+
           {/* Recent transactions */}
           <div className="card-responsive">
             <TransactionList
@@ -702,6 +718,53 @@ function RecurringExpensesCard({
             <span className="text-sm">Dodaj pierwszy stały wydatek</span>
           </button>
         )}
+      </div>
+    </div>
+  );
+}
+
+// --- Habits Widget ---
+
+function HabitsWidget({ habits, entries }: { habits: Habit[]; entries: HabitEntry[] }) {
+  const today = format(new Date(), 'yyyy-MM-dd');
+  const completedToday = habits.filter(h =>
+    entries.some(e => e.habit_id === h.id && e.date === today && e.completed)
+  ).length;
+
+  return (
+    <div className="bg-card border border-border rounded-xl overflow-hidden">
+      <div className="px-4 py-4 lg:px-6 lg:py-5">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Flame className="w-4 h-4 text-muted-foreground" />
+            <h2 className="text-lg font-bold text-foreground">Nawyki</h2>
+          </div>
+          <Link href="/habits" className="flex items-center gap-1 text-xs text-primary hover:underline">
+            Wszystkie <ArrowRight className="w-3 h-3" />
+          </Link>
+        </div>
+
+        {/* Today's progress */}
+        <div className="mb-4 px-3 py-2 bg-secondary/50 rounded-lg">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">Dzisiaj</span>
+            <div className="flex items-center gap-1.5">
+              <Check className="w-3.5 h-3.5 text-green-500" />
+              <span className="text-sm font-bold text-foreground">
+                {completedToday}/{habits.length}
+              </span>
+            </div>
+          </div>
+          <div className="mt-1.5 h-1.5 bg-secondary rounded-full overflow-hidden">
+            <div
+              className="h-full bg-green-500 rounded-full transition-all duration-500"
+              style={{ width: `${habits.length > 0 ? (completedToday / habits.length) * 100 : 0}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Streaks */}
+        <HabitStreakBars habits={habits} entries={entries} />
       </div>
     </div>
   );

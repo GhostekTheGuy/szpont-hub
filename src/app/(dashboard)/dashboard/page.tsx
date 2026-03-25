@@ -32,6 +32,8 @@ export default async function Home() {
         exchangeRates={data.exchangeRates}
         userName={userName}
         workEarningsByDate={data.workEarningsByDate}
+        initialHabits={data.habits}
+        initialHabitEntries={data.habitEntries}
       />
     </>
   );

@@ -158,13 +158,15 @@ export async function getDashboardData() {
   const dek = await getDEK();
 
   // Równoległe pobieranie wszystkich danych (w tym goals — unika dodatkowego getUserId+getDEK)
-  const [{ wallets, transactions }, rates, { data: assets, error: assetsError }, { data: goals, error: goalsError }, { data: calendarEventsRaw }, { data: recurringExpensesRaw }] = await Promise.all([
+  const [{ wallets, transactions }, rates, { data: assets, error: assetsError }, { data: goals, error: goalsError }, { data: calendarEventsRaw }, { data: recurringExpensesRaw }, { data: habitsRaw }, { data: habitEntriesRaw }] = await Promise.all([
     fetchWalletsAndTransactions(userId, dek),
     getExchangeRates(),
     supabaseAdmin.from('assets').select('id, user_id, name, symbol, coingecko_id, quantity, current_price, total_value, change_24h, cost_basis, asset_type, wallet_id, created_at').eq('user_id', userId),
     supabaseAdmin.from('goals').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
     supabaseAdmin.from('calendar_events').select('*').eq('user_id', userId).eq('is_confirmed', true).neq('event_type', 'personal'),
     supabaseAdmin.from('recurring_expenses').select('*').eq('user_id', userId).eq('is_active', true).order('next_due_date', { ascending: true }),
+    supabaseAdmin.from('habits').select('*').eq('user_id', userId).order('created_at', { ascending: true }),
+    supabaseAdmin.from('habit_entries').select('*, habit:habits!inner(user_id)').eq('habit.user_id', userId),
   ]);
 
   if (assetsError) {
@@ -225,6 +227,21 @@ export async function getDashboardData() {
     created_at: e.created_at,
   }));
 
+  // Deszyfruj habits
+  const decryptedHabits = (habitsRaw || []).map(h => ({
+    id: h.id,
+    name: decryptString(h.name, dek) || h.name,
+    color: h.color,
+    icon: h.icon,
+    frequency: h.frequency || 'daily',
+  }));
+  const decryptedHabitEntries = (habitEntriesRaw || []).map(e => ({
+    id: e.id,
+    habit_id: e.habit_id,
+    date: e.date,
+    completed: e.completed,
+  }));
+
   // Oblicz dzienne zarobki z rozliczonych wydarzeń kalendarza (data → kwota w PLN)
   const workEarningsByDate: Record<string, number> = {};
   for (const ev of calendarEventsRaw || []) {
@@ -238,7 +255,7 @@ export async function getDashboardData() {
     workEarningsByDate[eventDate] = (workEarningsByDate[eventDate] || 0) + earnings;
   }
 
-  return { wallets, transactions, assets: decryptedAssets, goals: decryptedGoals, recurringExpenses: decryptedRecurringExpenses, exchangeRates: rates, workEarningsByDate };
+  return { wallets, transactions, assets: decryptedAssets, goals: decryptedGoals, recurringExpenses: decryptedRecurringExpenses, exchangeRates: rates, workEarningsByDate, habits: decryptedHabits, habitEntries: decryptedHabitEntries };
 }
 
 export async function getWalletsWithTransactions() {
