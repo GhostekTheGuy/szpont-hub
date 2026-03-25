@@ -39,7 +39,7 @@ export function GoogleCalendarSettings({
   onDisconnected,
 }: GoogleCalendarSettingsProps) {
   const { confirm } = useToast();
-  const { wallets } = useFinanceStore();
+  const wallets = useFinanceStore(s => s.wallets);
   const [mappings, setMappings] = useState<CalendarMapping[]>([]);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);

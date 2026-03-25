@@ -34,7 +34,7 @@ const ICONS = ['🎬', '🎵', '🌐', '⚡', '🏠', '🛡️', '🏦', '📱',
 
 export function ExpenseModal({ isOpen, onClose, editingExpense }: ExpenseModalProps) {
   const { toast, confirm } = useToast();
-  const { wallets } = useFinanceStore();
+  const wallets = useFinanceStore(s => s.wallets);
 
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');

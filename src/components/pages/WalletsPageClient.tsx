@@ -15,7 +15,7 @@ import { SellAssetModal } from '@/components/SellAssetModal';
 import { CompoundInterestChart } from '@/components/CompoundInterestChart';
 import { SectionNav } from '@/components/SectionNav';
 import { useToast } from '@/components/Toast';
-import { useFinanceStore, Transaction, Wallet, Asset, AssetSale } from '@/hooks/useFinanceStore';
+import { useFinanceStore, pick, Transaction, Wallet, Asset, AssetSale } from '@/hooks/useFinanceStore';
 import { Plus, Camera, ChevronDown, ChevronUp, RefreshCw, BadgeDollarSign, Receipt, TrendingUp, TrendingDown, Landmark, Calculator, Check, CheckCheck } from 'lucide-react';
 import { deleteTransactionAction, deleteWalletAction, recalculateWalletBalance, deleteAssetAction, refreshAssetPricesAction, payTaxAction } from '@/app/actions';
 import { formatCurrency, type ExchangeRates } from '@/lib/exchange-rates';
@@ -61,7 +61,12 @@ export function WalletsPageClient({ initialWallets, initialTransactions, exchang
   const [taxPayMode, setTaxPayMode] = useState<{ type: 'single'; saleId: string } | { type: 'all' } | null>(null);
   const taxSummary = initialTaxSummary;
 
-  const { wallets, transactions, assets, assetSales, activeWalletId, setWallets, setTransactions, setAssets, setAssetSales, setActiveWallet, displayCurrency } = useFinanceStore();
+  const { wallets, transactions, assets, assetSales, activeWalletId, displayCurrency } = useFinanceStore(pick('wallets', 'transactions', 'assets', 'assetSales', 'activeWalletId', 'displayCurrency'));
+  const setWallets = useFinanceStore(s => s.setWallets);
+  const setTransactions = useFinanceStore(s => s.setTransactions);
+  const setAssets = useFinanceStore(s => s.setAssets);
+  const setAssetSales = useFinanceStore(s => s.setAssetSales);
+  const setActiveWallet = useFinanceStore(s => s.setActiveWallet);
 
   useEffect(() => {
     setWallets(initialWallets);

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useFinanceStore, type Wallet, type Client, type Order, type OrderStatus } from '@/hooks/useFinanceStore';
+import { useFinanceStore, pick, type Wallet, type Client, type Order, type OrderStatus } from '@/hooks/useFinanceStore';
 import { getClients, getOrders, deleteClient, deleteOrder, settleOrdersAction } from '@/app/actions';
 import { ClientModal } from '@/components/ClientModal';
 import { OrderModal } from '@/components/OrderModal';
@@ -45,7 +45,10 @@ const STATUS_CONFIG: Record<OrderStatus, { label: string; icon: typeof CircleDas
 
 export function ProjectsPageClient({ initialClients, initialOrders, initialWallets }: Props) {
   const { toast, confirm } = useToast();
-  const { clients, setClients, orders, setOrders, setWallets, wallets } = useFinanceStore();
+  const { clients, orders, wallets } = useFinanceStore(pick('clients', 'orders', 'wallets'));
+  const setClients = useFinanceStore(s => s.setClients);
+  const setOrders = useFinanceStore(s => s.setOrders);
+  const setWallets = useFinanceStore(s => s.setWallets);
 
   const [isClientModalOpen, setIsClientModalOpen] = useState(false);
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);

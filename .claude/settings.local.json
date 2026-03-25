@@ -45,7 +45,9 @@
       "Bash(powershell.exe -Command \"where.exe pnpm; where.exe node; where.exe npx\" 2>&1)",
       "Bash(powershell.exe -Command \"npx --yes pnpm run build 2>&1\" 2>&1)",
       "Bash(powershell.exe -Command \"corepack enable; cd 'C:\\\\Users\\\\s1016\\\\Pulpit\\\\Programming\\\\moje_projekty\\\\szpont-hub'; pnpm run build 2>&1\")",
-      "Bash(powershell.exe -Command \"npm install -g pnpm 2>&1\")"
+      "Bash(powershell.exe -Command \"npm install -g pnpm 2>&1\")",
+      "Bash(powershell.exe -Command \"cd 'C:\\\\Users\\\\s1016\\\\Pulpit\\\\Programming\\\\moje_projekty\\\\szpont-hub'; pnpm run build 2>&1\" 2>&1)",
+      "Bash(powershell.exe -Command \"cd 'C:\\\\Users\\\\s1016\\\\Pulpit\\\\Programming\\\\moje_projekty\\\\szpont-hub'; node -e \\\\\"console.log\\(require\\('zustand/package.json'\\).version\\)\\\\\"\")"
     ]
   }
 }

@@ -33,7 +33,9 @@ function getFrequencyLabel(frequency: string): string {
 }
 
 export function HabitTracker({ weekStart, onPrevWeek, onNextWeek, onToday, isCurrentWeek }: Props) {
-  const { habits, habitEntries, setHabitEntries } = useFinanceStore();
+  const habits = useFinanceStore(s => s.habits);
+  const habitEntries = useFinanceStore(s => s.habitEntries);
+  const setHabitEntries = useFinanceStore(s => s.setHabitEntries);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
   const [showRadar, setShowRadar] = useState(true);

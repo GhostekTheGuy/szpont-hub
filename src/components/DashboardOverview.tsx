@@ -6,7 +6,7 @@ import dynamic from 'next/dynamic';
 import { WalletCard } from '@/components/WalletCard';
 import { TransactionList } from '@/components/TransactionList';
 import { FinancialChart } from '@/components/FinancialChart';
-import { useFinanceStore, Transaction, Wallet, Asset, Goal, RecurringExpense, Habit, HabitEntry } from '@/hooks/useFinanceStore';
+import { useFinanceStore, pick, Transaction, Wallet, Asset, Goal, RecurringExpense, Habit, HabitEntry } from '@/hooks/useFinanceStore';
 import { GoalCard } from '@/components/GoalCard';
 import { SectionNav } from '@/components/SectionNav';
 
@@ -71,7 +71,13 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
   const [historicalRates, setHistoricalRates] = useState<HistoricalRates | undefined>(undefined);
   const [ratesReady, setRatesReady] = useState(false);
 
-  const { wallets, transactions, assets, goals, recurringExpenses, setWallets, setTransactions, setAssets, setGoals, setRecurringExpenses, balanceMasked, setShowWeeklyReport, displayCurrency } = useFinanceStore();
+  const { wallets, transactions, assets, goals, recurringExpenses, balanceMasked, displayCurrency } = useFinanceStore(pick('wallets', 'transactions', 'assets', 'goals', 'recurringExpenses', 'balanceMasked', 'displayCurrency'));
+  const setWallets = useFinanceStore(s => s.setWallets);
+  const setTransactions = useFinanceStore(s => s.setTransactions);
+  const setAssets = useFinanceStore(s => s.setAssets);
+  const setGoals = useFinanceStore(s => s.setGoals);
+  const setRecurringExpenses = useFinanceStore(s => s.setRecurringExpenses);
+  const setShowWeeklyReport = useFinanceStore(s => s.setShowWeeklyReport);
 
   useEffect(() => {
     setWallets(initialWallets);

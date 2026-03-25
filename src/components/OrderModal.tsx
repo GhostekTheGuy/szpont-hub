@@ -31,7 +31,8 @@ const COMMON_TAGS = ['design', 'development', 'konsultacja', 'marketing', 'foto'
 
 export function OrderModal({ isOpen, onClose, editingOrder, preselectedClientId }: OrderModalProps) {
   const { toast } = useToast();
-  const { wallets, clients } = useFinanceStore();
+  const wallets = useFinanceStore(s => s.wallets);
+  const clients = useFinanceStore(s => s.clients);
 
   const [clientId, setClientId] = useState('');
   const [title, setTitle] = useState('');

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } from 'react';
-import { useFinanceStore, type Wallet, type CalendarEvent, type Order } from '@/hooks/useFinanceStore';
+import { useFinanceStore, pick, type Wallet, type CalendarEvent, type Order } from '@/hooks/useFinanceStore';
 import { getCalendarEvents, toggleEventConfirmed, moveCalendarEvent, moveRecurringEvent, getUnsettledCount, settleAllUnsettledAction } from '@/app/actions';
 import { WeeklyCalendar } from '@/components/WeeklyCalendar';
 import { TimerWidget } from '@/components/TimerWidget';
@@ -44,7 +44,10 @@ const SYNC_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
 
 export function CalendarPageClient({ initialEvents, initialWallets, initialOrders, googleConnection }: Props) {
   const { confirm, toast } = useToast();
-  const { calendarEvents, setCalendarEvents, setWallets, wallets, orders, setOrders } = useFinanceStore();
+  const { calendarEvents, wallets, orders } = useFinanceStore(pick('calendarEvents', 'wallets', 'orders'));
+  const setCalendarEvents = useFinanceStore(s => s.setCalendarEvents);
+  const setWallets = useFinanceStore(s => s.setWallets);
+  const setOrders = useFinanceStore(s => s.setOrders);
 
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());

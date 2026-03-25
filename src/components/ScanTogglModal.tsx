@@ -26,7 +26,8 @@ interface ScannedEntry {
 }
 
 export function ScanTogglModal({ isOpen, onClose }: ScanTogglModalProps) {
-  const { wallets, orders } = useFinanceStore();
+  const wallets = useFinanceStore(s => s.wallets);
+  const orders = useFinanceStore(s => s.orders);
   const hourlyOrders = orders.filter(o => o.billing_type === 'hourly' && o.status !== 'settled' && o.hourly_rate);
   const fileInputRef = useRef<HTMLInputElement>(null);
 

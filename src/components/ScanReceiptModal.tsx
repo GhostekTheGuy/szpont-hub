@@ -25,7 +25,7 @@ interface ScannedTransaction {
 }
 
 export function ScanReceiptModal({ isOpen, onClose }: ScanReceiptModalProps) {
-  const { wallets } = useFinanceStore();
+  const wallets = useFinanceStore(s => s.wallets);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [state, setState] = useState<ModalState>('idle');

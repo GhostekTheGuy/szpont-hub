@@ -39,7 +39,8 @@ function extractParentId(instanceId: string): string {
 
 export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate, prefillHour }: CalendarEventModalProps) {
   const { toast, confirm } = useToast();
-  const { wallets, orders } = useFinanceStore();
+  const wallets = useFinanceStore(s => s.wallets);
+  const orders = useFinanceStore(s => s.orders);
   const hourlyOrders = orders.filter(o => o.billing_type === 'hourly' && o.status !== 'settled' && o.hourly_rate);
 
   const [eventType, setEventType] = useState<'work' | 'personal'>('work');

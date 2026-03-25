@@ -13,7 +13,8 @@ interface Props {
 }
 
 export function HabitsPageClient({ initialHabits, initialHabitEntries }: Props) {
-  const { setHabits, setHabitEntries } = useFinanceStore();
+  const setHabits = useFinanceStore(s => s.setHabits);
+  const setHabitEntries = useFinanceStore(s => s.setHabitEntries);
   const [currentDate, setCurrentDate] = useState(new Date());
 
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });

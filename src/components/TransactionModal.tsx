@@ -25,7 +25,7 @@ interface TransactionModalProps {
 
 export function TransactionModal({ isOpen, onClose, editingTransaction, defaultType, onDelete }: TransactionModalProps) {
   const { toast, confirm } = useToast();
-  const { wallets } = useFinanceStore();
+  const wallets = useFinanceStore(s => s.wallets);
 
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('');

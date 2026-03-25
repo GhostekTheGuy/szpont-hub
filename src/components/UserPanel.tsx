@@ -35,7 +35,11 @@ interface UserPanelProps {
 
 export function UserPanel({ userName, userEmail, avatarUrl, subscription }: UserPanelProps) {
   const { theme, setTheme } = useTheme();
-  const { balanceMasked, toggleBalanceMask, setShowOnboarding, displayCurrency, setDisplayCurrency } = useFinanceStore();
+  const balanceMasked = useFinanceStore(s => s.balanceMasked);
+  const toggleBalanceMask = useFinanceStore(s => s.toggleBalanceMask);
+  const setShowOnboarding = useFinanceStore(s => s.setShowOnboarding);
+  const displayCurrency = useFinanceStore(s => s.displayCurrency);
+  const setDisplayCurrency = useFinanceStore(s => s.setDisplayCurrency);
   const [uploading, setUploading] = useState(false);
   const [resetSent, setResetSent] = useState(false);
   const [currentAvatar, setCurrentAvatar] = useState(avatarUrl);

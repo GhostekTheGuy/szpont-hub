@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { useShallow } from 'zustand/react/shallow';
 import type { Currency } from '@/lib/exchange-rates';
 
 // Typy zgodne z bazą danych
@@ -235,3 +236,15 @@ export const useFinanceStore = create<FinanceState>()(
     setShowWeeklyReport: (show) => set({ showWeeklyReport: show }),
   })
 );
+
+// ─── Shallow selector helper ───
+// Wraps useShallow for picking multiple keys with stable identity.
+// Usage: useStore(pick('wallets', 'transactions'))
+type Keys = keyof FinanceState;
+export function pick<K extends Keys>(...keys: K[]) {
+  return useShallow((s: FinanceState) => {
+    const out = {} as Pick<FinanceState, K>;
+    for (const k of keys) (out as Record<string, unknown>)[k] = s[k];
+    return out;
+  });
+}
