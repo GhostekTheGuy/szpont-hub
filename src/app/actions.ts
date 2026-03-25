@@ -366,13 +366,13 @@ export async function getWalletChartData(
     txByDate.set(d, (txByDate.get(d) || 0) + getSignedAmount(t));
   }
 
-  // Oblicz sumę przyszłych transakcji (od startDate+1 do dziś)
+  // Oblicz sumę transakcji od startDate do dziś (włącznie)
   let runningFutureTx = 0;
   for (const v of Array.from(txByDate.values())) runningFutureTx += v;
 
   const startDateStr = startDate.toISOString().split('T')[0];
   for (const [d, v] of Array.from(txByDate.entries())) {
-    if (d <= startDateStr) runningFutureTx -= v;
+    if (d < startDateStr) runningFutureTx -= v;
   }
 
   const data: { date: string; value: number }[] = [];
@@ -381,9 +381,9 @@ export async function getWalletChartData(
   while (current <= today) {
     const dateStr = current.toISOString().split('T')[0];
 
+    runningFutureTx -= (txByDate.get(dateStr) || 0);
     data.push({ date: dateStr, value: currentBalance - runningFutureTx });
 
-    runningFutureTx -= (txByDate.get(dateStr) || 0);
     current.setDate(current.getDate() + 1);
   }
 
