@@ -152,16 +152,15 @@ function useEventDrag(
 
           // DEBUG: remove after fixing
           console.log('[DRAG DEBUG]', {
+            eventId: info.event.id,
+            eventTitle: info.event.title,
+            isRecurring: info.event.is_recurring,
+            googleEventId: info.event.google_event_id,
             originalDayIndex: info.originalDayIndex,
             currentDayIndex: info.currentDayIndex,
-            weekDay: weekDaysRef?.current?.[info.currentDayIndex]?.toString(),
             dateStr,
-            timeStr: `${pad(hours)}:${pad(mins)}`,
-            localDateStr: `${dateStr}T${pad(hours)}:${pad(mins)}:00`,
-            newStartLocal: newStart.toString(),
             newStartISO: newStart.toISOString(),
             originalStartTime: info.event.start_time,
-            parsedOriginal: parseISO(info.event.start_time).toString(),
           });
 
           onEventMove(info.event, newStart.toISOString(), newEnd.toISOString());

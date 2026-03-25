@@ -1215,9 +1215,22 @@ export async function moveCalendarEvent(id: string, start_time: string, end_time
     .eq('id', id)
     .single();
 
-  if (!event || event.user_id !== userId) return;
-  if (event.google_event_id || event.is_recurring) return;
+  // DEBUG: remove after fixing
+  console.log('[SERVER MOVE DEBUG]', { id, start_time, end_time, eventFound: !!event, eventData: event });
 
+  if (!event || event.user_id !== userId) {
+    console.log('[SERVER MOVE DEBUG] → SKIPPED: event not found or wrong user');
+    return;
+  }
+  if (event.google_event_id || event.is_recurring) {
+    console.log('[SERVER MOVE DEBUG] → SKIPPED: google_event_id or is_recurring', {
+      google_event_id: event.google_event_id,
+      is_recurring: event.is_recurring,
+    });
+    return;
+  }
+
+  console.log('[SERVER MOVE DEBUG] → SAVING to DB');
   await supabaseAdmin
     .from('calendar_events')
     .update({ start_time, end_time })
