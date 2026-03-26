@@ -1145,12 +1145,13 @@ export async function addCalendarEvent(data: {
   order_id?: string | null;
 }) {
   if (!isValidISODate(data.start_time) || !isValidISODate(data.end_time)) throw new Error('Invalid date');
+  if (new Date(data.end_time).getTime() <= new Date(data.start_time).getTime()) throw new Error('End time must be after start time');
   const userId = await getUserId();
   if (!userId) throw new Error('Unauthorized');
-  if (data.hourly_rate < 0) throw new Error('Invalid hourly rate');
+  const isPersonalEvent = data.event_type === 'personal';
+  if (!isPersonalEvent && data.hourly_rate <= 0) throw new Error('Invalid hourly rate');
 
   const dek = await getDEK();
-  const isPersonal = data.event_type === 'personal';
 
   const { error } = await supabaseAdmin
     .from('calendar_events')
@@ -1158,8 +1159,8 @@ export async function addCalendarEvent(data: {
       id: nanoid(),
       user_id: userId,
       title: encryptString(data.title, dek),
-      wallet_id: isPersonal ? null : data.wallet_id,
-      hourly_rate: isPersonal ? encryptNumber(0, dek) : encryptNumber(data.hourly_rate, dek),
+      wallet_id: isPersonalEvent ? null : data.wallet_id,
+      hourly_rate: isPersonalEvent ? encryptNumber(0, dek) : encryptNumber(data.hourly_rate, dek),
       start_time: data.start_time,
       end_time: data.end_time,
       is_recurring: data.is_recurring,
@@ -1949,8 +1950,13 @@ export async function getWeeklySummary(weekStart: string, weekEnd: string) {
   const prevWeekEnd = new Date(weekEnd);
   prevWeekEnd.setUTCDate(prevWeekEnd.getUTCDate() - 7);
 
-  // Fetch current week events, previous week events, recurring events, and wallets in parallel
-  const [{ data: events }, { data: prevEvents }, { data: recurringEvents }, { data: wallets }] = await Promise.all([
+  // Fetch current week events, previous week events, recurring events, wallets, and flat-rate orders in parallel
+  const weekStartDate = weekStart.split('T')[0];
+  const weekEndDate = weekEnd.split('T')[0];
+  const prevWeekStartDate = prevWeekStart.toISOString().split('T')[0];
+  const prevWeekEndDate = prevWeekEnd.toISOString().split('T')[0];
+
+  const [{ data: events }, { data: prevEvents }, { data: recurringEvents }, { data: wallets }, { data: flatOrders }, { data: prevFlatOrders }] = await Promise.all([
     supabaseAdmin
       .from('calendar_events')
       .select('*')
@@ -1973,6 +1979,22 @@ export async function getWeeklySummary(weekStart: string, weekEnd: string) {
       .from('wallets')
       .select('id, name, color')
       .eq('user_id', userId),
+    supabaseAdmin
+      .from('orders')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('billing_type', 'flat')
+      .not('completion_date', 'is', null)
+      .gte('completion_date', weekStartDate)
+      .lte('completion_date', weekEndDate),
+    supabaseAdmin
+      .from('orders')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('billing_type', 'flat')
+      .not('completion_date', 'is', null)
+      .gte('completion_date', prevWeekStartDate)
+      .lte('completion_date', prevWeekEndDate),
   ]);
 
   // Expand recurring events for current and previous week, filter out excluded
@@ -2025,15 +2047,44 @@ export async function getWeeklySummary(weekStart: string, weekEnd: string) {
   const confirmedCount = confirmedEvents.length;
   const unsettledCount = confirmedEvents.filter(e => !e.is_settled).length;
 
+  // Add flat-rate order earnings
+  const addOrderEarnings = (orders: typeof flatOrders, result: { total: number; byWallet: typeof current.byWallet }) => {
+    for (const o of orders || []) {
+      const amount = o.amount ? decryptNumber(o.amount, dek) : 0;
+      if (amount <= 0) continue;
+      result.total += amount;
+      if (o.wallet_id) {
+        const wallet = walletMap.get(o.wallet_id);
+        const existing = result.byWallet.find(w => w.id === o.wallet_id);
+        if (existing) {
+          existing.earnings += amount;
+        } else {
+          result.byWallet.push({
+            id: o.wallet_id,
+            name: wallet?.name || '',
+            color: wallet?.color || '',
+            earnings: amount,
+            hours: 0,
+          });
+        }
+      }
+    }
+  };
+
+  addOrderEarnings(flatOrders, current);
+  addOrderEarnings(prevFlatOrders, previous);
+
+  const orderUnsettledCount = (flatOrders || []).filter(o => !o.is_settled).length;
+
   return {
     totalEarnings: current.total,
     totalHours: current.totalHours,
     byWallet: current.byWallet,
     previousWeekEarnings: previous.total,
     previousWeekHours: previous.totalHours,
-    unsettledCount,
-    confirmedCount,
-    eventCount: workEvents.length,
+    unsettledCount: unsettledCount + orderUnsettledCount,
+    confirmedCount: confirmedCount + (flatOrders || []).length,
+    eventCount: workEvents.length + (flatOrders || []).length,
   };
 }
 
@@ -2049,8 +2100,13 @@ export async function getMonthlySummary(monthStart: string, monthEnd: string) {
   const prevMonthStart = new Date(msDate.getFullYear(), msDate.getMonth() - 1, 1);
   const prevMonthEnd = new Date(msDate.getFullYear(), msDate.getMonth(), 0, 23, 59, 59, 999);
 
-  // Fetch current month events, previous month events, recurring events, and wallets in parallel
-  const [{ data: events }, { data: prevEvents }, { data: recurringEvents }, { data: wallets }] = await Promise.all([
+  // Fetch current month events, previous month events, recurring events, wallets, and flat-rate orders in parallel
+  const monthStartDate = monthStart.split('T')[0];
+  const monthEndDate = monthEnd.split('T')[0];
+  const prevMonthStartDate = prevMonthStart.toISOString().split('T')[0];
+  const prevMonthEndDate = prevMonthEnd.toISOString().split('T')[0];
+
+  const [{ data: events }, { data: prevEvents }, { data: recurringEvents }, { data: wallets }, { data: flatOrders }, { data: prevFlatOrders }] = await Promise.all([
     supabaseAdmin
       .from('calendar_events')
       .select('*')
@@ -2073,6 +2129,22 @@ export async function getMonthlySummary(monthStart: string, monthEnd: string) {
       .from('wallets')
       .select('id, name, color')
       .eq('user_id', userId),
+    supabaseAdmin
+      .from('orders')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('billing_type', 'flat')
+      .not('completion_date', 'is', null)
+      .gte('completion_date', monthStartDate)
+      .lte('completion_date', monthEndDate),
+    supabaseAdmin
+      .from('orders')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('billing_type', 'flat')
+      .not('completion_date', 'is', null)
+      .gte('completion_date', prevMonthStartDate)
+      .lte('completion_date', prevMonthEndDate),
   ]);
 
   // Expand recurring events for current and previous month, filter out excluded
@@ -2138,6 +2210,49 @@ export async function getMonthlySummary(monthStart: string, monthEnd: string) {
   const confirmedCount = confirmedEvents.length;
   const unsettledCount = confirmedEvents.filter(e => !e.is_settled).length;
 
+  // Add flat-rate order earnings
+  const addOrderEarnings = (orders: typeof flatOrders, result: { total: number; byWallet: typeof current.byWallet; weeklyBreakdown: typeof current.weeklyBreakdown }) => {
+    for (const o of orders || []) {
+      const amount = o.amount ? decryptNumber(o.amount, dek) : 0;
+      if (amount <= 0) continue;
+      result.total += amount;
+
+      // Add to weekly breakdown based on completion_date
+      if (o.completion_date) {
+        const weekNum = getISOWeekLabel(new Date(o.completion_date));
+        const existingWeek = result.weeklyBreakdown.find(w => w.week === weekNum);
+        if (existingWeek) {
+          existingWeek.earnings += amount;
+        } else {
+          result.weeklyBreakdown.push({ week: weekNum, earnings: amount });
+        }
+      }
+
+      if (o.wallet_id) {
+        const wallet = walletMap.get(o.wallet_id);
+        const existing = result.byWallet.find(w => w.id === o.wallet_id);
+        if (existing) {
+          existing.earnings += amount;
+        } else {
+          result.byWallet.push({
+            id: o.wallet_id,
+            name: wallet?.name || '',
+            color: wallet?.color || '',
+            earnings: amount,
+            hours: 0,
+          });
+        }
+      }
+    }
+    // Re-sort weekly breakdown
+    result.weeklyBreakdown.sort((a, b) => a.week.localeCompare(b.week));
+  };
+
+  addOrderEarnings(flatOrders, current);
+  addOrderEarnings(prevFlatOrders, previous);
+
+  const orderUnsettledCount = (flatOrders || []).filter(o => !o.is_settled).length;
+
   return {
     totalEarnings: current.total,
     totalHours: current.totalHours,
@@ -2145,9 +2260,9 @@ export async function getMonthlySummary(monthStart: string, monthEnd: string) {
     weeklyBreakdown: current.weeklyBreakdown,
     previousPeriodEarnings: previous.total,
     previousPeriodHours: previous.totalHours,
-    unsettledCount,
-    confirmedCount,
-    eventCount: workMonthEvts.length,
+    unsettledCount: unsettledCount + orderUnsettledCount,
+    confirmedCount: confirmedCount + (flatOrders || []).length,
+    eventCount: workMonthEvts.length + (flatOrders || []).length,
   };
 }
 
@@ -4288,8 +4403,11 @@ export async function editOrder(id: string, data: {
 
   if (!order || order.user_id !== userId) throw new Error('Not found');
 
-  const dek = await getDEK();
   const isHourly = data.billing_type === 'hourly';
+  if (!isHourly && (typeof data.amount !== 'number' || !isFinite(data.amount) || data.amount < 0)) throw new Error('Invalid amount');
+  if (isHourly && data.hourly_rate != null && (typeof data.hourly_rate !== 'number' || !isFinite(data.hourly_rate) || data.hourly_rate <= 0)) throw new Error('Invalid hourly rate');
+
+  const dek = await getDEK();
 
   await supabaseAdmin.from('orders').update({
     title: encryptString(data.title, dek),
@@ -4349,10 +4467,34 @@ export async function settleOrdersAction(orderIds: string[]) {
   const now = new Date().toISOString();
   let settledCount = 0;
 
+  // For hourly orders, compute amounts from tracked calendar events
+  const hourlyOrderIds = unsettled.filter(o => o.billing_type === 'hourly').map(o => o.id);
+  const hoursMap = new Map<string, number>();
+  if (hourlyOrderIds.length > 0) {
+    const { data: linkedEvents } = await supabaseAdmin
+      .from('calendar_events')
+      .select('order_id, start_time, end_time')
+      .in('order_id', hourlyOrderIds)
+      .eq('user_id', userId);
+    for (const ev of linkedEvents || []) {
+      if (!ev.order_id) continue;
+      const ms = new Date(ev.end_time).getTime() - new Date(ev.start_time).getTime();
+      const hours = ms / 3_600_000;
+      hoursMap.set(ev.order_id, (hoursMap.get(ev.order_id) || 0) + hours);
+    }
+  }
+
   for (const order of unsettled) {
     if (!order.wallet_id) continue;
 
-    const amount = decryptNumber(order.amount, dek);
+    let amount: number;
+    if (order.billing_type === 'hourly') {
+      const hourlyRate = order.hourly_rate ? decryptNumber(order.hourly_rate, dek) : 0;
+      const trackedHours = hoursMap.get(order.id) || 0;
+      amount = trackedHours * hourlyRate;
+    } else {
+      amount = order.amount ? decryptNumber(order.amount, dek) : 0;
+    }
     if (amount <= 0) continue;
 
     const { error: txError } = await supabaseAdmin
@@ -4441,6 +4583,25 @@ export async function submitKugaruInvoice(data: {
   if (!partnerId || !partnerSecret) {
     return { ok: false, error: 'Brak konfiguracji Kugaru API (KUGARU_PARTNER_ID / KUGARU_PARTNER_SECRET)' };
   }
+
+  // Server-side validation
+  if (!data.name?.trim()) return { ok: false, error: 'Imię i nazwisko jest wymagane' };
+  if (!data.email?.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) return { ok: false, error: 'Nieprawidłowy email' };
+  if (!data.pesel?.trim() || !/^\d{11}$/.test(data.pesel)) return { ok: false, error: 'Nieprawidłowy PESEL' };
+  if (!data.citizenship?.trim()) return { ok: false, error: 'Obywatelstwo jest wymagane' };
+  if (!Array.isArray(data.items) || data.items.length === 0) return { ok: false, error: 'Brak pozycji na fakturze' };
+  for (const item of data.items) {
+    if (!item.name?.trim()) return { ok: false, error: 'Pozycja faktury wymaga nazwy' };
+    if (typeof item.quantity !== 'number' || item.quantity <= 0) return { ok: false, error: 'Ilość musi być większa od 0' };
+    if (typeof item.netPrice !== 'number' || item.netPrice <= 0) return { ok: false, error: 'Cena netto musi być większa od 0' };
+  }
+  if (!data.description?.trim()) return { ok: false, error: 'Opis dzieła jest wymagany' };
+  if (!data.clientCompanyName?.trim()) return { ok: false, error: 'Dane zleceniodawcy są wymagane' };
+  if (!data.clientStreet?.trim() || !data.clientPostalCode?.trim() || !data.clientCity?.trim()) return { ok: false, error: 'Adres zleceniodawcy jest wymagany' };
+  if (!data.clientEmail?.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.clientEmail)) return { ok: false, error: 'Nieprawidłowy email zleceniodawcy' };
+  if (data.clientType === 'firma' && (!data.clientNip?.trim() || !/^\d{10}$/.test(data.clientNip.replace(/[- ]/g, '')))) return { ok: false, error: 'Nieprawidłowy NIP' };
+  if (!data.noLegalProceedings) return { ok: false, error: 'Wymagane potwierdzenie braku postępowań' };
+  if (!data.acceptTerms) return { ok: false, error: 'Wymagana akceptacja regulaminu' };
 
   const { createHmac } = await import('crypto');
 
