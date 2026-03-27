@@ -248,21 +248,21 @@ export function ProjectsPageClient({ initialClients, initialOrders, initialWalle
     <>
       {/* Monthly summary */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-        <div className="bg-card border border-border rounded-xl p-4">
+        <div className="bg-card border border-border rounded-xl p-3 lg:p-4">
           <div className="text-xs text-muted-foreground mb-1">Zlecenia (ten miesiac)</div>
-          <div className="text-2xl font-bold text-foreground">{monthlySummary.orderCount}</div>
+          <div className="text-xl lg:text-2xl font-bold text-foreground">{monthlySummary.orderCount}</div>
         </div>
-        <div className="bg-card border border-border rounded-xl p-4">
+        <div className="bg-card border border-border rounded-xl p-3 lg:p-4">
           <div className="text-xs text-muted-foreground mb-1">Laczna kwota</div>
-          <div className="text-2xl font-bold text-foreground">{monthlySummary.total.toFixed(2)} <span className="text-sm font-normal text-muted-foreground">PLN</span></div>
+          <div className="text-xl lg:text-2xl font-bold text-foreground">{monthlySummary.total.toFixed(2)} <span className="text-xs lg:text-sm font-normal text-muted-foreground">PLN</span></div>
         </div>
-        <div className="bg-card border border-border rounded-xl p-4">
+        <div className="bg-card border border-border rounded-xl p-3 lg:p-4">
           <div className="text-xs text-muted-foreground mb-1">Rozliczone</div>
-          <div className="text-2xl font-bold text-green-500">{monthlySummary.settled.toFixed(2)} <span className="text-sm font-normal text-muted-foreground">PLN</span></div>
+          <div className="text-xl lg:text-2xl font-bold text-green-500">{monthlySummary.settled.toFixed(2)} <span className="text-xs lg:text-sm font-normal text-muted-foreground">PLN</span></div>
         </div>
-        <div className="bg-card border border-border rounded-xl p-4">
+        <div className="bg-card border border-border rounded-xl p-3 lg:p-4">
           <div className="text-xs text-muted-foreground mb-1">Do rozliczenia</div>
-          <div className="text-2xl font-bold text-amber-500">{monthlySummary.unsettled.toFixed(2)} <span className="text-sm font-normal text-muted-foreground">PLN</span></div>
+          <div className="text-xl lg:text-2xl font-bold text-amber-500">{monthlySummary.unsettled.toFixed(2)} <span className="text-xs lg:text-sm font-normal text-muted-foreground">PLN</span></div>
         </div>
       </div>
 
@@ -295,15 +295,15 @@ export function ProjectsPageClient({ initialClients, initialOrders, initialWalle
           </button>
         )}
 
-        <div className="flex-1" />
+        <div className="hidden lg:block flex-1" />
 
         {/* Filters */}
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-muted-foreground" />
+        <div className="flex items-center gap-2 w-full lg:w-auto">
+          <Filter className="w-4 h-4 text-muted-foreground shrink-0" />
           <select
             value={statusFilter}
             onChange={e => setStatusFilter(e.target.value as OrderStatus | 'all')}
-            className="bg-input border border-border rounded-lg px-2 py-1.5 text-sm text-foreground outline-none"
+            className="bg-input border border-border rounded-lg px-2 py-1.5 text-sm text-foreground outline-none flex-1 lg:flex-none"
           >
             <option value="all">Wszystkie statusy</option>
             {Array.from(Object.entries(STATUS_CONFIG)).map(([value, cfg]) => (
@@ -314,7 +314,7 @@ export function ProjectsPageClient({ initialClients, initialOrders, initialWalle
             <select
               value={tagFilter || ''}
               onChange={e => setTagFilter(e.target.value || null)}
-              className="bg-input border border-border rounded-lg px-2 py-1.5 text-sm text-foreground outline-none"
+              className="bg-input border border-border rounded-lg px-2 py-1.5 text-sm text-foreground outline-none flex-1 lg:flex-none"
             >
               <option value="">Wszystkie tagi</option>
               {allTags.map(t => (
@@ -358,15 +358,15 @@ export function ProjectsPageClient({ initialClients, initialOrders, initialWalle
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-foreground truncate">{client.name}</span>
                       {client.company_name && (
-                        <span className="text-xs text-muted-foreground flex items-center gap-1">
+                        <span className="text-xs text-muted-foreground hidden sm:flex items-center gap-1">
                           <Building2 className="w-3 h-3" />
                           {client.company_name}
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
-                      {client.email && <span className="flex items-center gap-1"><Mail className="w-3 h-3" />{client.email}</span>}
-                      {client.phone && <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{client.phone}</span>}
+                    <div className="flex items-center gap-2 sm:gap-3 text-xs text-muted-foreground mt-0.5 flex-wrap">
+                      {client.email && <span className="hidden sm:flex items-center gap-1"><Mail className="w-3 h-3" />{client.email}</span>}
+                      {client.phone && <span className="hidden sm:flex items-center gap-1"><Phone className="w-3 h-3" />{client.phone}</span>}
                       <span>{activeCount} aktywnych</span>
                     </div>
                   </div>
@@ -430,13 +430,13 @@ export function ProjectsPageClient({ initialClients, initialOrders, initialWalle
                           return (
                             <div
                               key={order.id}
-                              className={`flex items-center gap-3 px-4 py-3 hover:bg-accent/30 transition-colors ${isSelected ? 'bg-primary/5' : ''}`}
+                              className={`flex items-start sm:items-center gap-2 sm:gap-3 px-4 py-3 hover:bg-accent/30 transition-colors ${isSelected ? 'bg-primary/5' : ''}`}
                             >
                               {/* Checkbox for settlement */}
                               {!order.is_settled && order.wallet_id && (
                                 <button
                                   onClick={() => toggleOrderSelection(order.id)}
-                                  className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
+                                  className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors mt-0.5 sm:mt-0 ${
                                     isSelected
                                       ? 'bg-primary border-primary text-primary-foreground'
                                       : 'border-border hover:border-primary/50'
@@ -448,21 +448,28 @@ export function ProjectsPageClient({ initialClients, initialOrders, initialWalle
                               {(order.is_settled || !order.wallet_id) && <div className="w-5 shrink-0" />}
 
                               {/* Status icon */}
-                              <div className={`p-1.5 rounded-md ${statusCfg.bg}`}>
+                              <div className={`p-1.5 rounded-md shrink-0 mt-0.5 sm:mt-0 ${statusCfg.bg}`}>
                                 <StatusIcon className={`w-4 h-4 ${statusCfg.color}`} />
                               </div>
 
                               {/* Order info */}
                               <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <span className="font-medium text-sm text-foreground truncate">{order.title}</span>
-                                  {order.tags.map(tag => (
-                                    <span key={tag} className="px-1.5 py-0.5 bg-primary/10 text-primary text-[10px] font-medium rounded">
-                                      {tag}
-                                    </span>
-                                  ))}
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-medium text-sm text-foreground truncate max-w-full">{order.title}</span>
+                                  <span className={`font-semibold text-sm sm:hidden ${order.is_settled ? 'text-green-500' : 'text-foreground'}`}>
+                                    {order.amount.toFixed(2)} PLN
+                                  </span>
                                 </div>
-                                <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
+                                {order.tags.length > 0 && (
+                                  <div className="flex items-center gap-1 mt-0.5">
+                                    {order.tags.map(tag => (
+                                      <span key={tag} className="px-1.5 py-0.5 bg-primary/10 text-primary text-[10px] font-medium rounded">
+                                        {tag}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                                <div className="flex items-center gap-2 sm:gap-3 text-xs text-muted-foreground mt-0.5 flex-wrap">
                                   <span className={statusCfg.color}>{statusCfg.label}</span>
                                   {order.billing_type === 'hourly' && (
                                     <span className="flex items-center gap-1 text-blue-400">
@@ -485,8 +492,8 @@ export function ProjectsPageClient({ initialClients, initialOrders, initialWalle
                                 </div>
                               </div>
 
-                              {/* Amount */}
-                              <div className="text-right shrink-0">
+                              {/* Amount - hidden on mobile, shown inline with title */}
+                              <div className="text-right shrink-0 hidden sm:block">
                                 <span className={`font-semibold text-sm ${order.is_settled ? 'text-green-500' : 'text-foreground'}`}>
                                   {order.amount.toFixed(2)} PLN
                                 </span>
