@@ -65,10 +65,11 @@ export async function GET(request: Request) {
     const email = emailMap.get(userId);
     if (!email) continue;
 
-    // Note: expense names are encrypted in DB, so we use the raw (encrypted) name field.
-    // We pass the expense data as-is — the name will be the encrypted blob.
-    // To show readable names, we'd need the user's DEK, which we don't have in a cron context.
-    // Instead, we show the category + amount + due date (these are not encrypted or are plain).
+    const frequencyLabels: Record<string, string> = {
+      monthly: 'Miesięczna',
+      quarterly: 'Kwartalna',
+      yearly: 'Roczna',
+    };
     const expenseRows = userExpenses
       .map((e) => {
         const dueDate = new Date(e.next_due_date).toLocaleDateString('pl-PL', {
@@ -76,11 +77,11 @@ export async function GET(request: Request) {
           month: 'long',
           year: 'numeric',
         });
-        const amount = e.amount; // encrypted — we'll use currency only for context
+        const freq = frequencyLabels[e.frequency] || e.frequency;
         return `<tr>
-          <td style="padding:8px 12px;border-bottom:1px solid #eee;">${e.currency} opłata</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #eee;">Opłata ${freq.toLowerCase()}</td>
           <td style="padding:8px 12px;border-bottom:1px solid #eee;">${dueDate}</td>
-          <td style="padding:8px 12px;border-bottom:1px solid #eee;">${e.frequency}</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #eee;">${e.currency}</td>
         </tr>`;
       })
       .join('');
@@ -109,7 +110,7 @@ export async function GET(request: Request) {
               <tr style="background:#f9fafb;">
                 <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #e5e7eb;">Opłata</th>
                 <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #e5e7eb;">Termin</th>
-                <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #e5e7eb;">Częstotliwość</th>
+                <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #e5e7eb;">Waluta</th>
               </tr>
             </thead>
             <tbody>${expenseRows}</tbody>

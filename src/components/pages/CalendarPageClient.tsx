@@ -246,21 +246,12 @@ export function CalendarPageClient({ initialEvents, initialWallets, initialOrder
     } catch {
       setCalendarEvents(snapshot);
       refreshUnsettledCount();
+      toast('Nie udało się zmienić potwierdzenia', 'error');
     }
   }, [setCalendarEvents, refreshUnsettledCount]);
 
   const handleEventMove = useCallback(async (event: CalendarEvent, newStart: string, newEnd: string) => {
-    // DEBUG: remove after fixing
-    console.log('[MOVE DEBUG] handleEventMove called', {
-      eventId: event.id,
-      isRecurring: event.is_recurring,
-      googleEventId: event.google_event_id,
-      newStart,
-      newEnd,
-    });
-
     if (event.is_recurring) {
-      console.log('[MOVE DEBUG] → recurring, opening dialog');
       setRecurringMoveData({ event, newStart, newEnd });
       return;
     }
@@ -270,11 +261,8 @@ export function CalendarPageClient({ initialEvents, initialWallets, initialOrder
       snapshot.map(e => e.id === event.id ? { ...e, start_time: newStart, end_time: newEnd } : e)
     );
     try {
-      console.log('[MOVE DEBUG] → calling moveCalendarEvent server action');
       await moveCalendarEvent(event.id, newStart, newEnd);
-      console.log('[MOVE DEBUG] → server action completed successfully');
-    } catch (err) {
-      console.error('[MOVE DEBUG] → server action FAILED', err);
+    } catch {
       setCalendarEvents(snapshot);
     }
   }, [setCalendarEvents]);
@@ -286,8 +274,8 @@ export function CalendarPageClient({ initialEvents, initialWallets, initialOrder
     try {
       await moveRecurringEvent(event.id, newStart, newEnd, mode);
       await loadMonth(currentMonth);
-    } catch (err) {
-      console.error('Error moving recurring event:', err);
+    } catch {
+      toast('Nie udało się przenieść wydarzenia', 'error');
     }
   }, [recurringMoveData, currentMonth, loadMonth]);
 

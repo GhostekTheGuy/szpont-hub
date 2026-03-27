@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { KeyRound, AlertCircle, Check } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { reEncryptDEKWithNewPassword } from '@/app/actions';
 
 export default function UpdatePasswordPage() {
   const router = useRouter();
@@ -36,6 +37,12 @@ export default function UpdatePasswordPage() {
       if (error) {
         setError(error.message);
       } else {
+        // Re-encrypt DEK with new password so next login can decrypt it
+        try {
+          await reEncryptDEKWithNewPassword(password);
+        } catch {
+          // If re-encryption fails (e.g. no active session), user will need to contact support
+        }
         setSuccess(true);
         setTimeout(() => {
           router.push('/login');

@@ -40,7 +40,7 @@ interface Props {
 }
 
 export function WalletsPageClient({ initialWallets, initialTransactions, exchangeRates, initialAssets, initialSales, initialTaxSummary }: Props) {
-  const { confirm } = useToast();
+  const { confirm, toast } = useToast();
   const router = useRouter();
   const [isTransModalOpen, setIsTransModalOpen] = useState(false);
   const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
@@ -114,8 +114,8 @@ export function WalletsPageClient({ initialWallets, initialTransactions, exchang
     try {
       await recalculateWalletBalance(id);
       setChartRefreshKey(k => k + 1);
-    } catch (error) {
-      console.error(error);
+    } catch {
+      toast('Nie udało się przeliczyć salda', 'error');
     }
   };
 
@@ -129,8 +129,8 @@ export function WalletsPageClient({ initialWallets, initialTransactions, exchang
     try {
       await deleteAssetAction(id, revertTransaction);
       router.refresh();
-    } catch (error) {
-      console.error(error);
+    } catch {
+      toast('Nie udało się usunąć aktywa', 'error');
     }
   };
 
@@ -144,8 +144,8 @@ export function WalletsPageClient({ initialWallets, initialTransactions, exchang
     try {
       await refreshAssetPricesAction();
       router.refresh();
-    } catch (error) {
-      console.error(error);
+    } catch {
+      toast('Nie udało się odświeżyć cen', 'error');
     } finally {
       setRefreshing(false);
     }
@@ -158,8 +158,8 @@ export function WalletsPageClient({ initialWallets, initialTransactions, exchang
       setTaxPayMode(null);
       setTaxPayWalletId('');
       router.refresh();
-    } catch (error) {
-      console.error(error);
+    } catch {
+      toast('Nie udało się opłacić podatku', 'error');
     } finally {
       setPayingTax(false);
     }

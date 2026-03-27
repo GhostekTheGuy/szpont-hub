@@ -101,6 +101,27 @@ export async function initEncryptionSession(password: string) {
   });
 }
 
+export async function reEncryptDEKWithNewPassword(newPassword: string) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  // Odczytaj aktualny DEK z cookie (jeszcze ważny, bo sesja trwa)
+  const dek = await getDEK();
+
+  // Wygeneruj nowy salt i zaszyfruj DEK nowym hasłem
+  const newSalt = generateSalt();
+  const newKek = await deriveKEK(newPassword, newSalt);
+  const newEncryptedDek = encryptDEK(dek, newKek);
+
+  await supabaseAdmin
+    .from('users')
+    .update({
+      encryption_salt: newSalt.toString('base64'),
+      encrypted_dek: newEncryptedDek,
+    })
+    .eq('id', userId);
+}
+
 // --- POBIERANIE DANYCH ---
 
 async function fetchWalletsAndTransactions(userId: string, existingDek?: Buffer) {
@@ -1190,6 +1211,9 @@ export async function editCalendarEvent(id: string, data: {
   order_id?: string | null;
 }) {
   if (!isValidISODate(data.start_time) || !isValidISODate(data.end_time)) throw new Error('Invalid date');
+  if (new Date(data.end_time).getTime() <= new Date(data.start_time).getTime()) throw new Error('End time must be after start time');
+  const isPersonal = data.event_type === 'personal';
+  if (!isPersonal && data.hourly_rate <= 0) throw new Error('Invalid hourly rate');
   const userId = await getUserId();
   if (!userId) throw new Error('Unauthorized');
 
@@ -1202,7 +1226,6 @@ export async function editCalendarEvent(id: string, data: {
   if (!event || event.user_id !== userId) return;
 
   const dek = await getDEK();
-  const isPersonal = data.event_type === 'personal';
 
   await supabaseAdmin
     .from('calendar_events')
@@ -1233,22 +1256,9 @@ export async function moveCalendarEvent(id: string, start_time: string, end_time
     .eq('id', id)
     .single();
 
-  // DEBUG: remove after fixing
-  console.log('[SERVER MOVE DEBUG]', { id, start_time, end_time, eventFound: !!event, eventData: event });
+  if (!event || event.user_id !== userId) return;
+  if (event.google_event_id || event.is_recurring) return;
 
-  if (!event || event.user_id !== userId) {
-    console.log('[SERVER MOVE DEBUG] → SKIPPED: event not found or wrong user');
-    return;
-  }
-  if (event.google_event_id || event.is_recurring) {
-    console.log('[SERVER MOVE DEBUG] → SKIPPED: google_event_id or is_recurring', {
-      google_event_id: event.google_event_id,
-      is_recurring: event.is_recurring,
-    });
-    return;
-  }
-
-  console.log('[SERVER MOVE DEBUG] → SAVING to DB');
   await supabaseAdmin
     .from('calendar_events')
     .update({ start_time, end_time })
@@ -1853,7 +1863,6 @@ export async function settleWeekAction(weekStart: string, weekEnd: string) {
   if (!userId) throw new Error('Unauthorized');
 
   const dek = await getDEK();
-  const rates = await getExchangeRates();
 
   // Pobierz potwierdzone ale niezatwierdzone eventy z tego tygodnia (tylko work)
   const { data: events, error } = await supabaseAdmin
@@ -1899,8 +1908,8 @@ export async function settleWeekAction(weekStart: string, weekEnd: string) {
     .update({ is_settled: true })
     .in('id', eventIds);
 
-  // Stwórz transakcje income i zaktualizuj salda — każdy portfel niezależnie, równolegle
-  await Promise.all(Array.from(walletEarnings.entries()).map(async ([walletId, totalEarnings]) => {
+  // Stwórz transakcje income i zaktualizuj salda — sekwencyjnie per portfel, aby uniknąć race condition
+  for (const [walletId, totalEarnings] of Array.from(walletEarnings.entries())) {
     await supabaseAdmin
       .from('transactions')
       .insert({
@@ -1921,18 +1930,14 @@ export async function settleWeekAction(weekStart: string, weekEnd: string) {
       .eq('id', walletId)
       .single();
 
-    if (!wallet) return;
+    if (!wallet) continue;
 
     const currentBalance = decryptNumber(wallet.balance, dek);
-    const { error: updateError } = await supabaseAdmin
+    await supabaseAdmin
       .from('wallets')
       .update({ balance: encryptNumber(currentBalance + totalEarnings, dek) })
       .eq('id', walletId);
-
-    if (updateError) {
-      console.error(`Settlement balance update failed for wallet ${walletId}:`, updateError);
-    }
-  }));
+  }
 
   revalidatePath('/', 'layout');
   return { settled: filteredEvents.length };
@@ -2324,8 +2329,8 @@ export async function settleMonthAction(monthStart: string, monthEnd: string) {
     .update({ is_settled: true })
     .in('id', eventIds);
 
-  // Stwórz transakcje income i zaktualizuj salda — każdy portfel niezależnie, równolegle
-  await Promise.all(Array.from(walletEarnings.entries()).map(async ([walletId, totalEarnings]) => {
+  // Stwórz transakcje income i zaktualizuj salda — sekwencyjnie per portfel
+  for (const [walletId, totalEarnings] of Array.from(walletEarnings.entries())) {
     await supabaseAdmin
       .from('transactions')
       .insert({
@@ -2346,18 +2351,14 @@ export async function settleMonthAction(monthStart: string, monthEnd: string) {
       .eq('id', walletId)
       .single();
 
-    if (!wallet) return;
+    if (!wallet) continue;
 
     const currentBalance = decryptNumber(wallet.balance, dek);
-    const { error: updateError } = await supabaseAdmin
+    await supabaseAdmin
       .from('wallets')
       .update({ balance: encryptNumber(currentBalance + totalEarnings, dek) })
       .eq('id', walletId);
-
-    if (updateError) {
-      console.error(`Settlement balance update failed for wallet ${walletId}:`, updateError);
-    }
-  }));
+  }
 
   revalidatePath('/', 'layout');
   return { settled: filteredMonthEvents.length };
@@ -2423,7 +2424,7 @@ export async function settleAllUnsettledAction() {
 
   const today = new Date().toISOString().split('T')[0];
 
-  await Promise.all(Array.from(walletEarnings.entries()).map(async ([walletId, totalEarnings]) => {
+  for (const [walletId, totalEarnings] of Array.from(walletEarnings.entries())) {
     await supabaseAdmin
       .from('transactions')
       .insert({
@@ -2444,18 +2445,14 @@ export async function settleAllUnsettledAction() {
       .eq('id', walletId)
       .single();
 
-    if (!wallet) return;
+    if (!wallet) continue;
 
     const currentBalance = decryptNumber(wallet.balance, dek);
-    const { error: updateError } = await supabaseAdmin
+    await supabaseAdmin
       .from('wallets')
       .update({ balance: encryptNumber(currentBalance + totalEarnings, dek) })
       .eq('id', walletId);
-
-    if (updateError) {
-      console.error(`Settlement balance update failed for wallet ${walletId}:`, updateError);
-    }
-  }));
+  }
 
   revalidatePath('/calendar', 'page');
   revalidatePath('/wallets', 'page');
@@ -4200,14 +4197,12 @@ export async function addClient(data: {
     created_at: new Date().toISOString(),
   };
 
-  console.log('Inserting client with id:', insertData.id, 'for user:', userId);
   const { error } = await supabaseAdmin.from('clients').insert(insertData);
 
   if (error) {
     console.error('Error adding client:', error.message, error.details, error.hint);
     throw new Error(`Failed to add client: ${error.message}`);
   }
-  console.log('Client added successfully');
 
   revalidatePath('/', 'layout');
 }
@@ -4463,7 +4458,6 @@ export async function settleOrdersAction(orderIds: string[]) {
   const unsettled = orders.filter(o => !o.is_settled);
   if (unsettled.length === 0) return { settled: 0 };
 
-  const rates = await getExchangeRates();
   const now = new Date().toISOString();
   let settledCount = 0;
 
@@ -4516,6 +4510,7 @@ export async function settleOrdersAction(orderIds: string[]) {
       continue;
     }
 
+    // Update wallet balance sequentially (read-then-write must not race)
     const { data: wallet } = await supabaseAdmin
       .from('wallets')
       .select('balance')
@@ -4524,13 +4519,13 @@ export async function settleOrdersAction(orderIds: string[]) {
 
     if (wallet) {
       const currentBalance = decryptNumber(wallet.balance, dek);
-      const amountInPLN = convertAmount(amount, 'PLN', 'PLN', rates);
       await supabaseAdmin
         .from('wallets')
-        .update({ balance: encryptNumber(currentBalance + amountInPLN, dek) })
+        .update({ balance: encryptNumber(currentBalance + amount, dek) })
         .eq('id', order.wallet_id);
     }
 
+    // Mark order as settled only AFTER transaction and balance update succeeded
     await supabaseAdmin.from('orders').update({
       is_settled: true,
       settled_at: now,

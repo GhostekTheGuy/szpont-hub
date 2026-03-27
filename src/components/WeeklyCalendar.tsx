@@ -150,19 +150,6 @@ function useEventDrag(
           const newStart = new Date(`${dateStr}T${pad(hours)}:${pad(mins)}:00`);
           const newEnd = new Date(newStart.getTime() + durationMs);
 
-          // DEBUG: remove after fixing
-          console.log('[DRAG DEBUG]', {
-            eventId: info.event.id,
-            eventTitle: info.event.title,
-            isRecurring: info.event.is_recurring,
-            googleEventId: info.event.google_event_id,
-            originalDayIndex: info.originalDayIndex,
-            currentDayIndex: info.currentDayIndex,
-            dateStr,
-            newStartISO: newStart.toISOString(),
-            originalStartTime: info.event.start_time,
-          });
-
           onEventMove(info.event, newStart.toISOString(), newEnd.toISOString());
         }
       }
