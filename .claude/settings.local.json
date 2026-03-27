@@ -39,7 +39,9 @@
       "Bash(python3 -m json.tool)",
       "Bash(npx vercel:*)",
       "Bash(git pull:*)",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "Bash(npm list:*)",
+      "Bash(pnpm dlx:*)"
     ]
   }
 }
