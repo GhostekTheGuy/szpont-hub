@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useFinanceStore, pick, type Wallet, type Client, type Order, type OrderStatus } from '@/hooks/useFinanceStore';
+import { useFinanceStore, pick, type Wallet, type Client, type Order, type OrderStatus, type InvoicePrefill } from '@/hooks/useFinanceStore';
+import { useRouter } from 'next/navigation';
 import { getClients, getOrders, deleteClient, deleteOrder, settleOrdersAction } from '@/app/actions';
 import { ClientModal } from '@/components/ClientModal';
 import { OrderModal } from '@/components/OrderModal';
@@ -26,6 +27,7 @@ import {
   CircleDashed,
   PlayCircle,
   Banknote,
+  Receipt,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { pl } from 'date-fns/locale';
@@ -45,10 +47,12 @@ const STATUS_CONFIG: Record<OrderStatus, { label: string; icon: typeof CircleDas
 
 export function ProjectsPageClient({ initialClients, initialOrders, initialWallets }: Props) {
   const { toast, confirm } = useToast();
+  const router = useRouter();
   const { clients, orders, wallets } = useFinanceStore(pick('clients', 'orders', 'wallets'));
   const setClients = useFinanceStore(s => s.setClients);
   const setOrders = useFinanceStore(s => s.setOrders);
   const setWallets = useFinanceStore(s => s.setWallets);
+  const setInvoicePrefill = useFinanceStore(s => s.setInvoicePrefill);
 
   const [isClientModalOpen, setIsClientModalOpen] = useState(false);
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
@@ -560,6 +564,16 @@ export function ProjectsPageClient({ initialClients, initialOrders, initialWalle
 
                               {/* Actions */}
                               <div className="flex items-center gap-0.5 shrink-0">
+                                <button
+                                  onClick={() => {
+                                    setInvoicePrefill({ client, order });
+                                    router.push('/invoices');
+                                  }}
+                                  title="Rozlicz fakturę"
+                                  className="p-1.5 text-muted-foreground hover:text-primary transition-colors rounded-md hover:bg-primary/10"
+                                >
+                                  <Receipt className="w-3.5 h-3.5" />
+                                </button>
                                 <button
                                   onClick={() => { setEditingOrder(order); setIsOrderModalOpen(true); }}
                                   className="p-1.5 text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-accent"

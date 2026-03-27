@@ -140,6 +140,11 @@ export interface Order {
   created_at: string;
 }
 
+export interface InvoicePrefill {
+  client: Client;
+  order: Order;
+}
+
 export interface RecurringExpense {
   id: string;
   name: string;
@@ -175,6 +180,7 @@ interface FinanceState {
   displayCurrency: Currency;
   showOnboarding: boolean;
   showWeeklyReport: boolean;
+  invoicePrefill: InvoicePrefill | null;
 
   // Tylko settery - żadnej logiki dodawania/usuwania tutaj!
   setWallets: (wallets: Wallet[]) => void;
@@ -194,6 +200,7 @@ interface FinanceState {
   setDisplayCurrency: (currency: Currency) => void;
   setShowOnboarding: (show: boolean) => void;
   setShowWeeklyReport: (show: boolean) => void;
+  setInvoicePrefill: (prefill: InvoicePrefill | null) => void;
 }
 
 export const useFinanceStore = create<FinanceState>()(
@@ -214,6 +221,7 @@ export const useFinanceStore = create<FinanceState>()(
     displayCurrency: 'PLN' as Currency,
     showOnboarding: false,
     showWeeklyReport: false,
+    invoicePrefill: null,
 
     setWallets: (wallets) => set({ wallets }),
     setTransactions: (transactions) => set({ transactions }),
@@ -234,6 +242,7 @@ export const useFinanceStore = create<FinanceState>()(
     setDisplayCurrency: (currency) => set({ displayCurrency: currency }),
     setShowOnboarding: (show) => set({ showOnboarding: show }),
     setShowWeeklyReport: (show) => set({ showWeeklyReport: show }),
+    setInvoicePrefill: (prefill) => set({ invoicePrefill: prefill }),
   })
 );
 

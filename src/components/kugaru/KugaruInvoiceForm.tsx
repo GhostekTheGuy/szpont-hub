@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '@/components/Toast';
 import { InvoiceItemsTable } from './InvoiceItemsTable';
 import { getClients, submitKugaruInvoice } from '@/app/actions';
-import { type Client } from '@/hooks/useFinanceStore';
+import { useFinanceStore, type Client } from '@/hooks/useFinanceStore';
 import {
   type KugaruFormData,
   type KugaruInvoiceItem,
@@ -196,6 +196,52 @@ export function KugaruInvoiceForm() {
 
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Pre-fill from order (set via Projects page "Rozlicz fakturę")
+  const invoicePrefill = useFinanceStore(s => s.invoicePrefill);
+  const setInvoicePrefill = useFinanceStore(s => s.setInvoicePrefill);
+
+  useEffect(() => {
+    if (!invoicePrefill) return;
+    const { client, order } = invoicePrefill;
+
+    // Client data
+    setSelectedClient(client);
+    setClientQuery(client.company_name || client.name);
+    setNazwaFirmy(client.company_name || client.name);
+    setNip(client.nip || '');
+    setUlica(client.street || '');
+    setKodPocztowy(client.postal_code || '');
+    setMiasto(client.city || '');
+    setEmailZleceniodawcy(client.email || '');
+    if (client.nip) setTypKlienta('firma');
+
+    // Invoice item from order
+    const isHourly = order.billing_type === 'hourly';
+    const cenaNetto = isHourly ? (order.hourly_rate ?? 0) : order.amount;
+    const ilosc = isHourly ? Math.max(order.tracked_hours, 0.1) : 1;
+    const wartoscNetto = ilosc * cenaNetto;
+    const wartoscVat = wartoscNetto * 0.23;
+    const item: KugaruInvoiceItem = {
+      id: crypto.randomUUID(),
+      nazwa: order.title,
+      ilosc,
+      jm: isHourly ? 'godz.' : 'szt.',
+      cenaNetto,
+      vat: 23,
+      wartoscNetto,
+      wartoscVat,
+      wartoscBrutto: wartoscNetto + wartoscVat,
+    };
+    setPozycje([item]);
+
+    // Work description
+    setOpisDziela(order.title);
+    if (order.description) setUwagi(order.description);
+
+    // Clear prefill so it doesn't re-apply
+    setInvoicePrefill(null);
+  }, [invoicePrefill, setInvoicePrefill]);
 
   const validateStep = useCallback((s: number): Record<string, string> => {
     const errs: Record<string, string> = {};
