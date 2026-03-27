@@ -100,6 +100,56 @@ export function ProjectsPageClient({ initialClients, initialOrders, initialWalle
     return map;
   }, [orders, statusFilter, tagFilter]);
 
+  // Per-client stats (unsettled count, newest order date) — used for sorting & badges
+  const clientStats = useMemo(() => {
+    const map = new Map<string, { unsettledCount: number; unsettledAmount: number; activeCount: number; newestOrderDate: number }>();
+    for (const o of orders) {
+      const prev = map.get(o.client_id);
+      const created = new Date(o.created_at).getTime();
+      if (prev) {
+        if (!o.is_settled) { prev.unsettledCount++; prev.unsettledAmount += o.amount; }
+        if (o.status !== 'settled') prev.activeCount++;
+        if (created > prev.newestOrderDate) prev.newestOrderDate = created;
+      } else {
+        map.set(o.client_id, {
+          unsettledCount: o.is_settled ? 0 : 1,
+          unsettledAmount: o.is_settled ? 0 : o.amount,
+          activeCount: o.status !== 'settled' ? 1 : 0,
+          newestOrderDate: created,
+        });
+      }
+    }
+    return map;
+  }, [orders]);
+
+  // Clients sorted: those with unsettled orders first, then by newest order date desc
+  const sortedClients = useMemo(() => {
+    return [...clients].sort((a, b) => {
+      const sa = clientStats.get(a.id);
+      const sb = clientStats.get(b.id);
+      const aUnsettled = sa?.unsettledCount ?? 0;
+      const bUnsettled = sb?.unsettledCount ?? 0;
+      // Clients with unsettled orders first
+      if (aUnsettled > 0 && bUnsettled === 0) return -1;
+      if (aUnsettled === 0 && bUnsettled > 0) return 1;
+      // Then by newest order date (descending)
+      const aDate = sa?.newestOrderDate ?? 0;
+      const bDate = sb?.newestOrderDate ?? 0;
+      return bDate - aDate;
+    });
+  }, [clients, clientStats]);
+
+  // Auto-expand: on first load, expand the first client with active orders
+  const [hasAutoExpanded, setHasAutoExpanded] = useState(false);
+  useEffect(() => {
+    if (hasAutoExpanded || sortedClients.length === 0) return;
+    const firstActive = sortedClients.find(c => (clientStats.get(c.id)?.activeCount ?? 0) > 0);
+    if (firstActive) {
+      setExpandedClientId(firstActive.id);
+    }
+    setHasAutoExpanded(true);
+  }, [sortedClients, clientStats, hasAutoExpanded]);
+
   // Monthly summary
   const monthlySummary = useMemo(() => {
     const now = new Date();
@@ -334,12 +384,14 @@ export function ProjectsPageClient({ initialClients, initialOrders, initialWalle
         </div>
       ) : (
         <div className="space-y-3">
-          {clients.map(client => {
+          {sortedClients.map(client => {
             const clientOrders = ordersByClient.get(client.id) || [];
             const allClientOrders = orders.filter(o => o.client_id === client.id);
             const isExpanded = expandedClientId === client.id;
-            const unsettledAmount = allClientOrders.filter(o => !o.is_settled).reduce((s, o) => s + o.amount, 0);
-            const activeCount = allClientOrders.filter(o => o.status !== 'settled').length;
+            const stats = clientStats.get(client.id);
+            const unsettledAmount = stats?.unsettledAmount ?? 0;
+            const unsettledCount = stats?.unsettledCount ?? 0;
+            const activeCount = stats?.activeCount ?? 0;
 
             return (
               <div key={client.id} className="bg-card border border-border rounded-xl overflow-hidden">
@@ -374,7 +426,14 @@ export function ProjectsPageClient({ initialClients, initialOrders, initialWalle
                     {unsettledAmount > 0 && (
                       <div className="text-sm font-semibold text-amber-500">{unsettledAmount.toFixed(2)} PLN</div>
                     )}
-                    <div className="text-xs text-muted-foreground">{allClientOrders.length} zlecen</div>
+                    <div className="flex items-center justify-end gap-1.5 text-xs text-muted-foreground">
+                      <span>{allClientOrders.length} zlecen</span>
+                      {unsettledCount > 0 && (
+                        <span className="px-1.5 py-0.5 bg-amber-500/15 text-amber-500 rounded-full text-[10px] font-semibold leading-none">
+                          {unsettledCount} do rozliczenia
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     <button
