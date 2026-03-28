@@ -58,6 +58,15 @@ export function ExpenseModal({ isOpen, onClose, editingExpense }: ExpenseModalPr
     return errs;
   };
 
+  const blurValidate = (field: string) => {
+    const all = validate();
+    if (all[field]) {
+      setErrors(prev => ({ ...prev, [field]: all[field] }));
+    } else {
+      setErrors(prev => { const { [field]: _, ...rest } = prev; return rest; });
+    }
+  };
+
   useEffect(() => {
     if (editingExpense) {
       setName(editingExpense.name);
@@ -210,6 +219,7 @@ export function ExpenseModal({ isOpen, onClose, editingExpense }: ExpenseModalPr
                   type="text"
                   value={name}
                   onChange={(e) => { setName(e.target.value); if (errors.name) setErrors(prev => { const {name: _, ...rest} = prev; return rest; }); }}
+                  onBlur={() => blurValidate('name')}
                   className={`w-full bg-input border ${errors.name ? 'border-destructive' : 'border-border'} rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all`}
                   placeholder="np. Netflix, Prąd"
                 />
@@ -225,6 +235,7 @@ export function ExpenseModal({ isOpen, onClose, editingExpense }: ExpenseModalPr
                     step="0.01"
                     value={amount}
                     onChange={(e) => { setAmount(e.target.value); if (errors.amount) setErrors(prev => { const {amount: _, ...rest} = prev; return rest; }); }}
+                    onBlur={() => blurValidate('amount')}
                     className={`flex-1 bg-input border ${errors.amount ? 'border-destructive' : 'border-border'} rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all`}
                     placeholder="0.00"
                   />
@@ -292,6 +303,7 @@ export function ExpenseModal({ isOpen, onClose, editingExpense }: ExpenseModalPr
                   max="31"
                   value={billingDay}
                   onChange={(e) => { setBillingDay(e.target.value); if (errors.billingDay) setErrors(prev => { const {billingDay: _, ...rest} = prev; return rest; }); }}
+                  onBlur={() => blurValidate('billingDay')}
                   className={`w-full bg-input border ${errors.billingDay ? 'border-destructive' : 'border-border'} rounded-lg px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring transition-all`}
                 />
                 {errors.billingDay && <p className="text-xs text-destructive mt-1">{errors.billingDay}</p>}

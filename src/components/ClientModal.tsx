@@ -51,6 +51,15 @@ export function ClientModal({ isOpen, onClose, editingClient }: ClientModalProps
     return errs;
   };
 
+  const blurValidate = (field: string) => {
+    const all = validate();
+    if (all[field]) {
+      setErrors(prev => ({ ...prev, [field]: all[field] }));
+    } else {
+      setErrors(prev => { const { [field]: _, ...rest } = prev; return rest; });
+    }
+  };
+
   useEffect(() => {
     if (editingClient) {
       setName(editingClient.name);
@@ -145,14 +154,14 @@ export function ClientModal({ isOpen, onClose, editingClient }: ClientModalProps
             <form onSubmit={handleSubmit} className="p-4 space-y-4">
               <div>
                 <label className={labelClass}>Nazwa / Imie i nazwisko *</label>
-                <input type="text" value={name} onChange={e => { setName(e.target.value); if (errors.name) setErrors(prev => { const {name: _, ...rest} = prev; return rest; }); }} className={`${inputClass}${errors.name ? ' border-destructive' : ''}`} placeholder="Jan Kowalski" />
+                <input type="text" value={name} onChange={e => { setName(e.target.value); if (errors.name) setErrors(prev => { const {name: _, ...rest} = prev; return rest; }); }} onBlur={() => blurValidate('name')} className={`${inputClass}${errors.name ? ' border-destructive' : ''}`} placeholder="Jan Kowalski" />
                 {errors.name && <p className="text-xs text-destructive mt-1">{errors.name}</p>}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={labelClass}>Email</label>
-                  <input type="email" value={email} onChange={e => { setEmail(e.target.value); if (errors.email) setErrors(prev => { const {email: _, ...rest} = prev; return rest; }); }} className={`${inputClass}${errors.email ? ' border-destructive' : ''}`} placeholder="email@firma.pl" />
+                  <input type="email" value={email} onChange={e => { setEmail(e.target.value); if (errors.email) setErrors(prev => { const {email: _, ...rest} = prev; return rest; }); }} onBlur={() => blurValidate('email')} className={`${inputClass}${errors.email ? ' border-destructive' : ''}`} placeholder="email@firma.pl" />
                   {errors.email && <p className="text-xs text-destructive mt-1">{errors.email}</p>}
                 </div>
                 <div>
@@ -161,7 +170,7 @@ export function ClientModal({ isOpen, onClose, editingClient }: ClientModalProps
                     const val = e.target.value.replace(/[^\d+\-\s]/g, '');
                     setPhone(val);
                     if (errors.phone) setErrors(prev => { const {phone: _, ...rest} = prev; return rest; });
-                  }} className={`${inputClass}${errors.phone ? ' border-destructive' : ''}`} placeholder="+48 123 456 789" />
+                  }} onBlur={() => blurValidate('phone')} className={`${inputClass}${errors.phone ? ' border-destructive' : ''}`} placeholder="+48 123 456 789" />
                   {errors.phone && <p className="text-xs text-destructive mt-1">{errors.phone}</p>}
                 </div>
               </div>
@@ -173,7 +182,7 @@ export function ClientModal({ isOpen, onClose, editingClient }: ClientModalProps
                     const val = e.target.value.replace(/[^\d]/g, '').slice(0, 10);
                     setNip(val);
                     if (errors.nip) setErrors(prev => { const {nip: _, ...rest} = prev; return rest; });
-                  }} className={`${inputClass}${errors.nip ? ' border-destructive' : ''}`} placeholder="1234567890" />
+                  }} onBlur={() => blurValidate('nip')} className={`${inputClass}${errors.nip ? ' border-destructive' : ''}`} placeholder="1234567890" />
                   {errors.nip && <p className="text-xs text-destructive mt-1">{errors.nip}</p>}
                 </div>
                 <div>
@@ -185,7 +194,7 @@ export function ClientModal({ isOpen, onClose, editingClient }: ClientModalProps
               <div className="grid grid-cols-3 gap-3">
                 <div className="col-span-1">
                   <label className={labelClass}>Ulica</label>
-                  <input type="text" value={street} onChange={e => { setStreet(e.target.value); if (errors.street) setErrors(prev => { const {street: _, ...rest} = prev; return rest; }); }} className={`${inputClass}${errors.street ? ' border-destructive' : ''}`} placeholder="ul. Testowa 1/2" />
+                  <input type="text" value={street} onChange={e => { setStreet(e.target.value); if (errors.street) setErrors(prev => { const {street: _, ...rest} = prev; return rest; }); }} onBlur={() => blurValidate('street')} className={`${inputClass}${errors.street ? ' border-destructive' : ''}`} placeholder="ul. Testowa 1/2" />
                   {errors.street && <p className="text-xs text-destructive mt-1">{errors.street}</p>}
                 </div>
                 <div>
@@ -195,7 +204,7 @@ export function ClientModal({ isOpen, onClose, editingClient }: ClientModalProps
                     const formatted = raw.length > 2 ? `${raw.slice(0, 2)}-${raw.slice(2)}` : raw;
                     setPostalCode(formatted);
                     if (errors.postalCode) setErrors(prev => { const {postalCode: _, ...rest} = prev; return rest; });
-                  }} className={`${inputClass}${errors.postalCode ? ' border-destructive' : ''}`} placeholder="00-000" />
+                  }} onBlur={() => blurValidate('postalCode')} className={`${inputClass}${errors.postalCode ? ' border-destructive' : ''}`} placeholder="00-000" />
                   {errors.postalCode && <p className="text-xs text-destructive mt-1">{errors.postalCode}</p>}
                 </div>
                 <div>
@@ -204,7 +213,7 @@ export function ClientModal({ isOpen, onClose, editingClient }: ClientModalProps
                     const val = e.target.value.replace(/[0-9]/g, '');
                     setCity(val);
                     if (errors.city) setErrors(prev => { const {city: _, ...rest} = prev; return rest; });
-                  }} className={`${inputClass}${errors.city ? ' border-destructive' : ''}`} placeholder="Warszawa" />
+                  }} onBlur={() => blurValidate('city')} className={`${inputClass}${errors.city ? ' border-destructive' : ''}`} placeholder="Warszawa" />
                   {errors.city && <p className="text-xs text-destructive mt-1">{errors.city}</p>}
                 </div>
               </div>

@@ -103,6 +103,15 @@ export function SellAssetModal({ isOpen, onClose, asset, wallets }: SellAssetMod
     return errs;
   };
 
+  const blurValidate = (field: string) => {
+    const all = validate();
+    if (all[field]) {
+      setErrors(prev => ({ ...prev, [field]: all[field] }));
+    } else {
+      setErrors(prev => { const { [field]: _, ...rest } = prev; return rest; });
+    }
+  };
+
   const clearError = (field: string) => {
     setErrors((prev) => {
       if (!prev[field]) return prev;
@@ -234,6 +243,7 @@ export function SellAssetModal({ isOpen, onClose, asset, wallets }: SellAssetMod
                         required
                         value={quantity}
                         onChange={(e) => { setQuantity(e.target.value); clearError('quantity'); }}
+                        onBlur={() => blurValidate('quantity')}
                         className={`w-full bg-input border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all pr-16 ${errors.quantity ? 'border-destructive' : 'border-border'}`}
                         placeholder="0.00"
                       />
@@ -259,6 +269,7 @@ export function SellAssetModal({ isOpen, onClose, asset, wallets }: SellAssetMod
                         required
                         value={manualName}
                         onChange={(e) => { setManualName(e.target.value); clearError('manualName'); }}
+                        onBlur={() => blurValidate('manualName')}
                         className={`w-full bg-input border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all ${errors.manualName ? 'border-destructive' : 'border-border'}`}
                         placeholder="Bitcoin"
                       />
@@ -271,6 +282,7 @@ export function SellAssetModal({ isOpen, onClose, asset, wallets }: SellAssetMod
                         required
                         value={manualSymbol}
                         onChange={(e) => { setManualSymbol(e.target.value); clearError('manualSymbol'); }}
+                        onBlur={() => blurValidate('manualSymbol')}
                         className={`w-full bg-input border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all ${errors.manualSymbol ? 'border-destructive' : 'border-border'}`}
                         placeholder="BTC"
                       />
@@ -286,6 +298,7 @@ export function SellAssetModal({ isOpen, onClose, asset, wallets }: SellAssetMod
                       required
                       value={manualQty}
                       onChange={(e) => { setManualQty(e.target.value); clearError('manualQty'); }}
+                      onBlur={() => blurValidate('manualQty')}
                       className={`w-full bg-input border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all ${errors.manualQty ? 'border-destructive' : 'border-border'}`}
                       placeholder="0.00"
                     />
@@ -301,6 +314,7 @@ export function SellAssetModal({ isOpen, onClose, asset, wallets }: SellAssetMod
                         required
                         value={manualSalePrice}
                         onChange={(e) => { setManualSalePrice(e.target.value); clearError('manualSalePrice'); }}
+                        onBlur={() => blurValidate('manualSalePrice')}
                         className={`w-full bg-input border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all ${errors.manualSalePrice ? 'border-destructive' : 'border-border'}`}
                         placeholder="0.00"
                       />
@@ -345,6 +359,7 @@ export function SellAssetModal({ isOpen, onClose, asset, wallets }: SellAssetMod
                     required
                     value={walletId}
                     onChange={(e) => { setWalletId(e.target.value); clearError('walletId'); }}
+                    onBlur={() => blurValidate('walletId')}
                     className={`w-full bg-input border rounded-lg px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring transition-all ${errors.walletId ? 'border-destructive' : 'border-border'}`}
                   >
                     <option value="">Wybierz portfel...</option>

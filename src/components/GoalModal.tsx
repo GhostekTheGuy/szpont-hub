@@ -49,6 +49,15 @@ export function GoalModal({ isOpen, onClose, editingGoal, wallets }: GoalModalPr
     return errs;
   };
 
+  const blurValidate = (field: string) => {
+    const all = validate();
+    if (all[field]) {
+      setErrors(prev => ({ ...prev, [field]: all[field] }));
+    } else {
+      setErrors(prev => { const { [field]: _, ...rest } = prev; return rest; });
+    }
+  };
+
   useEffect(() => {
     if (isOpen && editingGoal) {
       setName(editingGoal.name);
@@ -137,6 +146,7 @@ export function GoalModal({ isOpen, onClose, editingGoal, wallets }: GoalModalPr
                 <input
                   value={name}
                   onChange={(e) => { setName(e.target.value); if (errors.name) setErrors(prev => { const {name: _, ...rest} = prev; return rest; }); }}
+                  onBlur={() => blurValidate('name')}
                   placeholder="np. Fundusz awaryjny"
                   className={`${inputClass} ${errors.name ? '!border-destructive' : ''}`}
                 />
@@ -150,6 +160,7 @@ export function GoalModal({ isOpen, onClose, editingGoal, wallets }: GoalModalPr
                     type="number"
                     value={targetAmount}
                     onChange={(e) => { setTargetAmount(e.target.value); if (errors.targetAmount) setErrors(prev => { const {targetAmount: _, ...rest} = prev; return rest; }); }}
+                    onBlur={() => blurValidate('targetAmount')}
                     placeholder="10000"
                     className={`${inputClass} ${errors.targetAmount ? '!border-destructive' : ''}`}
                   />
@@ -161,6 +172,7 @@ export function GoalModal({ isOpen, onClose, editingGoal, wallets }: GoalModalPr
                     type="number"
                     value={currentAmount}
                     onChange={(e) => { setCurrentAmount(e.target.value); if (errors.currentAmount) setErrors(prev => { const {currentAmount: _, ...rest} = prev; return rest; }); }}
+                    onBlur={() => blurValidate('currentAmount')}
                     placeholder="0"
                     className={`${inputClass} ${errors.currentAmount ? '!border-destructive' : ''}`}
                   />

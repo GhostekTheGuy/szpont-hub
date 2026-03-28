@@ -106,6 +106,15 @@ export function WalletModal({ isOpen, onClose, editingWallet }: WalletModalProps
     return errs;
   };
 
+  const blurValidate = (field: string) => {
+    const all = validate();
+    if (all[field]) {
+      setErrors(prev => ({ ...prev, [field]: all[field] }));
+    } else {
+      setErrors(prev => { const { [field]: _, ...rest } = prev; return rest; });
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const validationErrors = validate();
@@ -167,6 +176,7 @@ export function WalletModal({ isOpen, onClose, editingWallet }: WalletModalProps
                   type="text"
                   value={name}
                   onChange={(e) => { setName(e.target.value); if (errors.name) setErrors(prev => { const {name, ...rest} = prev; return rest; }); }}
+                  onBlur={() => blurValidate('name')}
                   className={`w-full bg-input border ${errors.name ? 'border-destructive' : 'border-border'} rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all`}
                   placeholder="np. Oszczędności"
                 />
@@ -216,6 +226,7 @@ export function WalletModal({ isOpen, onClose, editingWallet }: WalletModalProps
                   step="0.01"
                   value={balance}
                   onChange={(e) => { setBalance(e.target.value); if (errors.balance) setErrors(prev => { const {balance, ...rest} = prev; return rest; }); }}
+                  onBlur={() => blurValidate('balance')}
                   className={`w-full bg-input border ${errors.balance ? 'border-destructive' : 'border-border'} rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all`}
                   placeholder="0.00"
                 />

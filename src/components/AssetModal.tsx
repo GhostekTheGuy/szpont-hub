@@ -194,6 +194,15 @@ export function AssetModal({ isOpen, onClose, editingAsset, onDelete, wallets = 
     return errs;
   };
 
+  const blurValidate = (field: string) => {
+    const all = validate();
+    if (all[field]) {
+      setErrors(prev => ({ ...prev, [field]: all[field] }));
+    } else {
+      setErrors(prev => { const { [field]: _, ...rest } = prev; return rest; });
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const validationErrors = validate();
@@ -429,6 +438,7 @@ export function AssetModal({ isOpen, onClose, editingAsset, onDelete, wallets = 
                   required
                   value={quantity}
                   onChange={(e) => { setQuantity(e.target.value); if (errors.quantity) setErrors(prev => { const {quantity, ...rest} = prev; return rest; }); }}
+                  onBlur={() => blurValidate('quantity')}
                   className={`w-full bg-input border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all ${errors.quantity ? 'border-destructive' : 'border-border'}`}
                   placeholder="0.00"
                 />
@@ -447,6 +457,7 @@ export function AssetModal({ isOpen, onClose, editingAsset, onDelete, wallets = 
                     step="any"
                     value={costBasis}
                     onChange={(e) => { setCostBasis(e.target.value); if (errors.costBasis) setErrors(prev => { const {costBasis, ...rest} = prev; return rest; }); }}
+                    onBlur={() => blurValidate('costBasis')}
                     className={`flex-1 bg-input border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all ${errors.costBasis ? 'border-destructive' : 'border-border'}`}
                     placeholder="Automatyczna"
                   />

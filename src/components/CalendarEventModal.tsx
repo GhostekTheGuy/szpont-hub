@@ -114,6 +114,15 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
     return errs;
   };
 
+  const blurValidate = (field: string) => {
+    const all = validate();
+    if (all[field]) {
+      setErrors(prev => ({ ...prev, [field]: all[field] }));
+    } else {
+      setErrors(prev => { const { [field]: _, ...rest } = prev; return rest; });
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const validationErrors = validate();
@@ -395,6 +404,7 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
                   type="text"
                   value={title}
                   onChange={(e) => { setTitle(e.target.value); if (errors.title) setErrors(prev => { const {title: _, ...rest} = prev; return rest; }); }}
+                  onBlur={() => blurValidate('title')}
                   disabled={isGoogleEvent}
                   className={`w-full bg-input border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all ${errors.title ? 'border-destructive' : 'border-border'} ${isGoogleEvent ? 'opacity-60 cursor-not-allowed' : ''}`}
                   placeholder={isPersonal ? 'np. Call z klientem' : 'np. Freelance - projekt X'}
@@ -408,6 +418,7 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
                   type="date"
                   value={date}
                   onChange={(e) => { setDate(e.target.value); if (errors.date) setErrors(prev => { const {date: _, ...rest} = prev; return rest; }); }}
+                  onBlur={() => blurValidate('date')}
                   disabled={isGoogleEvent || isRecurringInstance}
                   className={`w-full bg-input border rounded-lg px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring transition-all ${errors.date ? 'border-destructive' : 'border-border'} ${isGoogleEvent || isRecurringInstance ? 'opacity-60 cursor-not-allowed' : ''}`}
                 />
@@ -451,6 +462,7 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
                     <select
                       value={walletId}
                       onChange={(e) => { setWalletId(e.target.value); if (errors.walletId) setErrors(prev => { const {walletId: _, ...rest} = prev; return rest; }); }}
+                      onBlur={() => blurValidate('walletId')}
                       className={`w-full bg-input border rounded-lg px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring transition-all ${errors.walletId ? 'border-destructive' : 'border-border'}`}
                     >
                       {wallets.length === 0 && <option value="">Brak portfeli</option>}
@@ -469,6 +481,7 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
                       min="0"
                       value={hourlyRate}
                       onChange={(e) => { setHourlyRate(e.target.value); if (errors.hourlyRate) setErrors(prev => { const {hourlyRate: _, ...rest} = prev; return rest; }); }}
+                      onBlur={() => blurValidate('hourlyRate')}
                       className={`w-full bg-input border rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all ${errors.hourlyRate ? 'border-destructive' : 'border-border'}`}
                       placeholder="0.00"
                     />

@@ -51,6 +51,15 @@ export function TransactionModal({ isOpen, onClose, editingTransaction, defaultT
     return errs;
   };
 
+  const blurValidate = (field: string) => {
+    const all = validate();
+    if (all[field]) {
+      setErrors(prev => ({ ...prev, [field]: all[field] }));
+    } else {
+      setErrors(prev => { const { [field]: _, ...rest } = prev; return rest; });
+    }
+  };
+
   useEffect(() => {
     setErrors({});
     if (editingTransaction) {
@@ -194,6 +203,7 @@ export function TransactionModal({ isOpen, onClose, editingTransaction, defaultT
                 required
                 value={amount}
                 onChange={(e) => { setAmount(e.target.value); if (errors.amount) setErrors(prev => { const {amount, ...rest} = prev; return rest; }); }}
+                onBlur={() => blurValidate('amount')}
                 className={`flex-1 bg-input border ${errors.amount ? 'border-destructive' : 'border-border'} rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all`}
                 placeholder="0.00"
               />
@@ -218,6 +228,7 @@ export function TransactionModal({ isOpen, onClose, editingTransaction, defaultT
                 required
                 value={category}
                 onChange={(e) => { setCategory(e.target.value); if (errors.category) setErrors(prev => { const {category, ...rest} = prev; return rest; }); }}
+                onBlur={() => blurValidate('category')}
                 className={`w-full bg-input border ${errors.category ? 'border-destructive' : 'border-border'} rounded-lg px-3 py-2 text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring transition-all`}
                 placeholder="np. Jedzenie"
               />
@@ -243,6 +254,7 @@ export function TransactionModal({ isOpen, onClose, editingTransaction, defaultT
                 <select
                   value={walletId}
                   onChange={(e) => { setWalletId(e.target.value); if (errors.walletId) setErrors(prev => { const {walletId, ...rest} = prev; return rest; }); }}
+                  onBlur={() => blurValidate('walletId')}
                   className={`w-full bg-input border ${errors.walletId ? 'border-destructive' : 'border-border'} rounded-lg px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring transition-all`}
                 >
                   {wallets.length === 0 && <option value="">Brak portfeli</option>}
@@ -257,6 +269,7 @@ export function TransactionModal({ isOpen, onClose, editingTransaction, defaultT
                 <select
                   value={toWalletId}
                   onChange={(e) => { setToWalletId(e.target.value); if (errors.toWalletId) setErrors(prev => { const {toWalletId, ...rest} = prev; return rest; }); }}
+                  onBlur={() => blurValidate('toWalletId')}
                   className={`w-full bg-input border rounded-lg px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring transition-all ${
                     errors.toWalletId ? 'border-destructive' : 'border-border'
                   }`}
@@ -275,6 +288,7 @@ export function TransactionModal({ isOpen, onClose, editingTransaction, defaultT
               <select
                 value={walletId}
                 onChange={(e) => { setWalletId(e.target.value); if (errors.walletId) setErrors(prev => { const {walletId, ...rest} = prev; return rest; }); }}
+                onBlur={() => blurValidate('walletId')}
                 className={`w-full bg-input border ${errors.walletId ? 'border-destructive' : 'border-border'} rounded-lg px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring transition-all`}
               >
                 {wallets.length === 0 && <option value="">Brak portfeli</option>}

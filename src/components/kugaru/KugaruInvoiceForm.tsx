@@ -189,7 +189,7 @@ export function KugaruInvoiceForm() {
   // Checkboxes
   const [pomijaProforme] = useState(false);
   const [weryfikacjaPrzedWyslaniem, setWeryfikacjaPrzedWyslaniem] = useState(false);
-  const [samodzielnieWysyla, setSamodzielnieWysyla] = useState(true);
+  const [samodzielnieWysyla, setSamodzielnieWysyla] = useState(false);
   const [abonamentZamiastProwizji] = useState(false);
   const [brakPostepowan, setBrakPostepowan] = useState(false);
   const [akceptujeRegulamin, setAkceptujeRegulamin] = useState(false);
@@ -283,6 +283,15 @@ export function KugaruInvoiceForm() {
 
     return errs;
   }, [imieNazwisko, email, pesel, obywatelstwo, pozycje, typKlienta, nip, nazwaFirmy, ulica, kodPocztowy, miasto, emailZleceniodawcy, opisDziela, terminPlatnosci, customTermin, brakPostepowan, akceptujeRegulamin]);
+
+  const blurValidateField = useCallback((field: string, step: number) => {
+    const all = validateStep(step);
+    if (all[field]) {
+      setErrors(prev => ({ ...prev, [field]: all[field] }));
+    } else {
+      setErrors(prev => { const { [field]: _, ...rest } = prev; return rest; });
+    }
+  }, [validateStep]);
 
   // Fetch clients on mount
   useEffect(() => {
@@ -557,6 +566,7 @@ export function KugaruInvoiceForm() {
                         type="text"
                         value={imieNazwisko}
                         onChange={(e) => { setImieNazwisko(e.target.value); if (errors.imieNazwisko) setErrors(prev => { const {imieNazwisko: _, ...rest} = prev; return rest; }); }}
+                        onBlur={() => blurValidateField('imieNazwisko', 1)}
                         className={errors.imieNazwisko ? inputErrorClass : inputClass}
                         placeholder="Jan Kowalski"
                       />
@@ -570,6 +580,7 @@ export function KugaruInvoiceForm() {
                         type="email"
                         value={email}
                         onChange={(e) => { setEmail(e.target.value); if (errors.email) setErrors(prev => { const {email: _, ...rest} = prev; return rest; }); }}
+                        onBlur={() => blurValidateField('email', 1)}
                         className={errors.email ? inputErrorClass : inputClass}
                         placeholder="jan@example.com"
                       />
@@ -582,6 +593,7 @@ export function KugaruInvoiceForm() {
                       type="tel"
                       value={telefon}
                       onChange={(e) => setTelefon(e.target.value)}
+                      onBlur={() => blurValidateField('telefon', 1)}
                       className={inputClass}
                       placeholder="czasami tak jest szybciej"
                     />
@@ -595,6 +607,7 @@ export function KugaruInvoiceForm() {
                         type="text"
                         value={pesel}
                         onChange={(e) => { setPesel(e.target.value); if (errors.pesel) setErrors(prev => { const {pesel: _, ...rest} = prev; return rest; }); }}
+                        onBlur={() => blurValidateField('pesel', 1)}
                         className={errors.pesel ? inputErrorClass : inputClass}
                         placeholder="00000000000"
                         maxLength={11}
@@ -609,6 +622,7 @@ export function KugaruInvoiceForm() {
                         type="text"
                         value={obywatelstwo}
                         onChange={(e) => { setObywatelstwo(e.target.value); if (errors.obywatelstwo) setErrors(prev => { const {obywatelstwo: _, ...rest} = prev; return rest; }); }}
+                        onBlur={() => blurValidateField('obywatelstwo', 1)}
                         className={errors.obywatelstwo ? inputErrorClass : inputClass}
                         placeholder="polskie"
                       />
@@ -805,6 +819,7 @@ export function KugaruInvoiceForm() {
                         type="text"
                         value={nip}
                         onChange={(e) => { setNip(e.target.value); if (errors.nip) setErrors(prev => { const {nip: _, ...rest} = prev; return rest; }); }}
+                        onBlur={() => blurValidateField('nip', 3)}
                         className={errors.nip ? inputErrorClass : inputClass}
                         placeholder="Wpisz NIP firmy"
                       />
@@ -821,6 +836,7 @@ export function KugaruInvoiceForm() {
                       type="text"
                       value={nazwaFirmy}
                       onChange={(e) => { setNazwaFirmy(e.target.value); if (errors.nazwaFirmy) setErrors(prev => { const {nazwaFirmy: _, ...rest} = prev; return rest; }); }}
+                      onBlur={() => blurValidateField('nazwaFirmy', 3)}
                       className={errors.nazwaFirmy ? inputErrorClass : inputClass}
                     />
                     {errors.nazwaFirmy && <p className={errorClass}>{errors.nazwaFirmy}</p>}
@@ -834,6 +850,7 @@ export function KugaruInvoiceForm() {
                       type="text"
                       value={ulica}
                       onChange={(e) => { setUlica(e.target.value); if (errors.ulica) setErrors(prev => { const {ulica: _, ...rest} = prev; return rest; }); }}
+                      onBlur={() => blurValidateField('ulica', 3)}
                       className={errors.ulica ? inputErrorClass : inputClass}
                       placeholder={typKlienta === 'firma' ? 'Automatycznie pobierane po NIP' : ''}
                     />
@@ -856,6 +873,7 @@ export function KugaruInvoiceForm() {
                           setKodPocztowy(formatted);
                           if (errors.kodPocztowy) setErrors(prev => { const {kodPocztowy: _, ...rest} = prev; return rest; });
                         }}
+                        onBlur={() => blurValidateField('kodPocztowy', 3)}
                         className={errors.kodPocztowy ? inputErrorClass : inputClass}
                         placeholder={typKlienta === 'firma' ? 'Automatycznie pobierane po NIP' : '00-000'}
                       />
@@ -869,6 +887,7 @@ export function KugaruInvoiceForm() {
                         type="text"
                         value={miasto}
                         onChange={(e) => { setMiasto(e.target.value); if (errors.miasto) setErrors(prev => { const {miasto: _, ...rest} = prev; return rest; }); }}
+                        onBlur={() => blurValidateField('miasto', 3)}
                         className={errors.miasto ? inputErrorClass : inputClass}
                       />
                       {errors.miasto && <p className={errorClass}>{errors.miasto}</p>}
@@ -883,6 +902,7 @@ export function KugaruInvoiceForm() {
                       type="email"
                       value={emailZleceniodawcy}
                       onChange={(e) => { setEmailZleceniodawcy(e.target.value); if (errors.emailZleceniodawcy) setErrors(prev => { const {emailZleceniodawcy: _, ...rest} = prev; return rest; }); }}
+                      onBlur={() => blurValidateField('emailZleceniodawcy', 3)}
                       className={errors.emailZleceniodawcy ? inputErrorClass : inputClass}
                     />
                     {errors.emailZleceniodawcy ? <p className={errorClass}>{errors.emailZleceniodawcy}</p> : <p className={hintClass}>Musi różnić się od e-maila Zleceniobiorcy.</p>}
@@ -926,6 +946,7 @@ export function KugaruInvoiceForm() {
                     <textarea
                       value={opisDziela}
                       onChange={(e) => { setOpisDziela(e.target.value); if (errors.opisDziela) setErrors(prev => { const {opisDziela: _, ...rest} = prev; return rest; }); }}
+                      onBlur={() => blurValidateField('opisDziela', 4)}
                       rows={4}
                       className={`${errors.opisDziela ? inputErrorClass : inputClass} resize-y`}
                     />
@@ -995,6 +1016,7 @@ export function KugaruInvoiceForm() {
                           min="1"
                           value={customTermin}
                           onChange={(e) => { setCustomTermin(e.target.value); if (errors.customTermin) setErrors(prev => { const {customTermin: _, ...rest} = prev; return rest; }); }}
+                          onBlur={() => blurValidateField('customTermin', 4)}
                           className={`w-24 bg-input border rounded-lg px-3 py-1.5 text-foreground text-sm outline-none focus:ring-2 focus:ring-ring transition-all ${errors.customTermin ? 'border-destructive' : 'border-border'}`}
                           placeholder="dni"
                         />

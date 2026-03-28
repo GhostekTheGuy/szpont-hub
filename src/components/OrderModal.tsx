@@ -59,6 +59,15 @@ export function OrderModal({ isOpen, onClose, editingOrder, preselectedClientId 
     return errs;
   };
 
+  const blurValidate = (field: string) => {
+    const all = validate();
+    if (all[field]) {
+      setErrors(prev => ({ ...prev, [field]: all[field] }));
+    } else {
+      setErrors(prev => { const { [field]: _, ...rest } = prev; return rest; });
+    }
+  };
+
   useEffect(() => {
     if (editingOrder) {
       setClientId(editingOrder.client_id);
@@ -174,6 +183,7 @@ export function OrderModal({ isOpen, onClose, editingOrder, preselectedClientId 
                 <select
                   value={clientId}
                   onChange={e => { setClientId(e.target.value); if (errors.clientId) setErrors(prev => { const {clientId: _, ...rest} = prev; return rest; }); }}
+                  onBlur={() => blurValidate('clientId')}
                   className={`${selectClass}${errors.clientId ? ' border-destructive' : ''}`}
                 >
                   <option value="">Wybierz klienta...</option>
@@ -186,7 +196,7 @@ export function OrderModal({ isOpen, onClose, editingOrder, preselectedClientId 
 
               <div>
                 <label className={labelClass}>Tytul zlecenia *</label>
-                <input type="text" value={title} onChange={e => { setTitle(e.target.value); if (errors.title) setErrors(prev => { const {title: _, ...rest} = prev; return rest; }); }} className={`${inputClass}${errors.title ? ' border-destructive' : ''}`} placeholder="np. Projekt logo" />
+                <input type="text" value={title} onChange={e => { setTitle(e.target.value); if (errors.title) setErrors(prev => { const {title: _, ...rest} = prev; return rest; }); }} onBlur={() => blurValidate('title')} className={`${inputClass}${errors.title ? ' border-destructive' : ''}`} placeholder="np. Projekt logo" />
                 {errors.title && <p className="text-xs text-destructive mt-1">{errors.title}</p>}
               </div>
 
@@ -225,13 +235,13 @@ export function OrderModal({ isOpen, onClose, editingOrder, preselectedClientId 
                 {isHourly ? (
                   <div>
                     <label className={labelClass}>Stawka /h (PLN) *</label>
-                    <input type="number" step="0.01" min="0" value={hourlyRate} onChange={e => { setHourlyRate(e.target.value); if (errors.hourlyRate) setErrors(prev => { const {hourlyRate: _, ...rest} = prev; return rest; }); }} className={`${inputClass}${errors.hourlyRate ? ' border-destructive' : ''}`} placeholder="0.00" />
+                    <input type="number" step="0.01" min="0" value={hourlyRate} onChange={e => { setHourlyRate(e.target.value); if (errors.hourlyRate) setErrors(prev => { const {hourlyRate: _, ...rest} = prev; return rest; }); }} onBlur={() => blurValidate('hourlyRate')} className={`${inputClass}${errors.hourlyRate ? ' border-destructive' : ''}`} placeholder="0.00" />
                     {errors.hourlyRate && <p className="text-xs text-destructive mt-1">{errors.hourlyRate}</p>}
                   </div>
                 ) : (
                   <div>
                     <label className={labelClass}>Kwota (PLN) *</label>
-                    <input type="number" step="0.01" min="0" value={amount} onChange={e => { setAmount(e.target.value); if (errors.amount) setErrors(prev => { const {amount: _, ...rest} = prev; return rest; }); }} className={`${inputClass}${errors.amount ? ' border-destructive' : ''}`} placeholder="0.00" />
+                    <input type="number" step="0.01" min="0" value={amount} onChange={e => { setAmount(e.target.value); if (errors.amount) setErrors(prev => { const {amount: _, ...rest} = prev; return rest; }); }} onBlur={() => blurValidate('amount')} className={`${inputClass}${errors.amount ? ' border-destructive' : ''}`} placeholder="0.00" />
                     {errors.amount && <p className="text-xs text-destructive mt-1">{errors.amount}</p>}
                   </div>
                 )}
