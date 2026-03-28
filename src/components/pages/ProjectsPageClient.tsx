@@ -28,6 +28,7 @@ import {
   PlayCircle,
   Banknote,
   Receipt,
+  AlertTriangle,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { pl } from 'date-fns/locale';
@@ -283,6 +284,33 @@ export function ProjectsPageClient({ initialClients, initialOrders, initialWalle
     }
   };
 
+  const validateClientForInvoice = useCallback((client: Client): string[] => {
+    const missing: string[] = [];
+    if (!client.name?.trim() && !client.company_name?.trim()) missing.push('Nazwa firmy lub imię i nazwisko');
+    if (!client.email?.trim()) missing.push('Email');
+    if (!client.street?.trim()) missing.push('Ulica');
+    if (!client.postal_code?.trim()) missing.push('Kod pocztowy');
+    else if (!/^\d{2}-\d{3}$/.test(client.postal_code.trim())) missing.push('Kod pocztowy (format XX-XXX)');
+    if (!client.city?.trim()) missing.push('Miasto');
+    return missing;
+  }, []);
+
+  const handleInvoicePrefill = useCallback((client: Client, order: Order) => {
+    const missing = validateClientForInvoice(client);
+    if (missing.length > 0) {
+      toast(`Uzupełnij dane klienta: ${missing.join(', ')}`, 'warning');
+      setEditingClient(client);
+      setIsClientModalOpen(true);
+      return;
+    }
+    if (order.amount <= 0) {
+      toast('Zlecenie musi mieć kwotę większą od 0', 'warning');
+      return;
+    }
+    setInvoicePrefill({ client, order });
+    router.push('/invoices');
+  }, [validateClientForInvoice, setInvoicePrefill, router, toast]);
+
   const selectAllClientOrders = (clientId: string) => {
     const clientOrds = ordersByClient.get(clientId) || [];
     const unsettledIds = clientOrds.filter(o => !o.is_settled && o.wallet_id).map(o => o.id);
@@ -417,6 +445,11 @@ export function ProjectsPageClient({ initialClients, initialOrders, initialWalle
                         <span className="text-xs text-muted-foreground hidden sm:flex items-center gap-1">
                           <Building2 className="w-3 h-3" />
                           {client.company_name}
+                        </span>
+                      )}
+                      {validateClientForInvoice(client).length > 0 && (
+                        <span title="Niekompletne dane do faktury" className="text-amber-500 flex items-center gap-1 text-xs">
+                          <AlertTriangle className="w-3.5 h-3.5" />
                         </span>
                       )}
                     </div>
@@ -565,11 +598,8 @@ export function ProjectsPageClient({ initialClients, initialOrders, initialWalle
                               {/* Actions */}
                               <div className="flex items-center gap-0.5 shrink-0">
                                 <button
-                                  onClick={() => {
-                                    setInvoicePrefill({ client, order });
-                                    router.push('/invoices');
-                                  }}
-                                  title="Rozlicz fakturę"
+                                  onClick={() => handleInvoicePrefill(client, order)}
+                                  title="Wystaw fakturę"
                                   className="p-1.5 text-muted-foreground hover:text-primary transition-colors rounded-md hover:bg-primary/10"
                                 >
                                   <Receipt className="w-3.5 h-3.5" />
