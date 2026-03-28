@@ -37,7 +37,12 @@ export function ClientModal({ isOpen, onClose, editingClient }: ClientModalProps
     if (!name.trim()) errs.name = 'Imię i nazwisko jest wymagane';
     else if (!/^[A-Za-zĄąĆćĘęŁłŃńÓóŚśŹźŻż\s\-'.]+$/.test(name.trim())) errs.name = 'Imię i nazwisko może zawierać tylko litery, spacje i myślniki';
     else if (name.trim().split(/\s+/).length < 2) errs.name = 'Podaj imię i nazwisko (min. 2 wyrazy)';
-    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim())) errs.email = 'Podaj poprawny adres email';
+    if (email.trim()) {
+      const e = email.trim();
+      if (!/^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/.test(e)) errs.email = 'Nieprawidłowy format email (np. jan@firma.pl)';
+      else if (/\.{2,}/.test(e)) errs.email = 'Email nie może zawierać podwójnych kropek';
+      else if (e.startsWith('.') || e.split('@')[0].endsWith('.')) errs.email = 'Nazwa użytkownika nie może zaczynać/kończyć się kropką';
+    }
     if (phone.trim() && !/^(\+?\d[\d\s\-]{7,17})$/.test(phone.trim())) errs.phone = 'Podaj poprawny numer telefonu';
     if (nip.trim() && !/^\d{10}$/.test(nip.trim().replace(/[- ]/g, ''))) errs.nip = 'NIP musi składać się z 10 cyfr';
     if (postalCode.trim() && !/^\d{2}-\d{3}$/.test(postalCode.trim())) errs.postalCode = 'Kod pocztowy w formacie XX-XXX';
