@@ -265,6 +265,7 @@ export function KugaruInvoiceForm() {
       if (!nazwaFirmy.trim()) errs.nazwaFirmy = typKlienta === 'firma' ? 'Nazwa firmy jest wymagana' : 'Imię i nazwisko jest wymagane';
       if (!ulica.trim()) errs.ulica = 'Ulica jest wymagana';
       if (!kodPocztowy.trim()) errs.kodPocztowy = 'Kod pocztowy jest wymagany';
+      else if (!/^\d{2}-\d{3}$/.test(kodPocztowy.trim())) errs.kodPocztowy = 'Kod pocztowy w formacie XX-XXX';
       if (!miasto.trim()) errs.miasto = 'Miasto jest wymagane';
       if (!emailZleceniodawcy.trim()) errs.emailZleceniodawcy = 'Email zleceniodawcy jest wymagany';
       else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailZleceniodawcy)) errs.emailZleceniodawcy = 'Nieprawidłowy format email';
@@ -846,10 +847,17 @@ export function KugaruInvoiceForm() {
                       </label>
                       <input
                         type="text"
+                        inputMode="numeric"
+                        maxLength={6}
                         value={kodPocztowy}
-                        onChange={(e) => { setKodPocztowy(e.target.value); if (errors.kodPocztowy) setErrors(prev => { const {kodPocztowy: _, ...rest} = prev; return rest; }); }}
+                        onChange={(e) => {
+                          const raw = e.target.value.replace(/[^0-9]/g, '').slice(0, 5);
+                          const formatted = raw.length > 2 ? `${raw.slice(0, 2)}-${raw.slice(2)}` : raw;
+                          setKodPocztowy(formatted);
+                          if (errors.kodPocztowy) setErrors(prev => { const {kodPocztowy: _, ...rest} = prev; return rest; });
+                        }}
                         className={errors.kodPocztowy ? inputErrorClass : inputClass}
-                        placeholder={typKlienta === 'firma' ? 'Automatycznie pobierane po NIP' : ''}
+                        placeholder={typKlienta === 'firma' ? 'Automatycznie pobierane po NIP' : '00-000'}
                       />
                       {errors.kodPocztowy && <p className={errorClass}>{errors.kodPocztowy}</p>}
                     </div>

@@ -162,7 +162,12 @@ export function ClientModal({ isOpen, onClose, editingClient }: ClientModalProps
                 </div>
                 <div>
                   <label className={labelClass}>Kod pocztowy</label>
-                  <input type="text" value={postalCode} onChange={e => { setPostalCode(e.target.value); if (errors.postalCode) setErrors(prev => { const {postalCode: _, ...rest} = prev; return rest; }); }} className={`${inputClass}${errors.postalCode ? ' border-destructive' : ''}`} placeholder="00-000" />
+                  <input type="text" inputMode="numeric" maxLength={6} value={postalCode} onChange={e => {
+                    const raw = e.target.value.replace(/[^0-9]/g, '').slice(0, 5);
+                    const formatted = raw.length > 2 ? `${raw.slice(0, 2)}-${raw.slice(2)}` : raw;
+                    setPostalCode(formatted);
+                    if (errors.postalCode) setErrors(prev => { const {postalCode: _, ...rest} = prev; return rest; });
+                  }} className={`${inputClass}${errors.postalCode ? ' border-destructive' : ''}`} placeholder="00-000" />
                   {errors.postalCode && <p className="text-xs text-destructive mt-1">{errors.postalCode}</p>}
                 </div>
                 <div>
