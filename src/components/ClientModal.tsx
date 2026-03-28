@@ -81,17 +81,25 @@ export function ClientModal({ isOpen, onClose, editingClient }: ClientModalProps
     setLoading(true);
 
     try {
-      const data = {
-        name: name.trim(),
-        email: email.trim() || undefined,
-        phone: phone.trim() || undefined,
-        nip: nip.trim() || undefined,
-        company_name: companyName.trim() || undefined,
-        street: street.trim() || undefined,
-        postal_code: postalCode.trim() || undefined,
-        city: city.trim() || undefined,
-        notes: notes.trim() || undefined,
-      };
+      const data: {
+        name: string;
+        email?: string;
+        phone?: string;
+        nip?: string;
+        company_name?: string;
+        street?: string;
+        postal_code?: string;
+        city?: string;
+        notes?: string;
+      } = { name: name.trim() };
+      if (email.trim()) data.email = email.trim();
+      if (phone.trim()) data.phone = phone.trim();
+      if (nip.trim()) data.nip = nip.trim();
+      if (companyName.trim()) data.company_name = companyName.trim();
+      if (street.trim()) data.street = street.trim();
+      if (postalCode.trim()) data.postal_code = postalCode.trim();
+      if (city.trim()) data.city = city.trim();
+      if (notes.trim()) data.notes = notes.trim();
 
       if (editingClient) {
         await editClient(editingClient.id, data);
@@ -102,8 +110,8 @@ export function ClientModal({ isOpen, onClose, editingClient }: ClientModalProps
       }
       onClose(true);
     } catch (err) {
-      console.error('ClientModal error:', err);
-      toast('Wystapil blad', 'error');
+      const msg = err instanceof Error ? err.message : 'Wystapil blad';
+      toast(msg.includes('Encryption') ? 'Sesja wygasła — zaloguj się ponownie' : 'Wystąpił błąd przy zapisie', 'error');
     } finally {
       setLoading(false);
     }
