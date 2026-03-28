@@ -41,6 +41,8 @@ export function ClientModal({ isOpen, onClose, editingClient }: ClientModalProps
     if (phone.trim() && !/^(\+?\d[\d\s\-]{7,17})$/.test(phone.trim())) errs.phone = 'Podaj poprawny numer telefonu';
     if (nip.trim() && !/^\d{10}$/.test(nip.trim().replace(/[- ]/g, ''))) errs.nip = 'NIP musi składać się z 10 cyfr';
     if (postalCode.trim() && !/^\d{2}-\d{3}$/.test(postalCode.trim())) errs.postalCode = 'Kod pocztowy w formacie XX-XXX';
+    if (street.trim() && !/\d/.test(street.trim())) errs.street = 'Podaj numer budynku/lokalu (np. ul. Testowa 1/2)';
+    if (city.trim() && /\d/.test(city.trim())) errs.city = 'Nazwa miasta nie może zawierać cyfr';
     return errs;
   };
 
@@ -170,7 +172,8 @@ export function ClientModal({ isOpen, onClose, editingClient }: ClientModalProps
               <div className="grid grid-cols-3 gap-3">
                 <div className="col-span-1">
                   <label className={labelClass}>Ulica</label>
-                  <input type="text" value={street} onChange={e => setStreet(e.target.value)} className={inputClass} placeholder="ul. Testowa 1" />
+                  <input type="text" value={street} onChange={e => { setStreet(e.target.value); if (errors.street) setErrors(prev => { const {street: _, ...rest} = prev; return rest; }); }} className={`${inputClass}${errors.street ? ' border-destructive' : ''}`} placeholder="ul. Testowa 1/2" />
+                  {errors.street && <p className="text-xs text-destructive mt-1">{errors.street}</p>}
                 </div>
                 <div>
                   <label className={labelClass}>Kod pocztowy</label>
@@ -184,7 +187,12 @@ export function ClientModal({ isOpen, onClose, editingClient }: ClientModalProps
                 </div>
                 <div>
                   <label className={labelClass}>Miasto</label>
-                  <input type="text" value={city} onChange={e => setCity(e.target.value)} className={inputClass} placeholder="Warszawa" />
+                  <input type="text" value={city} onChange={e => {
+                    const val = e.target.value.replace(/[0-9]/g, '');
+                    setCity(val);
+                    if (errors.city) setErrors(prev => { const {city: _, ...rest} = prev; return rest; });
+                  }} className={`${inputClass}${errors.city ? ' border-destructive' : ''}`} placeholder="Warszawa" />
+                  {errors.city && <p className="text-xs text-destructive mt-1">{errors.city}</p>}
                 </div>
               </div>
 
