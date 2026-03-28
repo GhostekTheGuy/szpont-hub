@@ -34,9 +34,12 @@ export function ClientModal({ isOpen, onClose, editingClient }: ClientModalProps
 
   const validate = (): Record<string, string> => {
     const errs: Record<string, string> = {};
-    if (!name.trim()) errs.name = 'Nazwa / imię i nazwisko jest wymagane';
-    if (email.trim() && !email.includes('@')) errs.email = 'Podaj poprawny adres email';
-    if (nip.trim() && !/^\d{10}$/.test(nip.trim())) errs.nip = 'NIP musi składać się z 10 cyfr';
+    if (!name.trim()) errs.name = 'Imię i nazwisko jest wymagane';
+    else if (!/^[A-Za-zĄąĆćĘęŁłŃńÓóŚśŹźŻż\s\-'.]+$/.test(name.trim())) errs.name = 'Imię i nazwisko może zawierać tylko litery, spacje i myślniki';
+    else if (name.trim().split(/\s+/).length < 2) errs.name = 'Podaj imię i nazwisko (min. 2 wyrazy)';
+    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim())) errs.email = 'Podaj poprawny adres email';
+    if (phone.trim() && !/^(\+?\d[\d\s\-]{7,17})$/.test(phone.trim())) errs.phone = 'Podaj poprawny numer telefonu';
+    if (nip.trim() && !/^\d{10}$/.test(nip.trim().replace(/[- ]/g, ''))) errs.nip = 'NIP musi składać się z 10 cyfr';
     if (postalCode.trim() && !/^\d{2}-\d{3}$/.test(postalCode.trim())) errs.postalCode = 'Kod pocztowy w formacie XX-XXX';
     return errs;
   };
@@ -127,7 +130,7 @@ export function ClientModal({ isOpen, onClose, editingClient }: ClientModalProps
             <form onSubmit={handleSubmit} className="p-4 space-y-4">
               <div>
                 <label className={labelClass}>Nazwa / Imie i nazwisko *</label>
-                <input type="text" value={name} onChange={e => { setName(e.target.value); if (errors.name) setErrors(prev => { const {name: _, ...rest} = prev; return rest; }); }} className={`${inputClass}${errors.name ? ' border-destructive' : ''}`} placeholder="Jan Kowalski / Firma XYZ" />
+                <input type="text" value={name} onChange={e => { setName(e.target.value); if (errors.name) setErrors(prev => { const {name: _, ...rest} = prev; return rest; }); }} className={`${inputClass}${errors.name ? ' border-destructive' : ''}`} placeholder="Jan Kowalski" />
                 {errors.name && <p className="text-xs text-destructive mt-1">{errors.name}</p>}
               </div>
 
@@ -139,14 +142,23 @@ export function ClientModal({ isOpen, onClose, editingClient }: ClientModalProps
                 </div>
                 <div>
                   <label className={labelClass}>Telefon</label>
-                  <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} className={inputClass} placeholder="+48 123 456 789" />
+                  <input type="tel" value={phone} onChange={e => {
+                    const val = e.target.value.replace(/[^\d+\-\s]/g, '');
+                    setPhone(val);
+                    if (errors.phone) setErrors(prev => { const {phone: _, ...rest} = prev; return rest; });
+                  }} className={`${inputClass}${errors.phone ? ' border-destructive' : ''}`} placeholder="+48 123 456 789" />
+                  {errors.phone && <p className="text-xs text-destructive mt-1">{errors.phone}</p>}
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={labelClass}>NIP</label>
-                  <input type="text" value={nip} onChange={e => { setNip(e.target.value); if (errors.nip) setErrors(prev => { const {nip: _, ...rest} = prev; return rest; }); }} className={`${inputClass}${errors.nip ? ' border-destructive' : ''}`} placeholder="1234567890" />
+                  <input type="text" inputMode="numeric" maxLength={10} value={nip} onChange={e => {
+                    const val = e.target.value.replace(/[^\d]/g, '').slice(0, 10);
+                    setNip(val);
+                    if (errors.nip) setErrors(prev => { const {nip: _, ...rest} = prev; return rest; });
+                  }} className={`${inputClass}${errors.nip ? ' border-destructive' : ''}`} placeholder="1234567890" />
                   {errors.nip && <p className="text-xs text-destructive mt-1">{errors.nip}</p>}
                 </div>
                 <div>
