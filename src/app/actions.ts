@@ -2459,54 +2459,6 @@ export async function settleAllUnsettledAction() {
   return { settled: filteredEvents.length, settledIds: eventIds };
 }
 
-// --- MIGRATION: UTC → LOCAL TIME ---
-
-export async function migrateCalendarEventsToLocalTime() {
-  const userId = await getUserId();
-  if (!userId) throw new Error('Unauthorized');
-
-  const { data: events } = await supabaseAdmin
-    .from('calendar_events')
-    .select('id, start_time, end_time')
-    .eq('user_id', userId);
-
-  if (!events || events.length === 0) return { migrated: 0 };
-
-  let migrated = 0;
-  for (const event of events) {
-    // Skip events already in local format (no Z suffix or +00:00)
-    if (!event.start_time.endsWith('Z') && !event.start_time.includes('+')) continue;
-
-    // Convert UTC to Europe/Warsaw local time
-    const startUtc = new Date(event.start_time);
-    const endUtc = new Date(event.end_time);
-
-    const formatInTz = (d: Date): string => {
-      const parts = new Intl.DateTimeFormat('sv-SE', {
-        timeZone: 'Europe/Warsaw',
-        year: 'numeric', month: '2-digit', day: '2-digit',
-        hour: '2-digit', minute: '2-digit', second: '2-digit',
-        hour12: false,
-      }).formatToParts(d);
-      const get = (type: string) => parts.find(p => p.type === type)?.value || '00';
-      return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}:${get('second')}`;
-    };
-
-    await supabaseAdmin
-      .from('calendar_events')
-      .update({
-        start_time: formatInTz(startUtc),
-        end_time: formatInTz(endUtc),
-      })
-      .eq('id', event.id);
-
-    migrated++;
-  }
-
-  revalidatePath('/', 'layout');
-  return { migrated };
-}
-
 // --- YAHOO FINANCE ---
 
 export async function searchYahooFinance(query: string): Promise<{ symbol: string; name: string; exchange: string; type: string }[]> {
