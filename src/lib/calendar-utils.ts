@@ -2,8 +2,18 @@
  * Shared helpers for expanding recurring calendar events.
  * Used by both getCalendarEvents and summary functions in actions.ts.
  *
- * All date operations use UTC methods to avoid server-timezone dependency.
+ * Calendar event times are stored as LOCAL time strings (no trailing Z)
+ * to avoid DST shift issues. The format is YYYY-MM-DDTHH:mm:ss.
  */
+
+/**
+ * Format a Date as a local ISO string without timezone suffix.
+ * This ensures "14:00" always stays "14:00" regardless of DST changes.
+ */
+export function formatLocalDateTime(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
 
 export interface RawCalendarEvent {
   id: string;
@@ -40,16 +50,17 @@ export function expandRecurringEvents<T extends RawCalendarEvent>(
     let instanceCount = 0;
 
     if (rule === 'daily') {
-      for (let d = new Date(wsDate); d <= weDate && instanceCount < MAX_INSTANCES_PER_EVENT; d.setUTCDate(d.getUTCDate() + 1)) {
+      for (let d = new Date(wsDate); d <= weDate && instanceCount < MAX_INSTANCES_PER_EVENT; d.setDate(d.getDate() + 1)) {
         const instanceStart = new Date(d);
-        instanceStart.setUTCHours(origStart.getUTCHours(), origStart.getUTCMinutes(), origStart.getUTCSeconds(), 0);
+        instanceStart.setHours(origStart.getHours(), origStart.getMinutes(), origStart.getSeconds(), 0);
         const instanceEnd = new Date(instanceStart.getTime() + durationMs);
         if (instanceStart >= wsDate && instanceStart < weDate && instanceStart > origStart) {
+          const dateStr = formatLocalDateTime(instanceStart).split('T')[0];
           expanded.push({
             ...event,
-            id: `${event.id}_${instanceStart.toISOString().split('T')[0]}`,
-            start_time: instanceStart.toISOString(),
-            end_time: instanceEnd.toISOString(),
+            id: `${event.id}_${dateStr}`,
+            start_time: formatLocalDateTime(instanceStart),
+            end_time: formatLocalDateTime(instanceEnd),
             is_settled: false,
             is_confirmed: false,
           });
@@ -57,23 +68,24 @@ export function expandRecurringEvents<T extends RawCalendarEvent>(
         }
       }
     } else if (rule === 'weekly') {
-      const origDay = origStart.getUTCDay();
-      const wsDay = wsDate.getUTCDay();
+      const origDay = origStart.getDay();
+      const wsDay = wsDate.getDay();
       let diff = origDay - wsDay;
       if (diff < 0) diff += 7;
       const firstInstance = new Date(wsDate);
-      firstInstance.setUTCDate(firstInstance.getUTCDate() + diff);
+      firstInstance.setDate(firstInstance.getDate() + diff);
 
-      for (let d = new Date(firstInstance); d <= weDate && instanceCount < MAX_INSTANCES_PER_EVENT; d.setUTCDate(d.getUTCDate() + 7)) {
+      for (let d = new Date(firstInstance); d <= weDate && instanceCount < MAX_INSTANCES_PER_EVENT; d.setDate(d.getDate() + 7)) {
         const instanceStart = new Date(d);
-        instanceStart.setUTCHours(origStart.getUTCHours(), origStart.getUTCMinutes(), origStart.getUTCSeconds(), 0);
+        instanceStart.setHours(origStart.getHours(), origStart.getMinutes(), origStart.getSeconds(), 0);
         const instanceEnd = new Date(instanceStart.getTime() + durationMs);
         if (instanceStart >= wsDate && instanceStart < weDate && instanceStart > origStart) {
+          const dateStr = formatLocalDateTime(instanceStart).split('T')[0];
           expanded.push({
             ...event,
-            id: `${event.id}_${instanceStart.toISOString().split('T')[0]}`,
-            start_time: instanceStart.toISOString(),
-            end_time: instanceEnd.toISOString(),
+            id: `${event.id}_${dateStr}`,
+            start_time: formatLocalDateTime(instanceStart),
+            end_time: formatLocalDateTime(instanceEnd),
             is_settled: false,
             is_confirmed: false,
           });
@@ -81,23 +93,24 @@ export function expandRecurringEvents<T extends RawCalendarEvent>(
         }
       }
     } else if (rule === 'monthly') {
-      const origDayOfMonth = origStart.getUTCDate();
-      const startMonth = wsDate.getUTCFullYear() * 12 + wsDate.getUTCMonth();
-      const endMonth = weDate.getUTCFullYear() * 12 + weDate.getUTCMonth();
+      const origDayOfMonth = origStart.getDate();
+      const startMonth = wsDate.getFullYear() * 12 + wsDate.getMonth();
+      const endMonth = weDate.getFullYear() * 12 + weDate.getMonth();
       for (let m = startMonth; m <= endMonth && instanceCount < MAX_INSTANCES_PER_EVENT; m++) {
         const year = Math.floor(m / 12);
         const month = m % 12;
-        const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+        const lastDay = new Date(year, month + 1, 0).getDate();
         const day = Math.min(origDayOfMonth, lastDay);
-        const instanceStart = new Date(Date.UTC(year, month, day,
-          origStart.getUTCHours(), origStart.getUTCMinutes(), origStart.getUTCSeconds()));
+        const instanceStart = new Date(year, month, day,
+          origStart.getHours(), origStart.getMinutes(), origStart.getSeconds());
         const instanceEnd = new Date(instanceStart.getTime() + durationMs);
         if (instanceStart >= wsDate && instanceStart < weDate && instanceStart > origStart) {
+          const dateStr = formatLocalDateTime(instanceStart).split('T')[0];
           expanded.push({
             ...event,
-            id: `${event.id}_${instanceStart.toISOString().split('T')[0]}`,
-            start_time: instanceStart.toISOString(),
-            end_time: instanceEnd.toISOString(),
+            id: `${event.id}_${dateStr}`,
+            start_time: formatLocalDateTime(instanceStart),
+            end_time: formatLocalDateTime(instanceEnd),
             is_settled: false,
             is_confirmed: false,
           });

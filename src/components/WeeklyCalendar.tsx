@@ -15,6 +15,7 @@ import {
   eachDayOfInterval,
 } from 'date-fns';
 import { pl } from 'date-fns/locale';
+import { formatLocalDateTime } from '@/lib/calendar-utils';
 import { Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { CalendarEvent } from '@/hooks/useFinanceStore';
 
@@ -150,7 +151,7 @@ function useEventDrag(
           const newStart = new Date(`${dateStr}T${pad(hours)}:${pad(mins)}:00`);
           const newEnd = new Date(newStart.getTime() + durationMs);
 
-          onEventMove(info.event, newStart.toISOString(), newEnd.toISOString());
+          onEventMove(info.event, formatLocalDateTime(newStart), formatLocalDateTime(newEnd));
         }
       }
       document.body.style.userSelect = '';

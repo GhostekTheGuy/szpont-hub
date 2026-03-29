@@ -20,7 +20,7 @@ import {
   decryptString,
 } from '@/lib/crypto';
 import { getExchangeRates, getHistoricalRates, convertAmount, type Currency, type ExchangeRates, type HistoricalRates } from '@/lib/exchange-rates';
-import { expandRecurringEvents, mergeWithExpanded } from '@/lib/calendar-utils';
+import { expandRecurringEvents, mergeWithExpanded, formatLocalDateTime } from '@/lib/calendar-utils';
 
 // --- HELPERS ---
 
@@ -1312,7 +1312,7 @@ export async function moveRecurringEvent(
       const shiftedEnd = new Date(shiftedStart.getTime() + durationMs);
       await supabaseAdmin
         .from('calendar_events')
-        .update({ start_time: shiftedStart.toISOString(), end_time: shiftedEnd.toISOString() })
+        .update({ start_time: formatLocalDateTime(shiftedStart), end_time: formatLocalDateTime(shiftedEnd) })
         .eq('id', parentId);
     } else {
       // Moving the parent directly — just use new times
@@ -1488,8 +1488,8 @@ export async function editRecurringInstance(instanceId: string, data: {
         title: encryptString(data.title, dek),
         wallet_id: isPersonal ? null : data.wallet_id,
         hourly_rate: isPersonal ? encryptNumber(0, dek) : encryptNumber(data.hourly_rate, dek),
-        start_time: instanceStart.toISOString(),
-        end_time: instanceEnd.toISOString(),
+        start_time: formatLocalDateTime(instanceStart),
+        end_time: formatLocalDateTime(instanceEnd),
         is_recurring: false,
         recurrence_rule: null,
         is_settled: false,
@@ -1550,8 +1550,8 @@ export async function deleteRecurringInstance(instanceId: string) {
         title: parent.title,
         wallet_id: parent.wallet_id,
         hourly_rate: parent.hourly_rate,
-        start_time: instanceStart.toISOString(),
-        end_time: instanceEnd.toISOString(),
+        start_time: formatLocalDateTime(instanceStart),
+        end_time: formatLocalDateTime(instanceEnd),
         is_recurring: false,
         recurrence_rule: 'EXCLUDED',
         is_settled: false,
@@ -1752,8 +1752,8 @@ export async function toggleEventConfirmed(id: string, confirmed: boolean, rever
             title: parent.title,
             wallet_id: parent.wallet_id,
             hourly_rate: parent.hourly_rate,
-            start_time: instanceStart.toISOString(),
-            end_time: instanceEnd.toISOString(),
+            start_time: formatLocalDateTime(instanceStart),
+            end_time: formatLocalDateTime(instanceEnd),
             is_recurring: false,
             recurrence_rule: null,
             is_settled: false,
@@ -2457,6 +2457,54 @@ export async function settleAllUnsettledAction() {
   revalidatePath('/calendar', 'page');
   revalidatePath('/wallets', 'page');
   return { settled: filteredEvents.length, settledIds: eventIds };
+}
+
+// --- MIGRATION: UTC → LOCAL TIME ---
+
+export async function migrateCalendarEventsToLocalTime() {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  const { data: events } = await supabaseAdmin
+    .from('calendar_events')
+    .select('id, start_time, end_time')
+    .eq('user_id', userId);
+
+  if (!events || events.length === 0) return { migrated: 0 };
+
+  let migrated = 0;
+  for (const event of events) {
+    // Skip events already in local format (no Z suffix or +00:00)
+    if (!event.start_time.endsWith('Z') && !event.start_time.includes('+')) continue;
+
+    // Convert UTC to Europe/Warsaw local time
+    const startUtc = new Date(event.start_time);
+    const endUtc = new Date(event.end_time);
+
+    const formatInTz = (d: Date): string => {
+      const parts = new Intl.DateTimeFormat('sv-SE', {
+        timeZone: 'Europe/Warsaw',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+        hour12: false,
+      }).formatToParts(d);
+      const get = (type: string) => parts.find(p => p.type === type)?.value || '00';
+      return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}:${get('second')}`;
+    };
+
+    await supabaseAdmin
+      .from('calendar_events')
+      .update({
+        start_time: formatInTz(startUtc),
+        end_time: formatInTz(endUtc),
+      })
+      .eq('id', event.id);
+
+    migrated++;
+  }
+
+  revalidatePath('/', 'layout');
+  return { migrated };
 }
 
 // --- YAHOO FINANCE ---

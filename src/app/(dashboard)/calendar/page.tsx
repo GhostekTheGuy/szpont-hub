@@ -3,11 +3,12 @@ import { CalendarPageClient } from "@/components/pages/CalendarPageClient";
 import { ProjectsPageClient } from "@/components/pages/ProjectsPageClient";
 import { WorkPageShell } from "@/components/pages/WorkPageShell";
 import { startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
+import { formatLocalDateTime } from "@/lib/calendar-utils";
 
 export default async function CalendarPage() {
   const now = new Date();
-  const rangeStart = startOfWeek(startOfMonth(now), { weekStartsOn: 1 }).toISOString();
-  const rangeEnd = endOfWeek(endOfMonth(now), { weekStartsOn: 1 }).toISOString();
+  const rangeStart = formatLocalDateTime(startOfWeek(startOfMonth(now), { weekStartsOn: 1 }));
+  const rangeEnd = formatLocalDateTime(endOfWeek(endOfMonth(now), { weekStartsOn: 1 }));
 
   const [calendarData, walletsData, googleConnection, clientsData, ordersData] = await Promise.all([
     getCalendarEvents(rangeStart, rangeEnd),

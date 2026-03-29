@@ -25,6 +25,7 @@ import {
   endOfDay,
 } from 'date-fns';
 import { pl } from 'date-fns/locale';
+import { formatLocalDateTime } from '@/lib/calendar-utils';
 
 interface GoogleConnection {
   id: string;
@@ -87,8 +88,8 @@ export function CalendarPageClient({ initialEvents, initialWallets, initialOrder
 
   const loadMonth = useCallback(async (date: Date) => {
     setLoading(true);
-    const ms = startOfWeek(startOfMonth(date), { weekStartsOn: 1 }).toISOString();
-    const me = endOfWeek(endOfMonth(date), { weekStartsOn: 1 }).toISOString();
+    const ms = formatLocalDateTime(startOfWeek(startOfMonth(date), { weekStartsOn: 1 }));
+    const me = formatLocalDateTime(endOfWeek(endOfMonth(date), { weekStartsOn: 1 }));
     try {
       const data = await getCalendarEvents(ms, me);
       if (data) {
@@ -328,8 +329,8 @@ export function CalendarPageClient({ initialEvents, initialWallets, initialOrder
   };
 
   const invoiceWorkEvents = useMemo(() => {
-    const msStart = monthStart.toISOString();
-    const meEnd = monthEnd.toISOString();
+    const msStart = formatLocalDateTime(monthStart);
+    const meEnd = formatLocalDateTime(monthEnd);
     return calendarEvents
       .filter(
         (e) =>
@@ -467,10 +468,10 @@ export function CalendarPageClient({ initialEvents, initialWallets, initialOrder
       {/* Summary panel below calendar */}
       <div>
         <WorkSummaryPanel
-          weekStart={weekStart.toISOString()}
-          weekEnd={weekEnd.toISOString()}
-          monthStart={monthStart.toISOString()}
-          monthEnd={monthEnd.toISOString()}
+          weekStart={formatLocalDateTime(weekStart)}
+          weekEnd={formatLocalDateTime(weekEnd)}
+          monthStart={formatLocalDateTime(monthStart)}
+          monthEnd={formatLocalDateTime(monthEnd)}
           monthLabel={format(currentMonth, 'LLLL yyyy', { locale: pl })}
           onGenerateInvoice={() => setIsInvoiceModalOpen(true)}
           refreshKey={summaryRefreshKey}

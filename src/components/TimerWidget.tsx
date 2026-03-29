@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Play, Pause, Square, X, Briefcase } from 'lucide-react';
 import { addCalendarEvent } from '@/app/actions';
+import { formatLocalDateTime } from '@/lib/calendar-utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '@/components/Toast';
 import type { Wallet, Order } from '@/hooks/useFinanceStore';
@@ -181,8 +182,8 @@ export function TimerWidget({ wallets, orders = [], onStop }: TimerWidgetProps) 
         title: timerState.title,
         wallet_id: timerState.walletId,
         hourly_rate: timerState.hourlyRate,
-        start_time: new Date(timerState.originalStartTime).toISOString(),
-        end_time: new Date().toISOString(),
+        start_time: formatLocalDateTime(new Date(timerState.originalStartTime)),
+        end_time: formatLocalDateTime(new Date()),
         is_recurring: false,
         recurrence_rule: null,
         order_id: timerState.orderId,

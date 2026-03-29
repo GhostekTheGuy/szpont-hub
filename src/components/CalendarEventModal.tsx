@@ -16,6 +16,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '@/components/Toast';
 import { format } from 'date-fns';
+import { formatLocalDateTime } from '@/lib/calendar-utils';
 
 interface CalendarEventModalProps {
   isOpen: boolean;
@@ -141,8 +142,8 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
       title,
       wallet_id: isPersonal ? '' : walletId,
       hourly_rate: isPersonal ? 0 : parseFloat(hourlyRate),
-      start_time: startDt.toISOString(),
-      end_time: endDt.toISOString(),
+      start_time: formatLocalDateTime(startDt),
+      end_time: formatLocalDateTime(endDt),
       is_recurring: isRecurring,
       recurrence_rule: isRecurring ? recurrenceRule : null,
       event_type: eventType,

@@ -4,6 +4,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { X, Upload, Timer, Loader2, Check, Trash2, FileText, Sparkles } from 'lucide-react';
 import { useFinanceStore, type Order } from '@/hooks/useFinanceStore';
 import { addCalendarEvent, getScansRemaining } from '@/app/actions';
+import { formatLocalDateTime } from '@/lib/calendar-utils';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface ScanTogglModalProps {
@@ -191,8 +192,8 @@ export function ScanTogglModal({ isOpen, onClose }: ScanTogglModalProps) {
           title: e.title,
           wallet_id: e.wallet_id,
           hourly_rate: parseFloat(e.hourly_rate),
-          start_time: startDt.toISOString(),
-          end_time: endDt.toISOString(),
+          start_time: formatLocalDateTime(startDt),
+          end_time: formatLocalDateTime(endDt),
           is_recurring: false,
           recurrence_rule: null,
           event_type: 'work',
