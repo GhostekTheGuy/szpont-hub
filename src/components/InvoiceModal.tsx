@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { X, ChevronDown, ChevronUp, FileText } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { generateInvoicePDF, generateSummaryPDF, type InvoiceData, type InvoiceItem } from '@/lib/invoice-pdf';
+import { formatLocalDate } from '@/lib/calendar-utils';
 
 interface WorkEventForInvoice {
   title: string;
@@ -106,7 +107,7 @@ export function InvoiceModal({ isOpen, onClose, workEvents, monthLabel }: Invoic
       }
 
       setInvoiceNumber(peekNextInvoiceNumber());
-      setIssueDate(new Date().toISOString().split('T')[0]);
+      setIssueDate(formatLocalDate(new Date()));
     }
   }, [isOpen]);
 
@@ -147,7 +148,7 @@ export function InvoiceModal({ isOpen, onClose, workEvents, monthLabel }: Invoic
     if (!issueDate) return '';
     const d = new Date(issueDate);
     d.setDate(d.getDate() + paymentDays);
-    return d.toISOString().split('T')[0];
+    return formatLocalDate(d);
   }, [issueDate, paymentDays]);
 
   const handleGenerate = () => {

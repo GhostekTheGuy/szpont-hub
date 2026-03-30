@@ -621,7 +621,7 @@ function RecurringExpensesCard({
   onEdit: (e: RecurringExpense) => void;
   onPay: (e: RecurringExpense) => void;
 }) {
-  const today = new Date().toISOString().split('T')[0];
+  const today = format(new Date(), 'yyyy-MM-dd');
   const upcoming = expenses
     .filter(e => e.is_active)
     .sort((a, b) => a.next_due_date.localeCompare(b.next_due_date));

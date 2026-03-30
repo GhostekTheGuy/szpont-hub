@@ -7,6 +7,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { decryptFromCookie, encryptString, decryptString, encryptNumber } from '@/lib/crypto';
 import { fetchEvents, getRefreshedTokens } from '@/lib/google-calendar';
 import { rateLimit } from '@/lib/rate-limit';
+import { formatLocalDateTime } from '@/lib/calendar-utils';
 
 export async function POST() {
   const user = await getUser();
@@ -156,8 +157,8 @@ export async function POST() {
               .from('calendar_events')
               .update({
                 title: encryptString(event.summary, dek),
-                start_time: event.start,
-                end_time: event.end,
+                start_time: formatLocalDateTime(new Date(event.start)),
+                end_time: formatLocalDateTime(new Date(event.end)),
               })
               .eq('id', existingMap.get(event.id)!);
 
@@ -171,8 +172,8 @@ export async function POST() {
               title: encryptString(event.summary, dek),
               wallet_id: mapping.wallet_id || null,
               hourly_rate: mapping.hourly_rate || defaultRate,
-              start_time: event.start,
-              end_time: event.end,
+              start_time: formatLocalDateTime(new Date(event.start)),
+              end_time: formatLocalDateTime(new Date(event.end)),
               is_recurring: false,
               recurrence_rule: null,
               is_settled: false,

@@ -8,6 +8,7 @@ import { useToast } from '@/components/Toast';
 import { settleWeekAction, settleMonthAction, getWeeklySummary, getMonthlySummary } from '@/app/actions';
 import { calculatePIT } from '@/lib/tax-calculator';
 import { generatePITPDF } from '@/lib/invoice-pdf';
+import { formatLocalDate } from '@/lib/calendar-utils';
 
 interface WalletBreakdown {
   id: string;
@@ -429,7 +430,7 @@ export function WeeklySummaryModal({ isOpen, onClose, weekStart, weekEnd, monthS
                       </div>
                       <button
                         onClick={() => {
-                          const today = new Date().toISOString().split('T')[0];
+                          const today = formatLocalDate(new Date());
                           generatePITPDF({
                             periodLabel: mode === 'week' ? 'Tydzień' : monthLabel,
                             grossIncome: tax.grossIncome,

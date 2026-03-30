@@ -5,6 +5,7 @@ import { X } from 'lucide-react';
 import { Asset, Wallet } from '@/hooks/useFinanceStore';
 import { sellAssetAction, addManualSaleAction } from '@/app/actions';
 import { formatCurrency } from '@/lib/exchange-rates';
+import { formatLocalDate } from '@/lib/calendar-utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '@/components/Toast';
 import { useRouter } from 'next/navigation';
@@ -34,7 +35,7 @@ export function SellAssetModal({ isOpen, onClose, asset, wallets }: SellAssetMod
   const [manualQty, setManualQty] = useState('');
   const [manualSalePrice, setManualSalePrice] = useState('');
   const [manualCostBasis, setManualCostBasis] = useState('');
-  const [manualDate, setManualDate] = useState(new Date().toISOString().split('T')[0]);
+  const [manualDate, setManualDate] = useState(formatLocalDate(new Date()));
 
   useEffect(() => {
     if (isOpen) {
@@ -46,7 +47,7 @@ export function SellAssetModal({ isOpen, onClose, asset, wallets }: SellAssetMod
       setManualQty('');
       setManualSalePrice('');
       setManualCostBasis('');
-      setManualDate(new Date().toISOString().split('T')[0]);
+      setManualDate(formatLocalDate(new Date()));
       setErrors({});
     }
   }, [isOpen, asset]);

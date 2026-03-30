@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { X, Wallet as WalletIcon, Banknote, Bitcoin, TrendingUp, CreditCard, PiggyBank, Sparkles, Waves, Palette } from 'lucide-react';
 import { addWalletAction, editWalletAction } from '@/app/actions';
+import { formatLocalDate } from '@/lib/calendar-utils';
 import { Wallet } from '@/hooks/useFinanceStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '@/components/Toast';
@@ -80,7 +81,7 @@ export function WalletModal({ isOpen, onClose, editingWallet }: WalletModalProps
       setType('fiat');
       setIcon('wallet');
       setBalance('');
-      setTrackFrom(new Date().toISOString().split('T')[0]);
+      setTrackFrom(formatLocalDate(new Date()));
       setEffect('gradient');
       setGradient('from-violet-600 to-purple-500');
       setPlasmaColor('#8b5cf6');

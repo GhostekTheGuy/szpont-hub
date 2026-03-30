@@ -1303,12 +1303,12 @@ export async function moveRecurringEvent(
       const origEnd = new Date(parent.end_time);
       const durationMs = origEnd.getTime() - origStart.getTime();
       // Shift parent date by the same day-of-week delta
-      const instanceOrigDate = new Date(parsedInstance.dateStr + 'T00:00:00Z');
-      const newStartDateOnly = new Date(Date.UTC(newStart.getUTCFullYear(), newStart.getUTCMonth(), newStart.getUTCDate()));
+      const instanceOrigDate = new Date(parsedInstance.dateStr + 'T00:00:00');
+      const newStartDateOnly = new Date(newStart.getFullYear(), newStart.getMonth(), newStart.getDate());
       const dayDelta = Math.round((newStartDateOnly.getTime() - instanceOrigDate.getTime()) / 86400000);
       const shiftedStart = new Date(origStart);
-      shiftedStart.setUTCDate(shiftedStart.getUTCDate() + dayDelta);
-      shiftedStart.setUTCHours(newStart.getUTCHours(), newStart.getUTCMinutes(), 0, 0);
+      shiftedStart.setDate(shiftedStart.getDate() + dayDelta);
+      shiftedStart.setHours(newStart.getHours(), newStart.getMinutes(), 0, 0);
       const shiftedEnd = new Date(shiftedStart.getTime() + durationMs);
       await supabaseAdmin
         .from('calendar_events')
@@ -1476,8 +1476,8 @@ export async function editRecurringInstance(instanceId: string, data: {
     const origEnd = new Date(parent.end_time);
     const durationMs = origEnd.getTime() - origStart.getTime();
 
-    const instanceStart = new Date(dateStr + 'T00:00:00Z');
-    instanceStart.setUTCHours(origStart.getUTCHours(), origStart.getUTCMinutes(), origStart.getUTCSeconds(), 0);
+    const instanceStart = new Date(dateStr + 'T00:00:00');
+    instanceStart.setHours(origStart.getHours(), origStart.getMinutes(), origStart.getSeconds(), 0);
     const instanceEnd = new Date(instanceStart.getTime() + durationMs);
 
     await supabaseAdmin
@@ -1592,7 +1592,7 @@ export async function deleteRecurringFromDate(instanceId: string) {
     .delete()
     .like('id', `${parentId}_%`)
     .eq('user_id', userId)
-    .gte('start_time', `${dateStr}T00:00:00Z`);
+    .gte('start_time', `${dateStr}T00:00:00`);
 
   // Delete the parent (stops all future expansion)
   await supabaseAdmin
@@ -1972,8 +1972,8 @@ export async function getWeeklySummary(weekStart: string, weekEnd: string) {
       .from('calendar_events')
       .select('*')
       .eq('user_id', userId)
-      .lte('start_time', prevWeekEnd.toISOString())
-      .gte('end_time', prevWeekStart.toISOString()),
+      .lte('start_time', formatLocalDateTime(prevWeekEnd))
+      .gte('end_time', formatLocalDateTime(prevWeekStart)),
     supabaseAdmin
       .from('calendar_events')
       .select('*')
@@ -2122,8 +2122,8 @@ export async function getMonthlySummary(monthStart: string, monthEnd: string) {
       .from('calendar_events')
       .select('*')
       .eq('user_id', userId)
-      .lte('start_time', prevMonthEnd.toISOString())
-      .gte('end_time', prevMonthStart.toISOString()),
+      .lte('start_time', formatLocalDateTime(prevMonthEnd))
+      .gte('end_time', formatLocalDateTime(prevMonthStart)),
     supabaseAdmin
       .from('calendar_events')
       .select('*')
@@ -2273,10 +2273,10 @@ export async function getMonthlySummary(monthStart: string, monthEnd: string) {
 
 function getISOWeekLabel(date: Date): string {
   const d = new Date(date);
-  d.setUTCHours(0, 0, 0, 0);
-  d.setUTCDate(d.getUTCDate() + 3 - ((d.getUTCDay() + 6) % 7));
-  const week1 = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
-  const weekNum = 1 + Math.round(((d.getTime() - week1.getTime()) / 86400000 - 3 + ((week1.getUTCDay() + 6) % 7)) / 7);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
+  const week1 = new Date(d.getFullYear(), 0, 4);
+  const weekNum = 1 + Math.round(((d.getTime() - week1.getTime()) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7);
   return `Tydzień ${weekNum}`;
 }
 

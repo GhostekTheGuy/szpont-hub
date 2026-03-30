@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { getWeeklySummary, getMonthlySummary } from '@/app/actions';
 import { calculatePIT } from '@/lib/tax-calculator';
 import { generatePITPDF } from '@/lib/invoice-pdf';
+import { formatLocalDate } from '@/lib/calendar-utils';
 
 interface WalletBreakdown {
   id: string;
@@ -395,7 +396,7 @@ export function WorkSummaryPanel({ weekStart, weekEnd, monthStart, monthEnd, mon
                         </div>
                         <button
                           onClick={() => {
-                            const today = new Date().toISOString().split('T')[0];
+                            const today = formatLocalDate(new Date());
                             generatePITPDF({
                               periodLabel: mode === 'week' ? 'Tydzień' : monthLabel,
                               grossIncome: tax.grossIncome,
