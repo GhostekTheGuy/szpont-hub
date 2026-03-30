@@ -195,11 +195,18 @@ export async function POST(request: Request) {
       );
     }
 
+    const normalizeTime = (t: string): string => {
+      if (!t) return "09:00";
+      // Strip seconds if present (HH:MM:SS → HH:MM)
+      const parts = t.split(":");
+      return parts.slice(0, 2).join(":");
+    };
+
     const entries = parsed.map((item: Record<string, unknown>) => ({
       title: (item.title as string) || "Praca",
       date: (item.date as string) || new Date().toISOString().split("T")[0],
-      start_time: (item.start_time as string) || "09:00",
-      end_time: (item.end_time as string) || "10:00",
+      start_time: normalizeTime(item.start_time as string),
+      end_time: normalizeTime(item.end_time as string),
       duration_hours: Number(item.duration_hours) || 1,
     }));
 

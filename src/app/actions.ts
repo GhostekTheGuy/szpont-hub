@@ -1165,12 +1165,12 @@ export async function addCalendarEvent(data: {
   event_type?: 'work' | 'personal';
   order_id?: string | null;
 }) {
-  if (!isValidISODate(data.start_time) || !isValidISODate(data.end_time)) throw new Error('Invalid date');
-  if (new Date(data.end_time).getTime() <= new Date(data.start_time).getTime()) throw new Error('End time must be after start time');
+  if (!isValidISODate(data.start_time) || !isValidISODate(data.end_time)) throw new Error(`Nieprawidłowy format daty: ${data.start_time} / ${data.end_time}`);
+  if (new Date(data.end_time).getTime() <= new Date(data.start_time).getTime()) throw new Error('Czas zakończenia musi być po czasie rozpoczęcia');
   const userId = await getUserId();
-  if (!userId) throw new Error('Unauthorized');
+  if (!userId) throw new Error('Sesja wygasła — zaloguj się ponownie');
   const isPersonalEvent = data.event_type === 'personal';
-  if (!isPersonalEvent && data.hourly_rate <= 0) throw new Error('Invalid hourly rate');
+  if (!isPersonalEvent && data.hourly_rate <= 0) throw new Error('Stawka godzinowa musi być większa od 0');
 
   const dek = await getDEK();
 
@@ -1193,7 +1193,7 @@ export async function addCalendarEvent(data: {
 
   if (error) {
     console.error('Error adding calendar event:', error);
-    throw new Error('Failed to add calendar event');
+    throw new Error(`Błąd zapisu: ${error.message}`);
   }
 
   revalidatePath('/', 'layout');

@@ -184,8 +184,16 @@ export function ScanTogglModal({ isOpen, onClose }: ScanTogglModalProps) {
     try {
       for (let i = 0; i < selected.length; i++) {
         const e = selected[i];
-        const startDt = new Date(`${e.date}T${e.start_time}:00`);
-        const endDt = new Date(`${e.date}T${e.end_time}:00`);
+        // Normalize time to HH:MM format (AI may return HH:MM:SS)
+        const startNorm = e.start_time.split(':').slice(0, 2).join(':');
+        const endNorm = e.end_time.split(':').slice(0, 2).join(':');
+        const startDt = new Date(`${e.date}T${startNorm}:00`);
+        const endDt = new Date(`${e.date}T${endNorm}:00`);
+        if (isNaN(startDt.getTime()) || isNaN(endDt.getTime())) {
+          setError(`Nieprawidłowy format daty/czasu w wpisie "${e.title}" (${e.date} ${e.start_time}-${e.end_time})`);
+          setState('results');
+          return;
+        }
         if (endDt <= startDt) endDt.setDate(endDt.getDate() + 1);
 
         await addCalendarEvent({
@@ -202,8 +210,10 @@ export function ScanTogglModal({ isOpen, onClose }: ScanTogglModalProps) {
         setSavedCount(i + 1);
       }
       handleClose();
-    } catch {
-      setError('Błąd zapisu wydarzeń');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Nieznany błąd';
+      console.error('Save error:', msg);
+      setError(`Błąd zapisu wydarzeń: ${msg}`);
       setState('results');
     }
   };
