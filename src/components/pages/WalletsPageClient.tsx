@@ -96,6 +96,15 @@ export function WalletsPageClient({ initialWallets, initialTransactions, exchang
     return transactions.some(t => t.type === 'outcome');
   }, [transactions]);
 
+  // Wallets sorted by transaction count (most transactions first)
+  const sortedWallets = useMemo(() => {
+    const countByWallet = new Map<string, number>();
+    for (const t of transactions) {
+      countByWallet.set(t.wallet, (countByWallet.get(t.wallet) || 0) + 1);
+    }
+    return [...wallets].sort((a, b) => (countByWallet.get(b.id) || 0) - (countByWallet.get(a.id) || 0));
+  }, [wallets, transactions]);
+
   const handleDeleteTransaction = async (id: string) => {
     if (await confirm({ title: 'Czy na pewno chcesz usunąć tę transakcję?', variant: 'danger', confirmLabel: 'Usuń' })) {
       await deleteTransactionAction(id);
@@ -211,7 +220,7 @@ export function WalletsPageClient({ initialWallets, initialTransactions, exchang
 
       <div className="relative mb-6 px-4 lg:px-0">
         <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
-          {wallets.map((wallet) => (
+          {sortedWallets.map((wallet) => (
             <div
               key={wallet.id}
               onClick={() => setActiveWallet(activeWalletId === wallet.id ? null : wallet.id)}
