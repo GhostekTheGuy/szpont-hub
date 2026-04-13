@@ -59,7 +59,10 @@ export default function LandingPage() {
     createClient().auth.getUser().then(({ data }) => {
       if (data.user) setIsLoggedIn(true);
     });
-  }, []);
+    // Prefetch destinations so navigation after exit animation is instant
+    router.prefetch('/dashboard');
+    router.prefetch('/login');
+  }, [router]);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 16);
