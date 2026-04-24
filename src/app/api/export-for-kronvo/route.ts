@@ -15,8 +15,10 @@ function isAllowedOrigin(origin: string): boolean {
   if (allowList.includes(origin)) return true;
   try {
     const u = new URL(origin);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
     if (u.hostname === 'localhost' || u.hostname === '127.0.0.1') return true;
     if (u.hostname.endsWith('.vercel.app')) return true;
+    if (u.hostname === 'kronvo.pl' || u.hostname.endsWith('.kronvo.pl')) return true;
   } catch {
     return false;
   }
