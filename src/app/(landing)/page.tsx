@@ -70,18 +70,36 @@ export default function LandingPage() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  // Cursor glow tracking
+  // Cursor glow tracking. Query cards once and throttle to one update per frame
+  // — the previous version ran querySelectorAll on every mousemove (~60×/s).
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      const cards = document.querySelectorAll<HTMLElement>('.glow-card');
-      cards.forEach((card) => {
+    const cards = Array.from(document.querySelectorAll<HTMLElement>('.glow-card'));
+    if (cards.length === 0) return;
+
+    let rafId: number | null = null;
+    let lastEvent: MouseEvent | null = null;
+
+    const flush = () => {
+      rafId = null;
+      const e = lastEvent;
+      if (!e) return;
+      for (const card of cards) {
         const rect = card.getBoundingClientRect();
         card.style.setProperty('--glow-x', `${e.clientX - rect.left}px`);
         card.style.setProperty('--glow-y', `${e.clientY - rect.top}px`);
-      });
+      }
     };
+
+    const handler = (e: MouseEvent) => {
+      lastEvent = e;
+      if (rafId === null) rafId = requestAnimationFrame(flush);
+    };
+
     window.addEventListener('mousemove', handler, { passive: true });
-    return () => window.removeEventListener('mousemove', handler);
+    return () => {
+      window.removeEventListener('mousemove', handler);
+      if (rafId !== null) cancelAnimationFrame(rafId);
+    };
   }, []);
 
   const navigateTo = useCallback((href: string) => {

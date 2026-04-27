@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 
 interface Section {
   id: string;
@@ -18,8 +18,13 @@ export function SectionNav({ sections, className }: SectionNavProps) {
   const chipRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
   const clickLockRef = useRef(false);
 
+  // Parents pass `sections` as an inline array literal — its reference changes
+  // every render. Reduce to a stable string key so the scroll listener only
+  // re-attaches when the set of section IDs actually changes.
+  const sectionsKey = useMemo(() => sections.map(s => s.id).join('|'), [sections]);
+
   useEffect(() => {
-    const sectionIds = sections.map(s => s.id);
+    const sectionIds = sectionsKey.split('|');
 
     const handleScroll = () => {
       if (clickLockRef.current) return;
@@ -66,7 +71,7 @@ export function SectionNav({ sections, className }: SectionNavProps) {
     handleScroll();
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [sections]);
+  }, [sectionsKey]);
 
   // Auto-scroll active chip into view
   useEffect(() => {

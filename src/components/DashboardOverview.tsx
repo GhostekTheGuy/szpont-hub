@@ -13,6 +13,12 @@ import { SectionNav } from '@/components/SectionNav';
 // Lazy load AssetList (imports @token-icons/react — heavy)
 const AssetList = dynamic(() => import('@/components/AssetList').then(m => ({ default: m.AssetList })), { ssr: false });
 
+// In-memory cache so range button clicks don't re-show the skeleton.
+// Historical FX rates change at most once per day, so a 5-minute TTL is generous.
+type Range = '1W' | '1M' | '3M' | '1Y';
+const ratesCache = new Map<Range, { rates: HistoricalRates; timestamp: number }>();
+const RATES_CACHE_TTL = 5 * 60 * 1000;
+
 // Lazy load heavy components below the fold
 const MonthlyIncomeChart = dynamic(() => import('@/components/MonthlyIncomeChart').then(m => ({ default: m.MonthlyIncomeChart })), { ssr: false });
 const ProfitChart = dynamic(() => import('@/components/ProfitChart').then(m => ({ default: m.ProfitChart })), { ssr: false });
@@ -87,15 +93,23 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
     setRecurringExpenses(initialRecurringExpenses);
   }, [initialWallets, initialTransactions, initialAssets, initialGoals, initialRecurringExpenses, setWallets, setTransactions, setAssets, setGoals, setRecurringExpenses]);
 
-  // Pobierz historyczne kursy gdy zmieni się range
+  // Pobierz historyczne kursy gdy zmieni się range (cache bypassuje skeleton)
   useEffect(() => {
     let cancelled = false;
+
+    const cached = ratesCache.get(range);
+    if (cached && Date.now() - cached.timestamp < RATES_CACHE_TTL) {
+      setHistoricalRates(cached.rates);
+      setRatesReady(true);
+      return;
+    }
+
     setRatesReady(false);
     getDashboardHistoricalRates(range).then((rates) => {
-      if (!cancelled) {
-        setHistoricalRates(rates);
-        setRatesReady(true);
-      }
+      if (cancelled) return;
+      ratesCache.set(range, { rates, timestamp: Date.now() });
+      setHistoricalRates(rates);
+      setRatesReady(true);
     });
     return () => { cancelled = true; };
   }, [range]);
