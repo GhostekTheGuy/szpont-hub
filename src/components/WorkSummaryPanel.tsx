@@ -1,12 +1,18 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { ChevronDown, ChevronUp, TrendingUp, TrendingDown, Minus, Loader2, Sparkles, FileText, Calculator } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getWeeklySummary, getMonthlySummary } from '@/app/actions';
 import { calculatePIT } from '@/lib/tax-calculator';
 import { generatePITPDF } from '@/lib/invoice-pdf';
 import { formatLocalDate } from '@/lib/calendar-utils';
+
+// Module-level stale-while-revalidate cache so flipping between Tydzień/Miesiąc
+// or remounting the panel doesn't re-show the skeleton when data is fresh.
+// Invalidated on refreshKey bumps (i.e., when CalendarPageClient signals a save).
+const summaryCache = new Map<string, { data: SummaryData; timestamp: number }>();
+const SUMMARY_CACHE_TTL = 5 * 60 * 1000;
 
 interface WalletBreakdown {
   id: string;
@@ -55,8 +61,26 @@ export function WorkSummaryPanel({ weekStart, weekEnd, monthStart, monthEnd, mon
   const [showTaxCalc, setShowTaxCalc] = useState(false);
 
   const loadSummary = useCallback(async (m: SummaryMode) => {
-    setLoading(true);
-    setSummary(null);
+    const cacheKey = m === 'week' ? `w|${weekStart}|${weekEnd}` : `m|${monthStart}|${monthEnd}`;
+    const cached = summaryCache.get(cacheKey);
+    const cacheFresh = cached && Date.now() - cached.timestamp < SUMMARY_CACHE_TTL;
+
+    if (cacheFresh) {
+      setSummary(cached!.data);
+      setLoading(false);
+      setAiInsight(null);
+      return;
+    }
+
+    // Stale-while-revalidate: keep showing previous data (if any) while we
+    // fetch fresh — avoids the skeleton flash on tab switches and refreshes.
+    if (cached) {
+      setSummary(cached.data);
+      setLoading(false);
+    } else {
+      setSummary(null);
+      setLoading(true);
+    }
     setAiInsight(null);
 
     try {
@@ -67,13 +91,23 @@ export function WorkSummaryPanel({ weekStart, weekEnd, monthStart, monthEnd, mon
       } else {
         data = await getMonthlySummary(monthStart, monthEnd);
       }
+      if (data) {
+        summaryCache.set(cacheKey, { data, timestamp: Date.now() });
+      }
       setSummary(data);
     } finally {
       setLoading(false);
     }
   }, [weekStart, weekEnd, monthStart, monthEnd]);
 
+  // Invalidate the whole cache when the parent signals a data change. The
+  // ref guard prevents clearing on the initial mount (when both values match).
+  const lastRefreshKeyRef = useRef<number | undefined>(refreshKey);
   useEffect(() => {
+    if (lastRefreshKeyRef.current !== refreshKey) {
+      summaryCache.clear();
+      lastRefreshKeyRef.current = refreshKey;
+    }
     if (!collapsed) {
       loadSummary(mode);
     }

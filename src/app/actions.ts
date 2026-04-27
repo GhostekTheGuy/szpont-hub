@@ -1960,22 +1960,27 @@ export async function getWeeklySummary(weekStart: string, weekEnd: string) {
   const prevWeekStartDate = prevWeekStart.toISOString().split('T')[0];
   const prevWeekEndDate = prevWeekEnd.toISOString().split('T')[0];
 
+  // Narrow SELECTs to fields actually consumed by the aggregation below.
+  // Cuts payload + decryption cost by skipping title/description/notes/etc.
+  const EVENT_FIELDS = 'id, wallet_id, hourly_rate, start_time, end_time, event_type, is_confirmed, is_settled, is_recurring, recurrence_rule';
+  const ORDER_FIELDS = 'id, wallet_id, amount, completion_date, is_settled';
+
   const [{ data: events }, { data: prevEvents }, { data: recurringEvents }, { data: wallets }, { data: flatOrders }, { data: prevFlatOrders }] = await Promise.all([
     supabaseAdmin
       .from('calendar_events')
-      .select('*')
+      .select(EVENT_FIELDS)
       .eq('user_id', userId)
       .lte('start_time', weekEnd)
       .gte('end_time', weekStart),
     supabaseAdmin
       .from('calendar_events')
-      .select('*')
+      .select(EVENT_FIELDS)
       .eq('user_id', userId)
       .lte('start_time', formatLocalDateTime(prevWeekEnd))
       .gte('end_time', formatLocalDateTime(prevWeekStart)),
     supabaseAdmin
       .from('calendar_events')
-      .select('*')
+      .select(EVENT_FIELDS)
       .eq('user_id', userId)
       .eq('is_recurring', true)
       .lt('start_time', weekEnd),
@@ -1985,7 +1990,7 @@ export async function getWeeklySummary(weekStart: string, weekEnd: string) {
       .eq('user_id', userId),
     supabaseAdmin
       .from('orders')
-      .select('*')
+      .select(ORDER_FIELDS)
       .eq('user_id', userId)
       .eq('billing_type', 'flat')
       .not('completion_date', 'is', null)
@@ -1993,7 +1998,7 @@ export async function getWeeklySummary(weekStart: string, weekEnd: string) {
       .lte('completion_date', weekEndDate),
     supabaseAdmin
       .from('orders')
-      .select('*')
+      .select(ORDER_FIELDS)
       .eq('user_id', userId)
       .eq('billing_type', 'flat')
       .not('completion_date', 'is', null)
@@ -2110,22 +2115,26 @@ export async function getMonthlySummary(monthStart: string, monthEnd: string) {
   const prevMonthStartDate = prevMonthStart.toISOString().split('T')[0];
   const prevMonthEndDate = prevMonthEnd.toISOString().split('T')[0];
 
+  // Narrow SELECTs (see getWeeklySummary above for rationale).
+  const EVENT_FIELDS = 'id, wallet_id, hourly_rate, start_time, end_time, event_type, is_confirmed, is_settled, is_recurring, recurrence_rule';
+  const ORDER_FIELDS = 'id, wallet_id, amount, completion_date, is_settled';
+
   const [{ data: events }, { data: prevEvents }, { data: recurringEvents }, { data: wallets }, { data: flatOrders }, { data: prevFlatOrders }] = await Promise.all([
     supabaseAdmin
       .from('calendar_events')
-      .select('*')
+      .select(EVENT_FIELDS)
       .eq('user_id', userId)
       .lte('start_time', monthEnd)
       .gte('end_time', monthStart),
     supabaseAdmin
       .from('calendar_events')
-      .select('*')
+      .select(EVENT_FIELDS)
       .eq('user_id', userId)
       .lte('start_time', formatLocalDateTime(prevMonthEnd))
       .gte('end_time', formatLocalDateTime(prevMonthStart)),
     supabaseAdmin
       .from('calendar_events')
-      .select('*')
+      .select(EVENT_FIELDS)
       .eq('user_id', userId)
       .eq('is_recurring', true)
       .lt('start_time', monthEnd),
@@ -2135,7 +2144,7 @@ export async function getMonthlySummary(monthStart: string, monthEnd: string) {
       .eq('user_id', userId),
     supabaseAdmin
       .from('orders')
-      .select('*')
+      .select(ORDER_FIELDS)
       .eq('user_id', userId)
       .eq('billing_type', 'flat')
       .not('completion_date', 'is', null)
@@ -2143,7 +2152,7 @@ export async function getMonthlySummary(monthStart: string, monthEnd: string) {
       .lte('completion_date', monthEndDate),
     supabaseAdmin
       .from('orders')
-      .select('*')
+      .select(ORDER_FIELDS)
       .eq('user_id', userId)
       .eq('billing_type', 'flat')
       .not('completion_date', 'is', null)
