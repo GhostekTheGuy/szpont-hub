@@ -86,22 +86,26 @@ export function CalendarPageClient({ initialEvents, initialWallets, initialOrder
     refreshUnsettledCount();
   }, [initialWallets, initialEvents, initialOrders, setWallets, setCalendarEvents, setOrders, refreshUnsettledCount]);
 
-  const loadMonth = useCallback(async (date: Date) => {
-    setLoading(true);
+  // Background refresh — does not toggle the loading flag, so the calendar
+  // stays interactive (used for silent auto-sync).
+  const refreshCalendarEvents = useCallback(async (date: Date) => {
     const ms = formatLocalDateTime(startOfWeek(startOfMonth(date), { weekStartsOn: 1 }));
     const me = formatLocalDateTime(endOfWeek(endOfMonth(date), { weekStartsOn: 1 }));
+    const data = await getCalendarEvents(ms, me);
+    if (data) setCalendarEvents(data.events);
+    refreshUnsettledCount();
+  }, [setCalendarEvents, refreshUnsettledCount]);
+
+  const loadMonth = useCallback(async (date: Date) => {
+    setLoading(true);
     try {
-      const data = await getCalendarEvents(ms, me);
-      if (data) {
-        setCalendarEvents(data.events);
-      }
-      refreshUnsettledCount();
+      await refreshCalendarEvents(date);
     } catch (error) {
       console.error('Error loading calendar events:', error);
     } finally {
       setLoading(false);
     }
-  }, [setCalendarEvents, refreshUnsettledCount]);
+  }, [refreshCalendarEvents]);
 
   const [autoSyncing, setAutoSyncing] = useState(false);
 
@@ -113,8 +117,13 @@ export function CalendarPageClient({ initialEvents, initialWallets, initialOrder
 
   const syncGoogleCalendar = useCallback(async ({ silent = false } = {}): Promise<{ error?: string }> => {
     if (silent) setAutoSyncing(true);
+
+    // Abort if Google API hangs — keeps the UI from staying dimmed forever.
+    const ctrl = new AbortController();
+    const timeoutId = setTimeout(() => ctrl.abort(), 10_000);
+
     try {
-      const res = await fetch('/api/google-calendar/sync', { method: 'POST' });
+      const res = await fetch('/api/google-calendar/sync', { method: 'POST', signal: ctrl.signal });
 
       if (res.status === 429) {
         const msg = 'Zbyt wiele synchronizacji. Spróbuj ponownie za kilka minut.';
@@ -142,7 +151,12 @@ export function CalendarPageClient({ initialEvents, initialWallets, initialOrder
 
       const data = await res.json();
       lastSyncRef.current = Date.now();
-      await loadMonth(currentMonth);
+      // Silent path: refresh in background without dimming the calendar.
+      if (silent) {
+        await refreshCalendarEvents(currentMonth);
+      } else {
+        await loadMonth(currentMonth);
+      }
 
       if (data.errors?.length > 0) {
         showSyncError(`Zsynchronizowano ${data.synced} wydarzeń, ale ${data.errors.length} kalendarz(y) miał(y) błędy.`);
@@ -150,13 +164,19 @@ export function CalendarPageClient({ initialEvents, initialWallets, initialOrder
 
       return {};
     } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        console.warn('Google Calendar sync timed out after 10s');
+        if (!silent) showSyncError('Synchronizacja przekroczyła limit czasu.');
+        return { error: 'timeout' };
+      }
       console.error('Google Calendar sync error:', err);
       if (!silent) showSyncError('Błąd połączenia z serwerem.');
       return { error: 'network' };
     } finally {
+      clearTimeout(timeoutId);
       if (silent) setAutoSyncing(false);
     }
-  }, [currentMonth, loadMonth, showSyncError]);
+  }, [currentMonth, loadMonth, refreshCalendarEvents, showSyncError]);
 
   // Auto-sync on mount if Google connected (with cooldown)
   useEffect(() => {

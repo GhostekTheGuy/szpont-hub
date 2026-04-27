@@ -24,6 +24,15 @@ import { expandRecurringEvents, mergeWithExpanded, formatLocalDateTime } from '@
 
 // --- HELPERS ---
 
+// Granular page revalidation. Pass the route segments that show data
+// changed by this action. Avoids the 'layout' nuke that invalidates every page.
+type Page = 'dashboard' | 'wallets' | 'calendar' | 'habits' | 'invoices' | 'settings';
+function revalidatePages(...pages: Page[]) {
+  for (const p of Array.from(new Set(pages))) {
+    revalidatePath(`/${p}`);
+  }
+}
+
 function isValidISODate(s: string): boolean {
   return /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d+)?Z?)?$/.test(s) && !isNaN(Date.parse(s));
 }
@@ -497,7 +506,7 @@ export async function addTransactionAction(data: {
     .update({ balance: encryptNumber(newBalance, dek) })
     .eq('id', data.wallet);
 
-  revalidatePath('/', 'layout');
+  revalidatePages('dashboard', 'wallets', 'calendar');
 }
 
 export async function addTransferAction(data: {
@@ -579,7 +588,7 @@ export async function addTransferAction(data: {
     throw new Error('Transfer failed: destination wallet update error');
   }
 
-  revalidatePath('/', 'layout');
+  revalidatePages('dashboard', 'wallets', 'calendar');
 }
 
 export async function deleteTransactionAction(id: string) {
@@ -658,7 +667,7 @@ export async function deleteTransactionAction(id: string) {
     .delete()
     .eq('id', id);
 
-  revalidatePath('/', 'layout');
+  revalidatePages('dashboard', 'wallets', 'calendar');
 }
 
 export async function editTransactionAction(id: string, data: {
@@ -739,7 +748,7 @@ export async function editTransactionAction(id: string, data: {
     .update({ balance: encryptNumber(updatedBalance, dek) })
     .eq('id', newWallet.id);
 
-  revalidatePath('/', 'layout');
+  revalidatePages('dashboard', 'wallets', 'calendar');
 }
 
 // --- PORTFELE ---
@@ -787,7 +796,7 @@ export async function addWalletAction(data: {
     throw new Error('Failed to add wallet');
   }
 
-  revalidatePath('/', 'layout');
+  revalidatePages('dashboard', 'wallets', 'calendar');
 }
 
 export async function editWalletAction(id: string, data: {
@@ -843,7 +852,7 @@ export async function editWalletAction(id: string, data: {
     .update(updateData)
     .eq('id', id);
 
-  revalidatePath('/', 'layout');
+  revalidatePages('dashboard', 'wallets', 'calendar');
 }
 
 export async function adjustBalanceAction(walletId: string, newBalance: number) {
@@ -865,7 +874,7 @@ export async function adjustBalanceAction(walletId: string, newBalance: number) 
     .update({ balance: encryptNumber(newBalance, dek) })
     .eq('id', walletId);
 
-  revalidatePath('/', 'layout');
+  revalidatePages('dashboard', 'wallets');
 }
 
 export async function recalculateWalletBalance(walletId: string) {
@@ -897,7 +906,7 @@ export async function recalculateWalletBalance(walletId: string) {
     .update({ balance: encryptNumber(balance, dek) })
     .eq('id', walletId);
 
-  revalidatePath('/', 'layout');
+  revalidatePages('dashboard', 'wallets');
   return balance;
 }
 
@@ -925,7 +934,7 @@ export async function deleteWalletAction(id: string) {
     .delete()
     .eq('id', id);
 
-  revalidatePath('/', 'layout');
+  revalidatePages('dashboard', 'wallets', 'calendar');
 }
 
 // --- RESET HASŁA ---
@@ -1196,7 +1205,7 @@ export async function addCalendarEvent(data: {
     throw new Error(`Błąd zapisu: ${error.message}`);
   }
 
-  revalidatePath('/', 'layout');
+  revalidatePages('calendar', 'dashboard');
 }
 
 export async function editCalendarEvent(id: string, data: {
@@ -1242,7 +1251,7 @@ export async function editCalendarEvent(id: string, data: {
     })
     .eq('id', id);
 
-  revalidatePath('/', 'layout');
+  revalidatePages('calendar', 'dashboard');
 }
 
 export async function moveCalendarEvent(id: string, start_time: string, end_time: string) {
@@ -1264,7 +1273,7 @@ export async function moveCalendarEvent(id: string, start_time: string, end_time
     .update({ start_time, end_time })
     .eq('id', id);
 
-  revalidatePath('/', 'layout');
+  revalidatePages('calendar');
 }
 
 export async function moveRecurringEvent(
@@ -1363,7 +1372,7 @@ export async function moveRecurringEvent(
     }
   }
 
-  revalidatePath('/', 'layout');
+  revalidatePages('calendar');
 }
 
 export async function deleteCalendarEvent(id: string, reverseTransaction = false) {
@@ -1423,7 +1432,7 @@ export async function deleteCalendarEvent(id: string, reverseTransaction = false
     .delete()
     .eq('id', id);
 
-  revalidatePath('/', 'layout');
+  revalidatePages('calendar', 'dashboard', 'wallets');
 }
 
 export async function editRecurringInstance(instanceId: string, data: {
@@ -1499,7 +1508,7 @@ export async function editRecurringInstance(instanceId: string, data: {
       });
   }
 
-  revalidatePath('/', 'layout');
+  revalidatePages('calendar', 'dashboard');
 }
 
 export async function deleteRecurringInstance(instanceId: string) {
@@ -1561,7 +1570,7 @@ export async function deleteRecurringInstance(instanceId: string) {
       });
   }
 
-  revalidatePath('/', 'layout');
+  revalidatePages('calendar', 'dashboard');
 }
 
 /**
@@ -1601,7 +1610,7 @@ export async function deleteRecurringFromDate(instanceId: string) {
     .eq('id', parentId)
     .eq('user_id', userId);
 
-  revalidatePath('/calendar', 'page');
+  revalidatePages('calendar', 'dashboard');
 }
 
 /**
@@ -1694,8 +1703,7 @@ export async function deleteAllRecurring(parentId: string, reverseTransactions: 
     .eq('id', parentId)
     .eq('user_id', userId);
 
-  revalidatePath('/calendar', 'page');
-  revalidatePath('/wallets', 'page');
+  revalidatePages('calendar', 'wallets', 'dashboard');
 }
 
 export async function toggleEventConfirmed(id: string, confirmed: boolean, reverseTransaction = false) {
@@ -1816,7 +1824,7 @@ export async function toggleEventConfirmed(id: string, confirmed: boolean, rever
     }
   }
 
-  revalidatePath('/calendar', 'page');
+  revalidatePages('calendar', 'dashboard', 'wallets');
 }
 
 async function reverseSettledEvent(event: { wallet_id: string; hourly_rate: string; start_time: string; end_time: string; title: string }) {
@@ -1939,7 +1947,7 @@ export async function settleWeekAction(weekStart: string, weekEnd: string) {
       .eq('id', walletId);
   }
 
-  revalidatePath('/', 'layout');
+  revalidatePages('calendar', 'wallets', 'dashboard');
   return { settled: filteredEvents.length };
 }
 
@@ -2360,7 +2368,7 @@ export async function settleMonthAction(monthStart: string, monthEnd: string) {
       .eq('id', walletId);
   }
 
-  revalidatePath('/', 'layout');
+  revalidatePages('calendar', 'wallets', 'dashboard');
   return { settled: filteredMonthEvents.length };
 }
 
@@ -2454,8 +2462,7 @@ export async function settleAllUnsettledAction() {
       .eq('id', walletId);
   }
 
-  revalidatePath('/calendar', 'page');
-  revalidatePath('/wallets', 'page');
+  revalidatePages('calendar', 'wallets', 'dashboard');
   return { settled: filteredEvents.length, settledIds: eventIds };
 }
 
@@ -2640,7 +2647,7 @@ export async function addAssetAction(data: {
     }
   }
 
-  revalidatePath('/', 'layout');
+  revalidatePages('dashboard', 'wallets');
 }
 
 export async function editAssetAction(id: string, data: { quantity: number; cost_basis?: number; wallet_id?: string | null }) {
@@ -2677,7 +2684,7 @@ export async function editAssetAction(id: string, data: { quantity: number; cost
     .update(updateData)
     .eq('id', id);
 
-  revalidatePath('/', 'layout');
+  revalidatePages('dashboard', 'wallets');
 }
 
 export async function deleteAssetAction(id: string, revertTransaction = false) {
@@ -2740,7 +2747,7 @@ export async function deleteAssetAction(id: string, revertTransaction = false) {
 
   await supabaseAdmin.from('assets').delete().eq('id', id);
 
-  revalidatePath('/', 'layout');
+  revalidatePages('dashboard', 'wallets');
 }
 
 export async function refreshAssetPricesAction() {
@@ -2841,7 +2848,7 @@ export async function refreshAssetPricesAction() {
     }
   }
 
-  revalidatePath('/', 'layout');
+  revalidatePages('dashboard', 'wallets');
 }
 
 // --- SPRZEDAŻ AKTYWÓW ---
@@ -2966,7 +2973,7 @@ export async function sellAssetAction(data: {
     .update({ balance: encryptNumber(newBalance, dek) })
     .eq('id', data.walletId);
 
-  revalidatePath('/', 'layout');
+  revalidatePages('dashboard', 'wallets');
 }
 
 export async function getAssetSalesData() {
@@ -3127,7 +3134,7 @@ export async function addManualSaleAction(data: {
     .update({ balance: encryptNumber(currentBalance + totalProceeds, dek) })
     .eq('id', data.walletId);
 
-  revalidatePath('/', 'layout');
+  revalidatePages('dashboard', 'wallets');
 }
 
 export async function payTaxAction(data: {
@@ -3218,7 +3225,7 @@ export async function payTaxAction(data: {
     .update({ balance: encryptNumber(newBalance, dek) })
     .eq('id', data.walletId);
 
-  revalidatePath('/', 'layout');
+  revalidatePages('dashboard', 'wallets');
 }
 
 // --- NAWYKI (HABITS) ---
@@ -3285,7 +3292,7 @@ export async function addHabit(data: { name: string; color: string; icon: string
     throw new Error('Failed to add habit');
   }
 
-  revalidatePath('/', 'layout');
+  revalidatePages('habits', 'dashboard');
 }
 
 export async function editHabit(id: string, data: { name: string; color: string; icon: string; frequency?: string }) {
@@ -3312,7 +3319,7 @@ export async function editHabit(id: string, data: { name: string; color: string;
     })
     .eq('id', id);
 
-  revalidatePath('/', 'layout');
+  revalidatePages('habits', 'dashboard');
 }
 
 export async function deleteHabit(id: string) {
@@ -3333,7 +3340,7 @@ export async function deleteHabit(id: string) {
     .delete()
     .eq('id', id);
 
-  revalidatePath('/', 'layout');
+  revalidatePages('habits', 'dashboard');
 }
 
 export async function toggleHabitEntry(habitId: string, date: string, completed: boolean) {
@@ -3383,7 +3390,7 @@ export async function toggleHabitEntry(habitId: string, date: string, completed:
       .eq('date', date);
   }
 
-  revalidatePath('/', 'layout');
+  revalidatePages('habits', 'dashboard');
 }
 
 // --- GOOGLE CALENDAR ---
@@ -3474,7 +3481,7 @@ export async function updateGoogleCalendarMapping(
       .eq('google_calendar_id', mapping.google_calendar_id);
   }
 
-  revalidatePath('/', 'layout');
+  revalidatePages('calendar');
 }
 
 export async function disconnectGoogleCalendar() {
@@ -3494,7 +3501,7 @@ export async function disconnectGoogleCalendar() {
     .delete()
     .eq('user_id', userId);
 
-  revalidatePath('/', 'layout');
+  revalidatePages('calendar');
 }
 
 // --- SUBSCRIPTIONS ---
@@ -3604,7 +3611,7 @@ export async function addGoalAction(data: {
     throw new Error('Failed to add goal');
   }
 
-  revalidatePath('/', 'layout');
+  revalidatePages('dashboard');
 }
 
 export async function editGoalAction(id: string, data: {
@@ -3645,7 +3652,7 @@ export async function editGoalAction(id: string, data: {
     })
     .eq('id', id);
 
-  revalidatePath('/', 'layout');
+  revalidatePages('dashboard');
 }
 
 export async function deleteGoalAction(id: string) {
@@ -3665,7 +3672,7 @@ export async function deleteGoalAction(id: string) {
     .delete()
     .eq('id', id);
 
-  revalidatePath('/', 'layout');
+  revalidatePages('dashboard');
 }
 
 // --- COTYGODNIOWY RAPORT AI ---
@@ -3909,7 +3916,7 @@ export async function addRecurringExpense(data: {
     throw new Error('Failed to add recurring expense');
   }
 
-  revalidatePath('/', 'layout');
+  revalidatePages('dashboard');
 }
 
 export async function editRecurringExpense(id: string, data: {
@@ -3963,7 +3970,7 @@ export async function editRecurringExpense(id: string, data: {
     throw new Error('Failed to edit recurring expense');
   }
 
-  revalidatePath('/', 'layout');
+  revalidatePages('dashboard');
 }
 
 export async function deleteRecurringExpense(id: string) {
@@ -3984,7 +3991,7 @@ export async function deleteRecurringExpense(id: string) {
     .delete()
     .eq('id', id);
 
-  revalidatePath('/', 'layout');
+  revalidatePages('dashboard');
 }
 
 export async function payRecurringExpense(id: string, actualAmount: number) {
@@ -4083,7 +4090,7 @@ export async function payRecurringExpense(id: string, actualAmount: number) {
     })
     .eq('id', id);
 
-  revalidatePath('/', 'layout');
+  revalidatePages('dashboard', 'wallets');
 }
 
 export async function skipRecurringExpense(id: string) {
@@ -4134,7 +4141,7 @@ export async function skipRecurringExpense(id: string) {
     })
     .eq('id', id);
 
-  revalidatePath('/', 'layout');
+  revalidatePages('dashboard');
 }
 
 // --- KLIENCI I ZLECENIA ---
@@ -4204,7 +4211,7 @@ export async function addClient(data: {
     throw new Error(`Failed to add client: ${error.message}`);
   }
 
-  revalidatePath('/', 'layout');
+  revalidatePages('calendar', 'invoices');
 }
 
 export async function editClient(id: string, data: {
@@ -4243,7 +4250,7 @@ export async function editClient(id: string, data: {
     notes: data.notes ? encryptString(data.notes, dek) : null,
   }).eq('id', id);
 
-  revalidatePath('/', 'layout');
+  revalidatePages('calendar', 'invoices');
 }
 
 export async function deleteClient(id: string) {
@@ -4264,7 +4271,7 @@ export async function deleteClient(id: string) {
     throw new Error('Failed to delete client');
   }
 
-  revalidatePath('/', 'layout');
+  revalidatePages('calendar', 'invoices');
 }
 
 export async function getOrders() {
@@ -4373,7 +4380,7 @@ export async function addOrder(data: {
     throw new Error('Failed to add order');
   }
 
-  revalidatePath('/', 'layout');
+  revalidatePages('calendar');
 }
 
 export async function editOrder(id: string, data: {
@@ -4416,7 +4423,7 @@ export async function editOrder(id: string, data: {
     completion_date: data.completion_date || null,
   }).eq('id', id);
 
-  revalidatePath('/', 'layout');
+  revalidatePages('calendar');
 }
 
 export async function deleteOrder(id: string) {
@@ -4437,7 +4444,7 @@ export async function deleteOrder(id: string) {
     throw new Error('Failed to delete order');
   }
 
-  revalidatePath('/', 'layout');
+  revalidatePages('calendar');
 }
 
 export async function settleOrdersAction(orderIds: string[]) {
@@ -4535,7 +4542,7 @@ export async function settleOrdersAction(orderIds: string[]) {
     settledCount++;
   }
 
-  revalidatePath('/', 'layout');
+  revalidatePages('calendar', 'wallets', 'dashboard');
   return { settled: settledCount };
 }
 
