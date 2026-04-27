@@ -1226,16 +1226,10 @@ export async function editCalendarEvent(id: string, data: {
   const userId = await getUserId();
   if (!userId) throw new Error('Unauthorized');
 
-  const { data: event } = await supabaseAdmin
-    .from('calendar_events')
-    .select('user_id')
-    .eq('id', id)
-    .single();
-
-  if (!event || event.user_id !== userId) return;
-
   const dek = await getDEK();
 
+  // Single UPDATE with user_id filter — owners get updated, anyone else gets
+  // a no-op. Saves the SELECT round-trip we used to do for ownership checks.
   await supabaseAdmin
     .from('calendar_events')
     .update({
@@ -1249,7 +1243,8 @@ export async function editCalendarEvent(id: string, data: {
       event_type: data.event_type || 'work',
       order_id: data.order_id || null,
     })
-    .eq('id', id);
+    .eq('id', id)
+    .eq('user_id', userId);
 
   revalidatePages('calendar', 'dashboard');
 }
@@ -1259,19 +1254,15 @@ export async function moveCalendarEvent(id: string, start_time: string, end_time
   const userId = await getUserId();
   if (!userId) throw new Error('Unauthorized');
 
-  const { data: event } = await supabaseAdmin
-    .from('calendar_events')
-    .select('user_id, google_event_id, is_recurring')
-    .eq('id', id)
-    .single();
-
-  if (!event || event.user_id !== userId) return;
-  if (event.google_event_id || event.is_recurring) return;
-
+  // Single UPDATE — DB enforces ownership + the "not Google-synced, not recurring"
+  // rule via .is/.eq filters. Saves the SELECT we used to do upfront.
   await supabaseAdmin
     .from('calendar_events')
     .update({ start_time, end_time })
-    .eq('id', id);
+    .eq('id', id)
+    .eq('user_id', userId)
+    .is('google_event_id', null)
+    .eq('is_recurring', false);
 
   revalidatePages('calendar');
 }

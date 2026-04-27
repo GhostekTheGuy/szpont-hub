@@ -294,11 +294,11 @@ export function CalendarPageClient({ initialEvents, initialWallets, initialOrder
     setRecurringMoveData(null);
     try {
       await moveRecurringEvent(event.id, newStart, newEnd, mode);
-      await loadMonth(currentMonth);
+      await refreshCalendarEvents(currentMonth);
     } catch {
       toast('Nie udało się przenieść wydarzenia', 'error');
     }
-  }, [recurringMoveData, currentMonth, loadMonth]);
+  }, [recurringMoveData, currentMonth, refreshCalendarEvents, toast]);
 
   const handleModalClose = (didChange?: boolean) => {
     setIsEventModalOpen(false);
@@ -306,7 +306,11 @@ export function CalendarPageClient({ initialEvents, initialWallets, initialOrder
     setPrefillDate(null);
     setPrefillHour(null);
     if (didChange) {
-      loadMonth(currentMonth);
+      // Background refresh — keeps the calendar interactive instead of dimming
+      // it via setLoading(true). Same data is fetched, only the UI flag differs.
+      refreshCalendarEvents(currentMonth).catch(err =>
+        console.error('Error refreshing calendar after save:', err)
+      );
       setSummaryRefreshKey(k => k + 1);
     }
   };
@@ -417,7 +421,7 @@ export function CalendarPageClient({ initialEvents, initialWallets, initialOrder
           onNextMonth={goToNextMonth}
           onToday={goToToday}
           loading={loading}
-          topWidget={<TimerWidget wallets={wallets} orders={orders} onStop={() => loadMonth(currentMonth)} />}
+          topWidget={<TimerWidget wallets={wallets} orders={orders} onStop={() => refreshCalendarEvents(currentMonth)} />}
           actionButtons={
             <>
               {googleConn?.connected ? (
