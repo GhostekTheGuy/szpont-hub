@@ -144,11 +144,14 @@ async function fetchWalletsAndTransactions(userId: string, existingDek?: Buffer)
     console.error('Error fetching wallets:', walletsError);
   }
 
-  // Deszyfruj pola portfeli
+  // Deszyfruj pola portfeli + wymuś niepuste color/icon — null tu wywala
+  // klienta (parseWalletColor robi color.startsWith).
   const decryptedWallets = (wallets || []).map(w => ({
     ...w,
     name: decryptString(w.name, dek) || w.name,
     balance: decryptNumber(w.balance, dek),
+    color: w.color || 'from-violet-600 to-purple-500',
+    icon: w.icon || 'wallet',
     track_from: w.track_from ? decryptString(w.track_from, dek) || undefined : undefined,
     initial_balance: w.initial_balance ? decryptNumber(w.initial_balance, dek) : 0,
   }));
@@ -313,6 +316,8 @@ export async function getWallets() {
     ...w,
     name: decryptString(w.name, dek) || w.name,
     balance: decryptNumber(w.balance, dek),
+    color: w.color || 'from-violet-600 to-purple-500',
+    icon: w.icon || 'wallet',
     track_from: w.track_from ? decryptString(w.track_from, dek) || undefined : undefined,
     initial_balance: w.initial_balance ? decryptNumber(w.initial_balance, dek) : 0,
   }));
@@ -782,8 +787,8 @@ export async function addWalletAction(data: {
       user_id: userId,
       name: encryptString(data.name, dek),
       type: data.type,
-      color: data.color,
-      icon: data.icon,
+      color: data.color || 'from-violet-600 to-purple-500',
+      icon: data.icon || 'wallet',
       balance: encryptNumber(initialBalance, dek),
       track_from: encryptString(trackFrom, dek),
       initial_balance: encryptNumber(initialBalance, dek),
@@ -829,9 +834,11 @@ export async function editWalletAction(id: string, data: {
   const updateData: Record<string, any> = {
     name: encryptString(data.name, dek),
     type: data.type,
-    color: data.color,
-    icon: data.icon,
   };
+  // Only overwrite color/icon when the caller actually supplied them —
+  // otherwise we'd null out the existing values and crash WalletCard later.
+  if (data.color !== undefined) updateData.color = data.color;
+  if (data.icon !== undefined) updateData.icon = data.icon;
 
   if (data.track_from) {
     updateData.track_from = encryptString(data.track_from, dek);

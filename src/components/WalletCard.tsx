@@ -26,12 +26,19 @@ const typeLabels: Record<string, string> = {
 
 export type CardEffect = 'gradient' | 'plasma' | 'grainient';
 
-export function parseWalletColor(color: string): {
+const DEFAULT_GRADIENT = 'from-violet-600 to-purple-500';
+
+export function parseWalletColor(color: string | null | undefined): {
   effect: CardEffect;
   gradient?: string;
   plasmaColor?: string;
   grainientColors?: [string, string, string];
 } {
+  // Older wallets / wallets edited through a code path that didn't set color
+  // can have NULL in the DB. Crash-proof it by falling back to the default.
+  if (!color) {
+    return { effect: 'gradient', gradient: DEFAULT_GRADIENT };
+  }
   if (color.startsWith('plasma:')) {
     return { effect: 'plasma', plasmaColor: color.slice(7) };
   }
