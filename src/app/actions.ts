@@ -1228,25 +1228,69 @@ export async function editCalendarEvent(id: string, data: {
 
   const dek = await getDEK();
 
-  // Single UPDATE with user_id filter — owners get updated, anyone else gets
-  // a no-op. Saves the SELECT round-trip we used to do for ownership checks.
+  // Read the current state. When a settled work event has its financially
+  // relevant fields changed, we have to reverse the old earnings (otherwise
+  // the wallet balance and the recorded transaction become inconsistent
+  // with the event's new wallet/rate/duration — which is exactly the bug
+  // users were hitting when reassigning a settled event to another wallet).
+  const { data: existing } = await supabaseAdmin
+    .from('calendar_events')
+    .select('user_id, wallet_id, hourly_rate, start_time, end_time, event_type, is_settled, title')
+    .eq('id', id)
+    .single();
+
+  if (!existing || existing.user_id !== userId) return;
+
+  const newWalletId = isPersonal ? null : data.wallet_id;
+  const newHourlyRate = isPersonal ? 0 : data.hourly_rate;
+  const wasSettledWork = !!existing.is_settled && (existing.event_type || 'work') === 'work';
+  const oldHourlyRate = wasSettledWork ? decryptNumber(existing.hourly_rate, dek) : 0;
+  const financialChange =
+    existing.wallet_id !== newWalletId ||
+    oldHourlyRate !== newHourlyRate ||
+    existing.start_time !== data.start_time ||
+    existing.end_time !== data.end_time ||
+    isPersonal;
+  const needsReverse = wasSettledWork && financialChange && !!existing.wallet_id;
+
+  if (needsReverse) {
+    await reverseSettledEvent({
+      wallet_id: existing.wallet_id!,
+      hourly_rate: existing.hourly_rate,
+      start_time: existing.start_time,
+      end_time: existing.end_time,
+      title: existing.title,
+    });
+  }
+
+  const updateData: Record<string, unknown> = {
+    title: encryptString(data.title, dek),
+    wallet_id: newWalletId,
+    hourly_rate: encryptNumber(newHourlyRate, dek),
+    start_time: data.start_time,
+    end_time: data.end_time,
+    is_recurring: data.is_recurring,
+    recurrence_rule: data.recurrence_rule,
+    event_type: data.event_type || 'work',
+    order_id: data.order_id || null,
+  };
+  // After reversing, the event has to drop back to unsettled — the user
+  // can re-confirm and re-settle through the normal flow.
+  if (needsReverse) {
+    updateData.is_settled = false;
+  }
+
   await supabaseAdmin
     .from('calendar_events')
-    .update({
-      title: encryptString(data.title, dek),
-      wallet_id: isPersonal ? null : data.wallet_id,
-      hourly_rate: isPersonal ? encryptNumber(0, dek) : encryptNumber(data.hourly_rate, dek),
-      start_time: data.start_time,
-      end_time: data.end_time,
-      is_recurring: data.is_recurring,
-      recurrence_rule: data.recurrence_rule,
-      event_type: data.event_type || 'work',
-      order_id: data.order_id || null,
-    })
+    .update(updateData)
     .eq('id', id)
     .eq('user_id', userId);
 
-  revalidatePages('calendar', 'dashboard');
+  if (needsReverse) {
+    revalidatePages('calendar', 'dashboard', 'wallets');
+  } else {
+    revalidatePages('calendar', 'dashboard');
+  }
 }
 
 export async function moveCalendarEvent(id: string, start_time: string, end_time: string) {
@@ -1444,22 +1488,52 @@ export async function editRecurringInstance(instanceId: string, data: {
   // Check if instance is already materialized
   const { data: existing } = await supabaseAdmin
     .from('calendar_events')
-    .select('id, user_id')
+    .select('id, user_id, wallet_id, hourly_rate, start_time, end_time, event_type, is_settled, title')
     .eq('id', instanceId)
     .single();
 
+  let didReverse = false;
+
   if (existing) {
     if (existing.user_id !== userId) return;
-    // Update the materialized instance
+
+    // Same settled-event guard as editCalendarEvent: if the user changes a
+    // financially relevant field on a settled work instance we have to
+    // reverse the old earnings before persisting the new state.
+    const newWalletId = isPersonal ? null : data.wallet_id;
+    const newHourlyRate = isPersonal ? 0 : data.hourly_rate;
+    const wasSettledWork = !!existing.is_settled && (existing.event_type || 'work') === 'work';
+    const oldHourlyRate = wasSettledWork ? decryptNumber(existing.hourly_rate, dek) : 0;
+    const financialChange =
+      existing.wallet_id !== newWalletId ||
+      oldHourlyRate !== newHourlyRate ||
+      isPersonal;
+    const needsReverse = wasSettledWork && financialChange && !!existing.wallet_id;
+    didReverse = needsReverse;
+
+    if (needsReverse) {
+      await reverseSettledEvent({
+        wallet_id: existing.wallet_id!,
+        hourly_rate: existing.hourly_rate,
+        start_time: existing.start_time,
+        end_time: existing.end_time,
+        title: existing.title,
+      });
+    }
+
+    const updateData: Record<string, unknown> = {
+      title: encryptString(data.title, dek),
+      wallet_id: newWalletId,
+      hourly_rate: encryptNumber(newHourlyRate, dek),
+      event_type: data.event_type || 'work',
+    };
+    if (needsReverse) updateData.is_settled = false;
+
     await supabaseAdmin
       .from('calendar_events')
-      .update({
-        title: encryptString(data.title, dek),
-        wallet_id: isPersonal ? null : data.wallet_id,
-        hourly_rate: isPersonal ? encryptNumber(0, dek) : encryptNumber(data.hourly_rate, dek),
-        event_type: data.event_type || 'work',
-      })
-      .eq('id', instanceId);
+      .update(updateData)
+      .eq('id', instanceId)
+      .eq('user_id', userId);
   } else {
     // Materialize from parent, then apply edits
     const { data: parent } = await supabaseAdmin
@@ -1499,7 +1573,11 @@ export async function editRecurringInstance(instanceId: string, data: {
       });
   }
 
-  revalidatePages('calendar', 'dashboard');
+  if (didReverse) {
+    revalidatePages('calendar', 'dashboard', 'wallets');
+  } else {
+    revalidatePages('calendar', 'dashboard');
+  }
 }
 
 export async function deleteRecurringInstance(instanceId: string) {
