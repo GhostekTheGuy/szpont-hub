@@ -21,6 +21,7 @@ import {
 } from '@/lib/crypto';
 import { getExchangeRates, getHistoricalRates, convertAmount, type Currency, type ExchangeRates, type HistoricalRates } from '@/lib/exchange-rates';
 import { expandRecurringEvents, mergeWithExpanded, formatLocalDateTime } from '@/lib/calendar-utils';
+import { time } from '@/lib/timing';
 
 // --- HELPERS ---
 
@@ -185,6 +186,7 @@ async function fetchWalletsAndTransactions(userId: string, existingDek?: Buffer)
 }
 
 export async function getDashboardData() {
+  return time('getDashboardData', async () => {
   const userId = await getUserId();
   if (!userId) return null;
 
@@ -289,6 +291,7 @@ export async function getDashboardData() {
   }
 
   return { wallets, transactions, assets: decryptedAssets, goals: decryptedGoals, recurringExpenses: decryptedRecurringExpenses, exchangeRates: rates, workEarningsByDate, habits: decryptedHabits, habitEntries: decryptedHabitEntries };
+  });
 }
 
 export async function getWalletsWithTransactions() {
@@ -300,63 +303,67 @@ export async function getWalletsWithTransactions() {
 
 // Lightweight version — fetches only wallets without transactions (for calendar, etc.)
 export async function getWallets() {
-  const userId = await getUserId();
-  if (!userId) return null;
+  return time('getWallets', async () => {
+    const userId = await getUserId();
+    if (!userId) return null;
 
-  const [dek, { data: wallets, error }] = await Promise.all([
-    getDEK(),
-    supabaseAdmin.from('wallets').select('*').eq('user_id', userId),
-  ]);
+    const [dek, { data: wallets, error }] = await Promise.all([
+      getDEK(),
+      supabaseAdmin.from('wallets').select('*').eq('user_id', userId),
+    ]);
 
-  if (error) {
-    console.error('Error fetching wallets:', error);
-  }
+    if (error) {
+      console.error('Error fetching wallets:', error);
+    }
 
-  const decryptedWallets = (wallets || []).map(w => ({
-    ...w,
-    name: decryptString(w.name, dek) || w.name,
-    balance: decryptNumber(w.balance, dek),
-    color: w.color || 'from-violet-600 to-purple-500',
-    icon: w.icon || 'wallet',
-    track_from: w.track_from ? decryptString(w.track_from, dek) || undefined : undefined,
-    initial_balance: w.initial_balance ? decryptNumber(w.initial_balance, dek) : 0,
-  }));
+    const decryptedWallets = (wallets || []).map(w => ({
+      ...w,
+      name: decryptString(w.name, dek) || w.name,
+      balance: decryptNumber(w.balance, dek),
+      color: w.color || 'from-violet-600 to-purple-500',
+      icon: w.icon || 'wallet',
+      track_from: w.track_from ? decryptString(w.track_from, dek) || undefined : undefined,
+      initial_balance: w.initial_balance ? decryptNumber(w.initial_balance, dek) : 0,
+    }));
 
-  return { wallets: decryptedWallets };
+    return { wallets: decryptedWallets };
+  });
 }
 
 export async function getAssetsData() {
-  const userId = await getUserId();
-  if (!userId) return null;
+  return time('getAssetsData', async () => {
+    const userId = await getUserId();
+    if (!userId) return null;
 
-  const [dek, { data: assets, error: assetsError }] = await Promise.all([
-    getDEK(),
-    supabaseAdmin
-      .from('assets')
-      .select('id, user_id, name, symbol, coingecko_id, quantity, current_price, total_value, change_24h, cost_basis, asset_type, wallet_id, created_at')
-      .eq('user_id', userId),
-  ]);
+    const [dek, { data: assets, error: assetsError }] = await Promise.all([
+      getDEK(),
+      supabaseAdmin
+        .from('assets')
+        .select('id, user_id, name, symbol, coingecko_id, quantity, current_price, total_value, change_24h, cost_basis, asset_type, wallet_id, created_at')
+        .eq('user_id', userId),
+    ]);
 
-  if (assetsError) {
-    console.error('Error fetching assets:', assetsError);
-  }
+    if (assetsError) {
+      console.error('Error fetching assets:', assetsError);
+    }
 
-  const decryptedAssets = (assets || []).map(a => ({
-    ...a,
-    name: decryptString(a.name, dek) || a.name,
-    symbol: decryptString(a.symbol, dek) || a.symbol,
-    coingecko_id: decryptString(a.coingecko_id, dek) || a.coingecko_id || '',
-    quantity: decryptNumber(a.quantity, dek),
-    current_price: decryptNumber(a.current_price, dek),
-    total_value: decryptNumber(a.total_value, dek),
-    change_24h: decryptNumber(a.change_24h, dek),
-    cost_basis: a.cost_basis ? decryptNumber(a.cost_basis, dek) : 0,
-    asset_type: (a.asset_type || 'crypto') as 'crypto' | 'stock',
-    wallet_id: a.wallet_id || null,
-    created_at: a.created_at || new Date().toISOString(),
-  }));
+    const decryptedAssets = (assets || []).map(a => ({
+      ...a,
+      name: decryptString(a.name, dek) || a.name,
+      symbol: decryptString(a.symbol, dek) || a.symbol,
+      coingecko_id: decryptString(a.coingecko_id, dek) || a.coingecko_id || '',
+      quantity: decryptNumber(a.quantity, dek),
+      current_price: decryptNumber(a.current_price, dek),
+      total_value: decryptNumber(a.total_value, dek),
+      change_24h: decryptNumber(a.change_24h, dek),
+      cost_basis: a.cost_basis ? decryptNumber(a.cost_basis, dek) : 0,
+      asset_type: (a.asset_type || 'crypto') as 'crypto' | 'stock',
+      wallet_id: a.wallet_id || null,
+      created_at: a.created_at || new Date().toISOString(),
+    }));
 
-  return { assets: decryptedAssets };
+    return { assets: decryptedAssets };
+  });
 }
 
 // --- WYKRES PORTFELA ---
@@ -1096,6 +1103,7 @@ export async function signOutAction() {
 // --- KALENDARZ ---
 
 export async function getCalendarEvents(weekStart: string, weekEnd: string) {
+  return time('getCalendarEvents', async () => {
   if (!isValidISODate(weekStart) || !isValidISODate(weekEnd)) throw new Error('Invalid date range');
   const userId = await getUserId();
   if (!userId) return null;
@@ -1169,6 +1177,7 @@ export async function getCalendarEvents(weekStart: string, weekEnd: string) {
   }));
 
   return { events: decryptedEvents, wallets: decryptedWallets };
+  });
 }
 
 export async function addCalendarEvent(data: {
@@ -4364,6 +4373,7 @@ export async function deleteClient(id: string) {
 }
 
 export async function getOrders() {
+  return time('getOrders', async () => {
   const userId = await getUserId();
   if (!userId) return { orders: [] };
 
@@ -4418,6 +4428,7 @@ export async function getOrders() {
   });
 
   return { orders: decrypted };
+  });
 }
 
 export async function addOrder(data: {
