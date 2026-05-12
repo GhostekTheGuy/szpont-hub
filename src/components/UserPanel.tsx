@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import Image from 'next/image';
 import { useTheme } from 'next-themes';
 import {
   Moon,
@@ -145,9 +146,11 @@ export function UserPanel({ userName, userEmail, avatarUrl, subscription }: User
               className="relative shrink-0 group"
             >
               {currentAvatar ? (
-                <img
+                <Image
                   src={currentAvatar}
                   alt={userName}
+                  width={64}
+                  height={64}
                   className="w-16 h-16 rounded-full object-cover"
                 />
               ) : (

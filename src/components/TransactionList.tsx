@@ -7,7 +7,7 @@ import { ArrowUpRight, ArrowDownRight, ArrowLeftRight, Trash2, Edit2, ArrowRight
 import { format } from 'date-fns';
 import { pl } from 'date-fns/locale';
 import { formatCurrency } from '@/lib/exchange-rates';
-import { motion, useInView } from 'motion/react';
+import { motion, useInView } from 'framer-motion';
 
 function AnimatedRow({ children, index }: { children: ReactNode; index: number }) {
   const ref = useRef<HTMLDivElement>(null);

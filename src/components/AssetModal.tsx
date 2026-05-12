@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import Image from 'next/image';
 import { X, Search, Loader2 } from 'lucide-react';
 import { Asset, Wallet } from '@/hooks/useFinanceStore';
 import { addAssetAction, editAssetAction, searchYahooFinance } from '@/app/actions';
@@ -337,7 +338,7 @@ export function AssetModal({ isOpen, onClose, editingAsset, onDelete, wallets = 
                 {assetType === 'crypto' && selectedCoin ? (
                   <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg border border-border">
                     {selectedCoin.thumb && (
-                      <img src={selectedCoin.thumb} alt="" className="w-6 h-6 rounded-full" />
+                      <Image src={selectedCoin.thumb} alt="" width={24} height={24} className="w-6 h-6 rounded-full" unoptimized />
                     )}
                     <div className="flex-1">
                       <span className="text-card-foreground font-medium">{selectedCoin.name}</span>
@@ -400,7 +401,7 @@ export function AssetModal({ isOpen, onClose, editingAsset, onDelete, wallets = 
                         className="flex items-center gap-3 w-full px-3 py-2.5 hover:bg-muted/50 transition-colors text-left"
                       >
                         {coin.thumb && (
-                          <img src={coin.thumb} alt="" className="w-6 h-6 rounded-full" />
+                          <Image src={coin.thumb} alt="" width={24} height={24} className="w-6 h-6 rounded-full" unoptimized />
                         )}
                         <span className="text-card-foreground font-medium text-sm">{coin.name}</span>
                         <span className="text-xs text-muted-foreground">{coin.symbol.toUpperCase()}</span>

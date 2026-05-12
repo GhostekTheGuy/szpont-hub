@@ -44,10 +44,13 @@ function UserAvatar({ userName, avatarUrl, size = 'sm' }: { userName: string; av
   const sizeClass = size === 'sm' ? 'w-8 h-8 text-xs' : 'w-9 h-9 text-sm';
 
   if (avatarUrl) {
+    const dim = size === 'sm' ? 32 : 36;
     return (
-      <img
+      <Image
         src={avatarUrl}
         alt={userName}
+        width={dim}
+        height={dim}
         className={`${sizeClass} rounded-full object-cover`}
       />
     );

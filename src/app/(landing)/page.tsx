@@ -2,20 +2,31 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
+import dynamic from 'next/dynamic';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, Sparkles, Wallet, PiggyBank, CalendarDays, Target, Monitor, Smartphone, Check, ScanLine, Bot, X, Menu, ChevronDown } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import LetterGlitch from '@/components/LetterGlitch';
 import { BlurFade } from '@/components/ui/blur-fade';
 import { Marquee } from '@/components/ui/marquee';
 import { AvatarCircles } from '@/components/ui/avatar-circles';
 import { GridPattern } from '@/components/ui/grid-pattern';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
-import { Globe } from '@/components/ui/globe';
-import { MeshGradient } from '@paper-design/shaders-react';
+
+const MeshGradient = dynamic(
+  () => import('@paper-design/shaders-react').then((m) => m.MeshGradient),
+  { ssr: false, loading: () => <div className="w-full h-full bg-neutral-900" /> }
+);
+const LetterGlitch = dynamic(() => import('@/components/LetterGlitch'), {
+  ssr: false,
+  loading: () => null,
+});
+const Globe = dynamic(() => import('@/components/ui/globe').then((m) => m.Globe), {
+  ssr: false,
+  loading: () => null,
+});
 
 export default function LandingPage() {
   const router = useRouter();
@@ -272,12 +283,13 @@ export default function LandingPage() {
         {/* Dashboard preview */}
         <div className="relative z-10 w-full max-w-5xl mx-auto px-6 pb-24 animate-hero-tilt">
           <div className="relative overflow-hidden rounded-xl">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            <Image
               src="/hero-dashboard.png"
               alt="Dashboard $zpont Hub"
               width={2114}
               height={1076}
+              priority
+              sizes="(max-width: 768px) 100vw, 80vw"
               className="w-full h-auto shadow-2xl shadow-primary/5"
             />
             {/* Bottom fade */}
@@ -322,9 +334,12 @@ export default function LandingPage() {
           <BlurFade delay={0.3} inView>
             <div className="mt-14 relative w-full overflow-hidden rounded-2xl">
               {/* Desktop image */}
-              <img
+              <Image
                 src="/MB.png"
                 alt="$zpont Hub — aplikacja webowa na MacBooku"
+                width={2000}
+                height={1200}
+                sizes="(max-width: 768px) 100vw, 80vw"
                 className={`w-full h-auto transition-all duration-700 ease-in-out ${
                   deviceView === 'desktop'
                     ? 'opacity-100 scale-100'
@@ -332,9 +347,12 @@ export default function LandingPage() {
                 }`}
               />
               {/* Mobile image */}
-              <img
+              <Image
                 src="/AP.png"
                 alt="$zpont Hub — aplikacja mobilna"
+                width={2000}
+                height={1200}
+                sizes="(max-width: 768px) 100vw, 80vw"
                 className={`w-full h-auto transition-all duration-700 ease-in-out ${
                   deviceView === 'mobile'
                     ? 'opacity-100 scale-100'

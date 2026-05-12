@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import { Asset, useFinanceStore } from '@/hooks/useFinanceStore';
 import { TrendingUp, TrendingDown, Coins, Edit2, Trash2, BadgeDollarSign } from 'lucide-react';
 import { formatCurrency } from '@/lib/exchange-rates';
@@ -80,7 +81,7 @@ export function AssetList({ assets, onEdit, onDelete, onSell, standalone }: Asse
       <div className="space-y-3">
         {assets.length === 0 ? (
           <div className={`flex flex-col items-center py-8 gap-3 ${standalone ? 'bg-card border border-border rounded-xl' : ''}`}>
-            <img src="/Home element.gif" alt="" className="w-24 h-24 opacity-70" />
+            <Image src="/Home element.gif" alt="" width={96} height={96} unoptimized className="w-24 h-24 opacity-70" />
             <p className="text-muted-foreground text-sm">Brak aktywów</p>
           </div>
         ) : (
