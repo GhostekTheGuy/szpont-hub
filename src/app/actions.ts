@@ -2,7 +2,6 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { getUser } from '@/lib/supabase/cached';
 import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 import { nanoid } from 'nanoid';
@@ -13,7 +12,6 @@ import {
   generateDEK,
   encryptDEK,
   encryptForCookie,
-  decryptFromCookie,
   encryptNumber,
   decryptNumber,
   encryptString,
@@ -22,41 +20,9 @@ import {
 import { getExchangeRates, getHistoricalRates, convertAmount, type Currency, type ExchangeRates, type HistoricalRates } from '@/lib/exchange-rates';
 import { expandRecurringEvents, mergeWithExpanded, formatLocalDateTime } from '@/lib/calendar-utils';
 import { time } from '@/lib/timing';
-
-// --- HELPERS ---
-
-// Granular page revalidation. Pass the route segments that show data
-// changed by this action. Avoids the 'layout' nuke that invalidates every page.
-type Page = 'dashboard' | 'wallets' | 'calendar' | 'habits' | 'invoices' | 'settings';
-function revalidatePages(...pages: Page[]) {
-  for (const p of Array.from(new Set(pages))) {
-    revalidatePath(`/${p}`);
-  }
-}
-
-function isValidISODate(s: string): boolean {
-  return /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d+)?Z?)?$/.test(s) && !isNaN(Date.parse(s));
-}
-
-function parseInstanceId(id: string): { parentId: string; dateStr: string } | null {
-  const match = id.match(/_(\d{4}-\d{2}-\d{2})$/);
-  if (!match) return null;
-  return { parentId: id.slice(0, match.index!), dateStr: match[1] };
-}
-
-async function getUserId() {
-  const user = await getUser();
-  return user?.id;
-}
+import { revalidatePages, isValidISODate, parseInstanceId, getUserId, getDEK } from '@/lib/server-internals';
 
 // --- SZYFROWANIE: SESJA ---
-
-async function getDEK(): Promise<Buffer> {
-  const cookieStore = await cookies();
-  const encryptedCookie = cookieStore.get('encryption_dek')?.value;
-  if (!encryptedCookie) throw new Error('Encryption session expired');
-  return decryptFromCookie(encryptedCookie);
-}
 
 export async function initEncryptionSession(password: string) {
   const userId = await getUserId();
