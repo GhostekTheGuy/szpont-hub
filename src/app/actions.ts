@@ -329,12 +329,13 @@ export async function getAssetsData() {
   const userId = await getUserId();
   if (!userId) return null;
 
-  const dek = await getDEK();
-
-  const { data: assets, error: assetsError } = await supabaseAdmin
-    .from('assets')
-    .select('id, user_id, name, symbol, coingecko_id, quantity, current_price, total_value, change_24h, cost_basis, asset_type, wallet_id, created_at')
-    .eq('user_id', userId);
+  const [dek, { data: assets, error: assetsError }] = await Promise.all([
+    getDEK(),
+    supabaseAdmin
+      .from('assets')
+      .select('id, user_id, name, symbol, coingecko_id, quantity, current_price, total_value, change_24h, cost_basis, asset_type, wallet_id, created_at')
+      .eq('user_id', userId),
+  ]);
 
   if (assetsError) {
     console.error('Error fetching assets:', assetsError);
@@ -3504,12 +3505,13 @@ export async function getGoogleCalendarMappings() {
   const userId = await getUserId();
   if (!userId) return [];
 
-  const dek = await getDEK();
-
-  const { data: mappings } = await supabaseAdmin
-    .from('google_calendar_mappings')
-    .select('*, wallet:wallets(id, name, color)')
-    .eq('user_id', userId);
+  const [dek, { data: mappings }] = await Promise.all([
+    getDEK(),
+    supabaseAdmin
+      .from('google_calendar_mappings')
+      .select('*, wallet:wallets(id, name, color)')
+      .eq('user_id', userId),
+  ]);
 
   if (!mappings) return [];
 
@@ -3533,15 +3535,17 @@ export async function updateGoogleCalendarMapping(
   const userId = await getUserId();
   if (!userId) throw new Error('Unauthorized');
 
-  const { data: mapping } = await supabaseAdmin
-    .from('google_calendar_mappings')
-    .select('user_id, google_calendar_id')
-    .eq('id', id)
-    .single();
+  const [{ data: mapping }, dek] = await Promise.all([
+    supabaseAdmin
+      .from('google_calendar_mappings')
+      .select('user_id, google_calendar_id')
+      .eq('id', id)
+      .single(),
+    getDEK(),
+  ]);
 
   if (!mapping || mapping.user_id !== userId) throw new Error('Not found');
 
-  const dek = await getDEK();
   const updateData: Record<string, unknown> = {};
 
   if (data.wallet_id !== undefined) updateData.wallet_id = data.wallet_id;

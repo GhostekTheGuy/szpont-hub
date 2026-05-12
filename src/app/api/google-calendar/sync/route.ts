@@ -47,30 +47,19 @@ export async function POST() {
   let accessToken = decryptString(connection.access_token, dek) || '';
   let refreshToken = decryptString(connection.refresh_token, dek) || '';
 
-  // Refresh tokens if needed
-  try {
-    const refreshed = await getRefreshedTokens(accessToken, refreshToken);
-    if (refreshed.changed) {
-      accessToken = refreshed.accessToken;
-      refreshToken = refreshed.refreshToken;
+  // Refresh tokens (Google API) and fetch mappings (DB) in parallel — independent operations
+  const [refreshSettled, mappingsRes] = await Promise.allSettled([
+    getRefreshedTokens(accessToken, refreshToken),
+    supabaseAdmin
+      .from('google_calendar_mappings')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('is_enabled', true),
+  ]);
 
-      // Re-encrypt and save new tokens
-      const { error: tokenSaveError } = await supabaseAdmin
-        .from('google_calendar_connections')
-        .update({
-          access_token: encryptString(refreshed.accessToken, dek),
-          refresh_token: encryptString(refreshed.refreshToken, dek),
-          token_expiry: refreshed.expiry?.toISOString() || null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', connection.id);
-
-      if (tokenSaveError) {
-        console.error('[Google Sync] Failed to save refreshed tokens:', tokenSaveError);
-        return NextResponse.json({ error: 'Failed to save refreshed tokens' }, { status: 500 });
-      }
-    }
-  } catch (err) {
+  // Handle token refresh result first — must run before any sync work
+  if (refreshSettled.status === 'rejected') {
+    const err = refreshSettled.reason;
     const message = err instanceof Error ? err.message : String(err);
     if (message.startsWith('REVOKED:')) {
       console.error('[Google Sync] Token revoked:', message);
@@ -80,12 +69,30 @@ export async function POST() {
     return NextResponse.json({ error: 'Token refresh failed' }, { status: 401 });
   }
 
-  // Get enabled mappings
-  const { data: mappings } = await supabaseAdmin
-    .from('google_calendar_mappings')
-    .select('*')
-    .eq('user_id', user.id)
-    .eq('is_enabled', true);
+  const refreshed = refreshSettled.value;
+  if (refreshed.changed) {
+    accessToken = refreshed.accessToken;
+    refreshToken = refreshed.refreshToken;
+
+    // Re-encrypt and save new tokens
+    const { error: tokenSaveError } = await supabaseAdmin
+      .from('google_calendar_connections')
+      .update({
+        access_token: encryptString(refreshed.accessToken, dek),
+        refresh_token: encryptString(refreshed.refreshToken, dek),
+        token_expiry: refreshed.expiry?.toISOString() || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', connection.id);
+
+    if (tokenSaveError) {
+      console.error('[Google Sync] Failed to save refreshed tokens:', tokenSaveError);
+      return NextResponse.json({ error: 'Failed to save refreshed tokens' }, { status: 500 });
+    }
+  }
+
+  // Unwrap mappings result (Promise.allSettled — fulfilled means the supabase call returned, errors are on .error)
+  const mappings = mappingsRes.status === 'fulfilled' ? mappingsRes.value.data : null;
 
   console.log(`[Google Sync] Found ${mappings?.length || 0} enabled mappings`);
 
