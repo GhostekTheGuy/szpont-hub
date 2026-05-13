@@ -427,6 +427,23 @@ export function CalendarPageClient({ initialEvents, initialWallets, initialOrder
               refreshKey={summaryRefreshKey}
             />
           }
+          confirmationBar={
+            unsettledCount > 0 ? (
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-card border border-border rounded-xl px-4 py-2.5">
+                <button
+                  onClick={handleSettle}
+                  disabled={settling}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-green-600 hover:bg-green-700 text-white active:scale-95 transition-all disabled:opacity-60"
+                >
+                  {settling ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                  Potwierdź wszystkie ({unsettledCount})
+                </button>
+                <span className="text-xs text-muted-foreground">
+                  {unsettledCount} {unsettledCount === 1 ? 'wydarzenie czeka na rozliczenie' : 'wydarzeń czeka na rozliczenie'}
+                </span>
+              </div>
+            ) : null
+          }
           actionButtons={
             <>
               {googleConn?.connected ? (
@@ -466,27 +483,6 @@ export function CalendarPageClient({ initialEvents, initialWallets, initialOrder
               >
                 <Timer className="w-4 h-4" />
                 Import
-              </button>
-              <button
-                onClick={handleSettle}
-                disabled={unsettledCount === 0 || settling}
-                className={`relative flex items-center justify-center w-9 h-9 rounded-lg transition-all duration-200 ${
-                  unsettledCount > 0
-                    ? 'bg-green-600 hover:bg-green-700 text-white active:scale-75'
-                    : 'bg-secondary text-muted-foreground cursor-not-allowed'
-                }`}
-                title={unsettledCount === 0 ? 'Brak transakcji do zatwierdzenia' : `${unsettledCount} do zatwierdzenia`}
-              >
-                {settling ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Check className="w-4 h-4" />
-                )}
-                {unsettledCount > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                    {unsettledCount}
-                  </span>
-                )}
               </button>
             </>
           }

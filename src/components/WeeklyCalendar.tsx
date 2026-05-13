@@ -13,7 +13,6 @@ import {
   startOfWeek,
   endOfWeek,
   eachDayOfInterval,
-  getISOWeek,
 } from 'date-fns';
 import { pl } from 'date-fns/locale';
 import { formatLocalDateTime } from '@/lib/calendar-utils';
@@ -287,6 +286,7 @@ interface WeeklyCalendarProps {
   topWidget?: React.ReactNode;
   actionButtons?: React.ReactNode;
   summaryBlock?: React.ReactNode;
+  confirmationBar?: React.ReactNode;
 }
 
 function GoogleIcon({ className = "w-3 h-3" }: { className?: string }) {
@@ -354,6 +354,7 @@ export function WeeklyCalendar({
   topWidget,
   actionButtons,
   summaryBlock,
+  confirmationBar,
 }: WeeklyCalendarProps) {
   // Build the grid of days: from Monday before month start to Sunday after month end
   const gridDays = useMemo(() => {
@@ -462,20 +463,13 @@ export function WeeklyCalendar({
     return Array.from({ length: 7 }, (_, i) => addDays(ws, i));
   }, [selectedDate]);
 
-  // Scroll the week view into the viewport when the user clicks a day in the
-  // monthly grid. Month-nav buttons set selectedDate via the parent without
-  // going through handleCellClick, so they intentionally don't trigger this.
-  const desktopWeekRef = useRef<HTMLDivElement>(null);
-  const mobileWeekRef = useRef<HTMLDivElement>(null);
-  const handleCellClick = useCallback((day: Date) => {
-    onSelectDate(day);
-    // rAF defers to after React commits the (possibly newly-mounted) week grid.
-    requestAnimationFrame(() => {
-      const isDesktop = typeof window !== 'undefined'
-        && window.matchMedia('(min-width: 1024px)').matches;
-      const target = isDesktop ? desktopWeekRef.current : mobileWeekRef.current;
-      target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
+  // Click a week row in the right column → jump the week view to that week.
+  // Pick today if it falls inside the clicked week, otherwise its Monday.
+  const handleWeekSelect = useCallback((weekStart: Date) => {
+    const today = new Date();
+    const weekEnd = addDays(weekStart, 6);
+    const target = today >= weekStart && today <= weekEnd ? today : weekStart;
+    onSelectDate(target);
   }, [onSelectDate]);
 
   return (
@@ -531,8 +525,8 @@ export function WeeklyCalendar({
         )}
       </div>
 
-      {/* Month grid + per-week summary column */}
-      <div className="grid gap-3 lg:grid-cols-[1fr_220px]">
+      {/* Month grid (left) + week-nav + week view (right) */}
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
       <div className="bg-card border border-border rounded-xl p-2.5">
         {/* Day-of-week header */}
         <div className="grid grid-cols-7 mb-1">
@@ -560,7 +554,7 @@ export function WeeklyCalendar({
               return (
                 <button
                   key={key}
-                  onClick={() => handleCellClick(day)}
+                  onClick={() => onSelectDate(day)}
                   className={`relative flex flex-col items-center gap-0.5 py-2 min-h-[76px] rounded-lg transition-colors ${
                     !inMonth ? 'opacity-40' : ''
                   } ${selected ? 'bg-accent' : 'hover:bg-accent/50'}`}
@@ -628,66 +622,70 @@ export function WeeklyCalendar({
           </div>
       </div>
 
-        {/* Per-week summary column (aligned to grid rows). Hidden on <lg. */}
-        <aside className="hidden lg:flex flex-col gap-1">
-          {/* Spacer matching the height of the day-of-week header (text-[11px] py-1.5 + mb-1) */}
-          <div className="h-[26px] mb-1" />
-          {weekChunks.map(({ start, total }, idx) => {
-            const amount = Math.round(total);
-            const pct = weekMaxEarning > 0 ? amount / weekMaxEarning : 0;
-            let colorClass: string;
-            if (amount === 0) {
-              colorClass = 'text-muted-foreground/60';
-            } else if (pct >= 0.9) {
-              colorClass = 'text-emerald-600 dark:text-emerald-400 font-bold';
-            } else if (pct >= 0.6) {
-              colorClass = 'text-emerald-500 font-semibold';
-            } else if (pct >= 0.3) {
-              colorClass = 'text-emerald-400';
-            } else {
-              colorClass = 'text-amber-500';
-            }
-            return (
-              <div
-                key={start.toISOString()}
-                className="min-h-[76px] flex flex-col justify-center rounded-lg bg-card border border-border px-3"
-              >
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                  Tydzień {idx + 1}
-                </div>
-                <div className="text-[10px] text-muted-foreground/70 mb-0.5">
-                  ISO {getISOWeek(start)}
-                </div>
-                <div className={`text-sm leading-tight ${colorClass}`}>
-                  +{amount.toLocaleString('pl-PL')} PLN
-                </div>
-              </div>
-            );
-          })}
-        </aside>
-      </div>
+        {/* Right column on lg — clickable week list + week time grid (or
+            mobile event list on smaller screens). Falls below the monthly
+            card on <lg by grid auto-flow. */}
+        <aside className="flex flex-col gap-3 min-w-0">
+          {/* Clickable week navigation */}
+          <nav className="bg-card border border-border rounded-xl p-2 flex flex-col gap-0.5">
+            {weekChunks.map(({ start, total }, idx) => {
+              const weekEnd = addDays(start, 6);
+              const isActive = !!(selectedDate && selectedDate >= start && selectedDate <= weekEnd);
+              const amount = Math.round(total);
+              const pct = weekMaxEarning > 0 ? amount / weekMaxEarning : 0;
+              let colorClass: string;
+              if (amount === 0) colorClass = 'text-muted-foreground/60';
+              else if (pct >= 0.9) colorClass = 'text-emerald-600 dark:text-emerald-400 font-bold';
+              else if (pct >= 0.6) colorClass = 'text-emerald-500 font-semibold';
+              else if (pct >= 0.3) colorClass = 'text-emerald-400';
+              else colorClass = 'text-amber-500';
+              return (
+                <button
+                  key={start.toISOString()}
+                  onClick={() => handleWeekSelect(start)}
+                  className={`w-full flex items-center justify-between gap-3 px-3 py-2 rounded-lg transition-colors text-left ${
+                    isActive ? 'bg-accent' : 'hover:bg-accent/50'
+                  }`}
+                >
+                  <div className="flex items-baseline gap-3 min-w-0">
+                    <span className="text-[11px] uppercase tracking-wider text-muted-foreground shrink-0">
+                      Tydzień {idx + 1}
+                    </span>
+                    <span className="text-xs text-muted-foreground/80 truncate">
+                      {format(start, 'd MMM', { locale: pl })} – {format(weekEnd, 'd MMM', { locale: pl })}
+                    </span>
+                  </div>
+                  <span className={`text-sm tabular-nums shrink-0 ${colorClass}`}>
+                    +{amount.toLocaleString('pl-PL')} PLN
+                  </span>
+                </button>
+              );
+            })}
+          </nav>
 
-      {summaryBlock}
+          {/* Desktop week time grid */}
+          {selectedDate ? (
+            <div className="hidden lg:block bg-card border border-border rounded-xl overflow-hidden">
+              <WeekTimeGrid
+                weekDays={weekDays}
+                eventsByDay={eventsByDay}
+                selectedDate={selectedDate}
+                onSlotClick={onSlotClick}
+                onEventClick={onEventClick}
+                onSelectDate={onSelectDate}
+                onToggleConfirmed={onToggleConfirmed}
+                onEventMove={onEventMove}
+              />
+            </div>
+          ) : (
+            <div className="hidden lg:flex bg-card border border-border rounded-xl items-center justify-center py-16 text-sm text-muted-foreground">
+              Wybierz dzień, aby zobaczyć wydarzenia
+            </div>
+          )}
 
-      {/* Week grid — full width, only when a date is selected */}
-      {selectedDate ? (
-        <>
-          {/* Desktop: WeekTimeGrid */}
-          <div ref={desktopWeekRef} className="hidden lg:block bg-card border border-border rounded-xl overflow-hidden">
-            <WeekTimeGrid
-              weekDays={weekDays}
-              eventsByDay={eventsByDay}
-              selectedDate={selectedDate}
-              onSlotClick={onSlotClick}
-              onEventClick={onEventClick}
-              onSelectDate={onSelectDate}
-              onToggleConfirmed={onToggleConfirmed}
-              onEventMove={onEventMove}
-            />
-          </div>
-
-          {/* Mobile: event list */}
-          <div ref={mobileWeekRef} className="lg:hidden bg-card border border-border rounded-xl">
+          {/* Mobile event list */}
+          {selectedDate && (
+            <div className="lg:hidden bg-card border border-border rounded-xl">
               <div className="flex items-center justify-between px-4 py-3 border-b border-border">
                 <h2 className="text-base font-semibold text-foreground capitalize">
                   {format(selectedDate, 'EEEE, d MMMM', { locale: pl })}
@@ -768,12 +766,12 @@ export function WeeklyCalendar({
                 )}
               </div>
             </div>
-        </>
-      ) : (
-        <div className="bg-card border border-border rounded-xl flex items-center justify-center py-16 text-sm text-muted-foreground">
-          Wybierz dzień, aby zobaczyć wydarzenia
-        </div>
-      )}
+          )}
+        </aside>
+      </div>
+
+      {confirmationBar}
+      {summaryBlock}
     </div>
   );
 }

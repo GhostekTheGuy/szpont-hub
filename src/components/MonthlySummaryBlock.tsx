@@ -43,15 +43,35 @@ interface Props {
   refreshKey?: number;
 }
 
+function Metric({
+  label,
+  value,
+  sub,
+  valueColor,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  valueColor?: string;
+}) {
+  return (
+    <div className="flex flex-col">
+      <span className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</span>
+      <span className={`text-sm font-bold tabular-nums ${valueColor || 'text-foreground'}`}>{value}</span>
+      {sub && <span className="text-[10px] text-muted-foreground">{sub}</span>}
+    </div>
+  );
+}
+
 export function MonthlySummaryBlock({ monthStart, monthEnd, monthLabel, onGenerateInvoice, refreshKey }: Props) {
   const [summary, setSummary] = useState<SummaryData | null>(null);
   const [loading, setLoading] = useState(false);
-  const [showTaxCalc, setShowTaxCalc] = useState(false);
   const [ai, setAi] = useState<{ open: boolean; text: string | null; loading: boolean }>({
     open: false,
     text: null,
     loading: false,
   });
+  const [taxOpen, setTaxOpen] = useState(false);
 
   const loadSummary = useCallback(async () => {
     const cacheKey = `${monthStart}|${monthEnd}`;
@@ -86,13 +106,16 @@ export function MonthlySummaryBlock({ monthStart, monthEnd, monthLabel, onGenera
   }, [monthStart, monthEnd, refreshKey, loadSummary]);
 
   useEffect(() => {
-    if (!ai.open) return;
+    if (!ai.open && !taxOpen) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setAi(a => ({ ...a, open: false }));
+      if (e.key === 'Escape') {
+        setAi(a => ({ ...a, open: false }));
+        setTaxOpen(false);
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [ai.open]);
+  }, [ai.open, taxOpen]);
 
   const openInsight = async () => {
     if (!summary) return;
@@ -129,195 +152,106 @@ export function MonthlySummaryBlock({ monthStart, monthEnd, monthLabel, onGenera
     : null;
   const hoursDiff = summary ? summary.totalHours - summary.previousPeriodHours : 0;
   const avgRate = summary && summary.totalHours > 0 ? summary.totalEarnings / summary.totalHours : 0;
+  const deltaColor =
+    earningsDiff > 0 ? 'text-green-500' : earningsDiff < 0 ? 'text-red-500' : 'text-muted-foreground';
+  const hoursDeltaColor =
+    hoursDiff > 0 ? 'text-green-500' : hoursDiff < 0 ? 'text-red-500' : 'text-muted-foreground';
 
   return (
     <>
-      <div className="bg-card border border-border rounded-xl p-4">
+      <div className="bg-card border border-border rounded-xl px-4 py-3">
         {loading && !summary ? (
-          <div className="flex items-center justify-center py-8">
+          <div className="flex items-center justify-center py-2">
             <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
           </div>
         ) : summary ? (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-              <div className="bg-secondary/50 border border-border rounded-lg p-3">
-                <div className="text-xs text-muted-foreground mb-1">Godziny</div>
-                <div className="text-lg font-bold text-foreground">
-                  {summary.totalHours.toFixed(1)}
-                  <span className="text-xs font-normal text-muted-foreground ml-1">h</span>
-                </div>
-                {summary.previousPeriodHours > 0 && (
-                  <div className="flex items-center gap-1 mt-1">
-                    {hoursDiff > 0 ? (
-                      <TrendingUp className="w-3 h-3 text-green-500" />
-                    ) : hoursDiff < 0 ? (
-                      <TrendingDown className="w-3 h-3 text-red-500" />
-                    ) : (
-                      <Minus className="w-3 h-3 text-muted-foreground" />
-                    )}
-                    <span className={`text-xs ${hoursDiff > 0 ? 'text-green-500' : hoursDiff < 0 ? 'text-red-500' : 'text-muted-foreground'}`}>
-                      {hoursDiff > 0 ? '+' : ''}{hoursDiff.toFixed(1)}h
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              <div className="bg-secondary/50 border border-border rounded-lg p-3">
-                <div className="text-xs text-muted-foreground mb-1">Śr. stawka</div>
-                <div className="text-lg font-bold text-foreground">
-                  {avgRate.toFixed(0)}
-                  <span className="text-xs font-normal text-muted-foreground ml-1">PLN/h</span>
-                </div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  {summary.confirmedCount}/{summary.eventCount} potw.
-                </div>
-              </div>
-
-              <div className="bg-primary/10 border border-primary/20 rounded-lg p-3 col-span-2 lg:col-span-1">
-                <div className="text-xs text-muted-foreground mb-1">vs poprzedni miesiąc</div>
-                <div className="flex items-center gap-1.5">
-                  {earningsDiff > 0 ? (
-                    <TrendingUp className="w-4 h-4 text-green-500" />
-                  ) : earningsDiff < 0 ? (
-                    <TrendingDown className="w-4 h-4 text-red-500" />
-                  ) : (
-                    <Minus className="w-4 h-4 text-muted-foreground" />
-                  )}
-                  <span className={`text-base font-bold ${earningsDiff > 0 ? 'text-green-500' : earningsDiff < 0 ? 'text-red-500' : 'text-muted-foreground'}`}>
-                    {earningsPct ? `${earningsDiff > 0 ? '+' : ''}${earningsPct}%` : '—'}
-                  </span>
-                </div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  {earningsDiff >= 0 ? '+' : ''}
-                  {earningsDiff.toLocaleString('pl-PL', { maximumFractionDigits: 0 })} PLN
-                </div>
-              </div>
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+            {/* Metrics */}
+            <div className="flex flex-col">
+              <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Godziny</span>
+              <span className="text-sm font-bold tabular-nums text-foreground">
+                {summary.totalHours.toFixed(1)}h
+              </span>
+              {summary.previousPeriodHours > 0 && (
+                <span className={`text-[10px] flex items-center gap-0.5 ${hoursDeltaColor}`}>
+                  {hoursDiff > 0 ? <TrendingUp className="w-2.5 h-2.5" /> : hoursDiff < 0 ? <TrendingDown className="w-2.5 h-2.5" /> : <Minus className="w-2.5 h-2.5" />}
+                  {hoursDiff > 0 ? '+' : ''}{hoursDiff.toFixed(1)}h
+                </span>
+              )}
+            </div>
+            <Metric
+              label="Śr. stawka"
+              value={`${avgRate.toFixed(0)} PLN/h`}
+              sub={`${summary.confirmedCount}/${summary.eventCount} potw.`}
+            />
+            <div className="flex flex-col">
+              <span className="text-[10px] uppercase tracking-wider text-muted-foreground">vs poprzedni miesiąc</span>
+              <span className={`text-sm font-bold tabular-nums flex items-center gap-1 ${deltaColor}`}>
+                {earningsDiff > 0 ? <TrendingUp className="w-3 h-3" /> : earningsDiff < 0 ? <TrendingDown className="w-3 h-3" /> : <Minus className="w-3 h-3" />}
+                {earningsPct !== null ? `${earningsDiff > 0 ? '+' : ''}${earningsPct}%` : '—'}
+              </span>
+              {summary.previousPeriodEarnings > 0 && (
+                <span className="text-[10px] text-muted-foreground">
+                  {earningsDiff >= 0 ? '+' : ''}{earningsDiff.toLocaleString('pl-PL', { maximumFractionDigits: 0 })} PLN
+                </span>
+              )}
             </div>
 
+            {/* Wallet breakdown — compact inline */}
             {summary.byWallet.length > 0 && (
-              <div>
-                <div className="text-xs font-medium text-muted-foreground mb-2">Per portfel</div>
-                <div className="grid sm:grid-cols-2 gap-1.5">
-                  {summary.byWallet.map(w => (
-                    <div key={w.id} className="flex items-center justify-between bg-secondary/50 rounded-lg px-3 py-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: w.color || 'var(--primary)' }} />
-                        <span className="text-sm text-foreground truncate">{w.name}</span>
-                      </div>
-                      <div className="text-right shrink-0 ml-2">
-                        <span className="text-sm font-medium text-foreground">
-                          {w.earnings.toLocaleString('pl-PL', { maximumFractionDigits: 0 })} PLN
-                        </span>
-                        <span className="text-xs text-muted-foreground ml-2">{w.hours.toFixed(1)}h</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {summary.totalEarnings > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {summary.eventCount > 0 && (
-                  <button
-                    onClick={openInsight}
-                    className="flex-1 min-w-[160px] flex items-center justify-center gap-2 bg-secondary hover:bg-accent text-secondary-foreground text-sm py-2 rounded-lg transition-colors border border-border"
-                  >
-                    <Sparkles className="w-4 h-4" />
-                    Wygeneruj AI Insight
-                  </button>
-                )}
-                {onGenerateInvoice && (
-                  <button
-                    onClick={onGenerateInvoice}
-                    className="flex-1 min-w-[140px] flex items-center justify-center gap-2 bg-secondary hover:bg-accent text-secondary-foreground text-sm py-2 rounded-lg transition-colors border border-border"
-                  >
-                    <FileText className="w-4 h-4" />
-                    Dokument
-                  </button>
-                )}
-                <a
-                  href="/invoices"
-                  className="flex-1 min-w-[140px] flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground text-sm py-2 rounded-lg transition-colors"
-                >
-                  <FileText className="w-4 h-4" />
-                  Wystaw fakturę
-                </a>
-                <button
-                  onClick={() => setShowTaxCalc(v => !v)}
-                  className="flex-1 min-w-[140px] flex items-center justify-center gap-2 bg-secondary hover:bg-accent text-secondary-foreground text-sm py-2 rounded-lg transition-colors border border-border"
-                >
-                  <Calculator className="w-4 h-4" />
-                  {showTaxCalc ? 'Ukryj podatek' : 'Podatek'}
-                </button>
-              </div>
-            )}
-
-            {showTaxCalc && summary.totalEarnings > 0 && (() => {
-              const tax = calculatePIT(summary.totalEarnings);
-              return (
-                <div>
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between bg-secondary/50 rounded-lg px-3 py-2">
-                      <span className="text-sm text-foreground">Brutto</span>
-                      <span className="text-sm font-medium text-foreground">
-                        {tax.grossIncome.toLocaleString('pl-PL', { minimumFractionDigits: 2 })} PLN
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between bg-secondary/50 rounded-lg px-3 py-2">
-                      <span className="text-sm text-foreground">PIT</span>
-                      <span className="text-sm font-medium text-red-500">
-                        -{tax.pitTax.toLocaleString('pl-PL', { minimumFractionDigits: 2 })} PLN
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between bg-secondary/50 rounded-lg px-3 py-2">
-                      <span className="text-sm text-foreground">Składka zdrowotna</span>
-                      <span className="text-sm font-medium text-red-500">
-                        -{tax.healthInsurance.toLocaleString('pl-PL', { minimumFractionDigits: 2 })} PLN
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between bg-primary/10 border border-primary/20 rounded-lg px-3 py-2">
-                      <span className="text-sm font-medium text-foreground">Netto</span>
-                      <div className="text-right">
-                        <span className="text-sm font-bold text-foreground">
-                          {tax.netIncome.toLocaleString('pl-PL', { minimumFractionDigits: 2 })} PLN
-                        </span>
-                        <span className="text-xs text-muted-foreground ml-1.5">
-                          ({tax.effectiveRate.toFixed(1)}%)
-                        </span>
-                      </div>
-                    </div>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-l border-border pl-4">
+                {summary.byWallet.map(w => (
+                  <div key={w.id} className="flex items-center gap-1.5">
+                    <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: w.color || 'var(--primary)' }} />
+                    <span className="text-xs text-foreground truncate max-w-[110px]">{w.name}</span>
+                    <span className="text-xs font-medium text-foreground tabular-nums">
+                      {w.earnings.toLocaleString('pl-PL', { maximumFractionDigits: 0 })}
+                    </span>
                   </div>
-                  <button
-                    onClick={() => {
-                      const today = formatLocalDate(new Date());
-                      generatePITPDF({
-                        periodLabel: monthLabel,
-                        grossIncome: tax.grossIncome,
-                        pitTax: tax.pitTax,
-                        healthInsurance: tax.healthInsurance,
-                        netIncome: tax.netIncome,
-                        effectiveRate: tax.effectiveRate,
-                        issueDate: today,
-                      });
-                    }}
-                    className="w-full flex items-center justify-center gap-2 bg-secondary hover:bg-accent text-secondary-foreground text-sm py-2 rounded-lg transition-colors border border-border mt-3"
-                  >
-                    <FileText className="w-4 h-4" />
-                    Generuj PIT
-                  </button>
-                </div>
-              );
-            })()}
-
-            {summary.confirmedCount < summary.eventCount && (
-              <div className="text-center text-xs text-muted-foreground">
-                {summary.eventCount - summary.confirmedCount} wydarzeń niepotwierdzone
+                ))}
               </div>
             )}
+
+            {/* Actions — pushed right */}
+            <div className="flex flex-wrap items-center gap-2 ml-auto">
+              {summary.eventCount > 0 && (
+                <button
+                  onClick={openInsight}
+                  className="flex items-center gap-1.5 bg-secondary hover:bg-accent text-secondary-foreground text-xs font-medium px-3 py-1.5 rounded-lg transition-colors border border-border"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  AI Insight
+                </button>
+              )}
+              {onGenerateInvoice && summary.totalEarnings > 0 && (
+                <button
+                  onClick={onGenerateInvoice}
+                  className="flex items-center gap-1.5 bg-secondary hover:bg-accent text-secondary-foreground text-xs font-medium px-3 py-1.5 rounded-lg transition-colors border border-border"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  Dokument
+                </button>
+              )}
+              <a
+                href="/invoices"
+                className="flex items-center gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                Faktura
+              </a>
+              {summary.totalEarnings > 0 && (
+                <button
+                  onClick={() => setTaxOpen(true)}
+                  className="flex items-center gap-1.5 bg-secondary hover:bg-accent text-secondary-foreground text-xs font-medium px-3 py-1.5 rounded-lg transition-colors border border-border"
+                >
+                  <Calculator className="w-3.5 h-3.5" />
+                  Podatek
+                </button>
+              )}
+            </div>
           </div>
         ) : (
-          <div className="text-center text-muted-foreground py-6 text-sm">
+          <div className="text-center text-muted-foreground py-2 text-sm">
             Brak danych za ten miesiąc
           </div>
         )}
@@ -362,6 +296,84 @@ export function MonthlySummaryBlock({ monthStart, monthEnd, monthLabel, onGenera
           </div>
         </div>
       )}
+
+      {taxOpen && summary && summary.totalEarnings > 0 && (() => {
+        const tax = calculatePIT(summary.totalEarnings);
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+            onClick={() => setTaxOpen(false)}
+          >
+            <div
+              className="bg-card border border-border rounded-xl max-w-md w-full p-5 shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Calculator className="w-4 h-4 text-primary" />
+                  <h3 className="text-base font-semibold text-card-foreground">Kalkulator podatku</h3>
+                </div>
+                <button
+                  onClick={() => setTaxOpen(false)}
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label="Zamknij"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between bg-secondary/50 rounded-lg px-3 py-2">
+                  <span className="text-sm text-foreground">Brutto</span>
+                  <span className="text-sm font-medium text-foreground">
+                    {tax.grossIncome.toLocaleString('pl-PL', { minimumFractionDigits: 2 })} PLN
+                  </span>
+                </div>
+                <div className="flex items-center justify-between bg-secondary/50 rounded-lg px-3 py-2">
+                  <span className="text-sm text-foreground">PIT</span>
+                  <span className="text-sm font-medium text-red-500">
+                    -{tax.pitTax.toLocaleString('pl-PL', { minimumFractionDigits: 2 })} PLN
+                  </span>
+                </div>
+                <div className="flex items-center justify-between bg-secondary/50 rounded-lg px-3 py-2">
+                  <span className="text-sm text-foreground">Składka zdrowotna</span>
+                  <span className="text-sm font-medium text-red-500">
+                    -{tax.healthInsurance.toLocaleString('pl-PL', { minimumFractionDigits: 2 })} PLN
+                  </span>
+                </div>
+                <div className="flex items-center justify-between bg-primary/10 border border-primary/20 rounded-lg px-3 py-2">
+                  <span className="text-sm font-medium text-foreground">Netto</span>
+                  <div className="text-right">
+                    <span className="text-sm font-bold text-foreground">
+                      {tax.netIncome.toLocaleString('pl-PL', { minimumFractionDigits: 2 })} PLN
+                    </span>
+                    <span className="text-xs text-muted-foreground ml-1.5">
+                      ({tax.effectiveRate.toFixed(1)}%)
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  const today = formatLocalDate(new Date());
+                  generatePITPDF({
+                    periodLabel: monthLabel,
+                    grossIncome: tax.grossIncome,
+                    pitTax: tax.pitTax,
+                    healthInsurance: tax.healthInsurance,
+                    netIncome: tax.netIncome,
+                    effectiveRate: tax.effectiveRate,
+                    issueDate: today,
+                  });
+                }}
+                className="w-full flex items-center justify-center gap-2 bg-secondary hover:bg-accent text-secondary-foreground text-sm py-2 rounded-lg transition-colors border border-border mt-4"
+              >
+                <FileText className="w-4 h-4" />
+                Generuj PIT
+              </button>
+            </div>
+          </div>
+        );
+      })()}
     </>
   );
 }
