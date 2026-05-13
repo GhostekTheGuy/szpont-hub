@@ -424,17 +424,6 @@ export function WeeklyCalendar({
     return max;
   }, [currentMonth, earningsByDay]);
 
-  // Sum of earnings across in-month days — drives the "Total" pill in the top bar.
-  const totalMonthEarnings = useMemo(() => {
-    let sum = 0;
-    const monthS = startOfMonth(currentMonth);
-    const monthE = endOfMonth(currentMonth);
-    for (const day of eachDayOfInterval({ start: monthS, end: monthE })) {
-      sum += earningsByDay.get(format(day, 'yyyy-MM-dd')) || 0;
-    }
-    return sum;
-  }, [currentMonth, earningsByDay]);
-
   // Per-week earnings aligned to the monthly grid rows. Computed locally from
   // earningsByDay so leading/trailing days fall in the correct visual row
   // (ISO-week numbers from the server would mis-bucket them).
@@ -521,28 +510,10 @@ export function WeeklyCalendar({
             <ChevronRight className="w-5 h-5" />
           </button>
         </div>
-        <div
-          className="hidden md:flex items-center h-9 px-4 bg-secondary/60 border border-border rounded-full shadow-sm"
-          title="Suma zarobków w bieżącym miesiącu"
-        >
-          <span className="text-xs uppercase tracking-wider text-muted-foreground mr-2">Total</span>
-          <span className="text-sm font-bold text-foreground tabular-nums">
-            {new Intl.NumberFormat('pl-PL', { maximumFractionDigits: 0 }).format(totalMonthEarnings)}
-            <span className="text-xs font-normal text-muted-foreground ml-1">PLN</span>
-          </span>
-        </div>
         {topWidget && <div className="flex-1 min-w-0">{topWidget}</div>}
-        {(actionButtons || selectedDate) && (
+        {actionButtons && (
           <div className="flex items-center gap-2">
             {actionButtons}
-            <button
-              onClick={() => selectedDate && onSlotClick(selectedDate, new Date().getHours())}
-              disabled={!selectedDate}
-              className="w-9 h-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Dodaj wydarzenie"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
           </div>
         )}
       </div>
@@ -678,7 +649,7 @@ export function WeeklyCalendar({
         const idx = weekChunks.findIndex(c => selectedDate >= c.start && selectedDate <= addDays(c.start, 6));
         const total = idx >= 0 ? Math.round(weekChunks[idx].total) : 0;
         return (
-          <div className="hidden lg:flex items-center justify-between gap-3 px-1">
+          <div className="hidden lg:flex items-center justify-between gap-3 bg-card border border-border rounded-xl px-4 py-2.5">
             <span className="text-sm text-muted-foreground">
               {idx >= 0 && <span className="text-foreground font-semibold mr-2">Tydzień {idx + 1}</span>}
               {format(ws, 'd MMM', { locale: pl })} – {format(we, 'd MMM yyyy', { locale: pl })}
