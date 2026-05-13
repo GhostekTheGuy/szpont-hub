@@ -641,39 +641,45 @@ export function WeeklyCalendar({
       </div>
 
       {/* Row 2: weekly time grid (desktop) / event list (mobile) — full width */}
-      <div ref={weekRowRef} className="flex flex-col gap-2 scroll-mt-4">
-      {/* Context label — which week am I looking at, its total, and a local "Dodaj" button right above the week grid */}
-      {selectedDate && (() => {
-        const ws = startOfWeek(selectedDate, { weekStartsOn: 1 });
-        const we = endOfWeek(selectedDate, { weekStartsOn: 1 });
-        const idx = weekChunks.findIndex(c => selectedDate >= c.start && selectedDate <= addDays(c.start, 6));
-        const total = idx >= 0 ? Math.round(weekChunks[idx].total) : 0;
-        return (
-          <div className="hidden lg:flex items-center justify-between gap-3 bg-card border border-border rounded-xl px-4 py-2.5">
-            <span className="text-sm text-muted-foreground">
-              {idx >= 0 && <span className="text-foreground font-semibold mr-2">Tydzień {idx + 1}</span>}
-              {format(ws, 'd MMM', { locale: pl })} – {format(we, 'd MMM yyyy', { locale: pl })}
-            </span>
-            <div className="flex items-center gap-3">
-              <span className={`text-sm tabular-nums ${earningsColorClass(total, weekMaxEarning)}`}>
-                +{total.toLocaleString('pl-PL')} PLN
-              </span>
-              {weekLabelActions}
-              <button
-                onClick={() => onSlotClick(selectedDate, new Date().getHours())}
-                className="flex items-center gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium px-3 py-1.5 rounded-lg transition-colors"
-                title="Dodaj wydarzenie"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Dodaj
-              </button>
-            </div>
-          </div>
-        );
-      })()}
+      <div ref={weekRowRef} className="scroll-mt-4">
       {selectedDate ? (
         <>
-          <div className="hidden lg:block bg-card border border-border rounded-xl overflow-hidden">
+          {/* Desktop: unified card — week-context header + WeekTimeGrid */}
+          <div className="hidden lg:flex flex-col bg-card border border-border rounded-xl overflow-hidden">
+            {(() => {
+              const ws = startOfWeek(selectedDate, { weekStartsOn: 1 });
+              const we = endOfWeek(selectedDate, { weekStartsOn: 1 });
+              const idx = weekChunks.findIndex(c => selectedDate >= c.start && selectedDate <= addDays(c.start, 6));
+              const total = idx >= 0 ? Math.round(weekChunks[idx].total) : 0;
+              return (
+                <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-border">
+                  <div className="flex items-baseline gap-3 min-w-0">
+                    {idx >= 0 && (
+                      <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold shrink-0">
+                        Tydzień {idx + 1}
+                      </span>
+                    )}
+                    <span className="text-sm font-semibold text-foreground truncate">
+                      {format(ws, 'd MMM', { locale: pl })} – {format(we, 'd MMM yyyy', { locale: pl })}
+                    </span>
+                    <span className={`text-sm tabular-nums shrink-0 ${earningsColorClass(total, weekMaxEarning)}`}>
+                      +{total.toLocaleString('pl-PL')} PLN
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {weekLabelActions}
+                    <button
+                      onClick={() => onSlotClick(selectedDate, new Date().getHours())}
+                      className="flex items-center gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium px-3 py-1.5 rounded-lg transition-colors"
+                      title="Dodaj wydarzenie"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      Dodaj
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
             <WeekTimeGrid
               weekDays={weekDays}
               eventsByDay={eventsByDay}
