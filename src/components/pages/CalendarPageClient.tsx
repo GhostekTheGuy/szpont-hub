@@ -432,7 +432,7 @@ export function CalendarPageClient({ initialEvents, initialWallets, initialOrder
               <button
                 onClick={handleSettle}
                 disabled={settling}
-                className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white text-sm font-medium px-3 py-1.5 rounded-lg transition-colors disabled:opacity-60 active:scale-95"
+                className="inline-flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white text-sm font-medium px-3 h-8 rounded-lg transition-colors disabled:opacity-60 active:scale-95"
                 title={`${unsettledCount} do zatwierdzenia`}
               >
                 {settling ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}

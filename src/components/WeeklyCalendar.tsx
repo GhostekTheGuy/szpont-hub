@@ -652,16 +652,17 @@ export function WeeklyCalendar({
               const idx = weekChunks.findIndex(c => selectedDate >= c.start && selectedDate <= addDays(c.start, 6));
               const total = idx >= 0 ? Math.round(weekChunks[idx].total) : 0;
               return (
-                <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-border">
-                  <div className="flex items-baseline gap-3 min-w-0">
+                <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border bg-card">
+                  <div className="flex items-center gap-2.5 min-w-0">
                     {idx >= 0 && (
-                      <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold shrink-0">
+                      <span className="inline-flex items-center text-[10px] font-semibold uppercase tracking-wider text-muted-foreground bg-secondary/70 rounded-full px-2 py-0.5 shrink-0">
                         Tydzień {idx + 1}
                       </span>
                     )}
-                    <span className="text-sm font-semibold text-foreground truncate">
+                    <h3 className="text-sm font-semibold text-foreground truncate">
                       {format(ws, 'd MMM', { locale: pl })} – {format(we, 'd MMM yyyy', { locale: pl })}
-                    </span>
+                    </h3>
+                    <span className="text-muted-foreground/40 shrink-0 text-sm leading-none">·</span>
                     <span className={`text-sm tabular-nums shrink-0 ${earningsColorClass(total, weekMaxEarning)}`}>
                       +{total.toLocaleString('pl-PL')} PLN
                     </span>
@@ -670,7 +671,7 @@ export function WeeklyCalendar({
                     {weekLabelActions}
                     <button
                       onClick={() => onSlotClick(selectedDate, new Date().getHours())}
-                      className="flex items-center gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium px-3 py-1.5 rounded-lg transition-colors"
+                      className="inline-flex items-center gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium px-3 h-8 rounded-lg transition-colors active:scale-95"
                       title="Dodaj wydarzenie"
                     >
                       <Plus className="w-3.5 h-3.5" />
