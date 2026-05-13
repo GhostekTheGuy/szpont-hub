@@ -20,9 +20,11 @@ import { Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { CalendarEvent, Order } from '@/hooks/useFinanceStore';
 
 const HOUR_HEIGHT = 56;
-const DAY_START_HOUR = 0;
-const DAY_END_HOUR = 24;
-const HOURS = Array.from({ length: DAY_END_HOUR - DAY_START_HOUR }, (_, i) => DAY_START_HOUR + i);
+// Default visible window — covers ~99% of realistic schedules (gym at 6, late client at 22).
+// Expanded automatically if any event in the displayed week falls outside.
+const DEFAULT_DAY_START_HOUR = 6;
+const DEFAULT_DAY_END_HOUR = 23;
+const RANGE_BUFFER_HOURS = 1;
 const SNAP_MINUTES = 10;
 
 function isDraggableEvent(event: CalendarEvent): boolean {
@@ -674,7 +676,7 @@ const WeekTimeGrid = memo(function WeekTimeGrid({
   weekDaysRef.current = weekDays;
   const { handlePointerDown, activeDrag, didDragRef } = useEventDrag(onEventMove, dayColumnsRef, weekDaysRef);
 
-  // Collect all events for this week to determine scroll position
+  // Collect all events for this week to determine scroll position and adaptive range
   const allWeekEvents = useMemo(() => {
     const result: CalendarEvent[] = [];
     for (const day of weekDays) {
@@ -687,19 +689,42 @@ const WeekTimeGrid = memo(function WeekTimeGrid({
     );
   }, [weekDays, eventsByDay]);
 
+  // Adaptive visible range: default 6:00–23:00, expand with ±1h buffer when any
+  // event in the displayed week falls outside. Clamped to [0, 24].
+  const visibleRange = useMemo(() => {
+    let min = DEFAULT_DAY_START_HOUR;
+    let max = DEFAULT_DAY_END_HOUR;
+    for (const ev of allWeekEvents) {
+      const start = parseISO(ev.start_time);
+      const end = parseISO(ev.end_time);
+      const startH = start.getHours();
+      // Round end up to the next hour if it spills past the hour mark
+      const endH = end.getHours() + (end.getMinutes() > 0 ? 1 : 0);
+      if (startH < min) min = Math.max(0, startH - RANGE_BUFFER_HOURS);
+      if (endH > max) max = Math.min(24, endH + RANGE_BUFFER_HOURS);
+    }
+    return { start: min, end: max };
+  }, [allWeekEvents]);
+
+  const hours = useMemo(
+    () => Array.from({ length: visibleRange.end - visibleRange.start }, (_, i) => visibleRange.start + i),
+    [visibleRange]
+  );
+
   useEffect(() => {
     if (!scrollRef.current) return;
     let scrollToHour: number;
     if (allWeekEvents.length > 0) {
       const firstStart = parseISO(allWeekEvents[0].start_time);
-      scrollToHour = Math.max(0, firstStart.getHours() - 1);
+      scrollToHour = Math.max(visibleRange.start, firstStart.getHours() - 1);
     } else {
       const today = weekDays.find(d => isToday(d));
-      scrollToHour = today ? Math.max(0, new Date().getHours() - 2) : 7;
+      scrollToHour = today ? Math.max(visibleRange.start, new Date().getHours() - 2) : Math.max(visibleRange.start, 8);
     }
-    scrollRef.current.scrollTop = scrollToHour * HOUR_HEIGHT;
+    // Offset relative to visible range start
+    scrollRef.current.scrollTop = (scrollToHour - visibleRange.start) * HOUR_HEIGHT;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [weekDays]);
+  }, [weekDays, visibleRange.start]);
 
   // Memoize layout computation per day
   const layoutByDay = useMemo(() => {
@@ -713,7 +738,7 @@ const WeekTimeGrid = memo(function WeekTimeGrid({
   }, [weekDays, eventsByDay]);
 
   const nowMinutes = useNowMinutes();
-  const nowTop = ((nowMinutes - DAY_START_HOUR * 60) / 60) * HOUR_HEIGHT;
+  const nowTop = ((nowMinutes - visibleRange.start * 60) / 60) * HOUR_HEIGHT;
 
   return (
     <div>
@@ -754,14 +779,14 @@ const WeekTimeGrid = memo(function WeekTimeGrid({
         className="overflow-y-auto"
         style={{ maxHeight: 'calc(100vh - 560px)' }}
       >
-        <div className="relative flex" style={{ height: HOURS.length * HOUR_HEIGHT }}>
+        <div className="relative flex" style={{ height: hours.length * HOUR_HEIGHT }}>
           {/* Time labels */}
           <div className="w-14 shrink-0 relative">
-            {HOURS.map((hour) => (
+            {hours.map((hour) => (
               <div
                 key={hour}
                 className="absolute right-3 text-xs text-muted-foreground -translate-y-1/2"
-                style={{ top: (hour - DAY_START_HOUR) * HOUR_HEIGHT }}
+                style={{ top: (hour - visibleRange.start) * HOUR_HEIGHT }}
               >
                 {String(hour).padStart(2, '0')}:00
               </div>
@@ -781,11 +806,11 @@ const WeekTimeGrid = memo(function WeekTimeGrid({
                 className={`flex-1 relative border-l border-border ${today ? 'bg-primary/5' : ''}`}
               >
                 {/* Hour grid lines */}
-                {HOURS.map((hour) => (
+                {hours.map((hour) => (
                   <div
                     key={hour}
                     className="absolute w-full border-t border-border/40 cursor-pointer hover:bg-accent/20 transition-colors"
-                    style={{ top: (hour - DAY_START_HOUR) * HOUR_HEIGHT, height: HOUR_HEIGHT }}
+                    style={{ top: (hour - visibleRange.start) * HOUR_HEIGHT, height: HOUR_HEIGHT }}
                     onClick={() => onSlotClick(day, hour)}
                   />
                 ))}
@@ -807,7 +832,7 @@ const WeekTimeGrid = memo(function WeekTimeGrid({
                   const draggedAway = dragged && activeDrag.currentDayIndex !== dayIndex;
                   const displayStartMin = dragged && !draggedAway ? activeDrag.currentStartMin : startMin;
                   const displayEndMin = displayStartMin + durationMin;
-                  const top = ((displayStartMin - DAY_START_HOUR * 60) / 60) * HOUR_HEIGHT;
+                  const top = ((displayStartMin - visibleRange.start * 60) / 60) * HOUR_HEIGHT;
                   const height = Math.max((durationMin / 60) * HOUR_HEIGHT, 20);
                   const eventHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
                   const earnings = eventHours * event.hourly_rate;
@@ -892,7 +917,7 @@ const WeekTimeGrid = memo(function WeekTimeGrid({
                 {isDragTarget && (() => {
                   const ev = activeDrag.event;
                   const ghostColor = getEventColor(ev);
-                  const ghostTop = ((activeDrag.currentStartMin - DAY_START_HOUR * 60) / 60) * HOUR_HEIGHT;
+                  const ghostTop = ((activeDrag.currentStartMin - visibleRange.start * 60) / 60) * HOUR_HEIGHT;
                   const ghostHeight = Math.max((activeDrag.durationMin / 60) * HOUR_HEIGHT, 20);
                   const ghostEndMin = activeDrag.currentStartMin + activeDrag.durationMin;
                   return (
