@@ -337,6 +337,16 @@ function getEventColor(event: CalendarEvent): string {
   return getIndicatorColor(event.walletColor);
 }
 
+// Three-tier earnings color: muted when zero, default text under 60% of max,
+// emerald accent at 60%+. Shared between day cells and the week list to keep
+// the page visually calm.
+function earningsColorClass(amount: number, max: number): string {
+  if (amount === 0) return 'text-muted-foreground/60';
+  const pct = max > 0 ? amount / max : 0;
+  if (pct >= 0.6) return 'text-emerald-500 font-semibold';
+  return 'text-foreground';
+}
+
 export function WeeklyCalendar({
   events,
   orders,
@@ -463,24 +473,26 @@ export function WeeklyCalendar({
     return Array.from({ length: 7 }, (_, i) => addDays(ws, i));
   }, [selectedDate]);
 
-  // Click a week row in the right column → jump the week view to that week.
-  // Pick today if it falls inside the clicked week, otherwise its Monday.
+  // Smooth-scroll to the full-width week row after selecting a date from the
+  // monthly grid or the right-column week list. rAF defers until after React
+  // commits the (possibly newly-mounted) week view.
+  const weekRowRef = useRef<HTMLDivElement>(null);
+  const scrollToWeekRow = useCallback(() => {
+    requestAnimationFrame(() => {
+      weekRowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }, []);
+  const handleCellClick = useCallback((day: Date) => {
+    onSelectDate(day);
+    scrollToWeekRow();
+  }, [onSelectDate, scrollToWeekRow]);
   const handleWeekSelect = useCallback((weekStart: Date) => {
     const today = new Date();
     const weekEnd = addDays(weekStart, 6);
     const target = today >= weekStart && today <= weekEnd ? today : weekStart;
     onSelectDate(target);
-  }, [onSelectDate]);
-
-  // Smooth-scroll to the full-width week row after a day click in the monthly grid.
-  // rAF defers until after React commits the (possibly newly-mounted) week view.
-  const weekRowRef = useRef<HTMLDivElement>(null);
-  const handleCellClick = useCallback((day: Date) => {
-    onSelectDate(day);
-    requestAnimationFrame(() => {
-      weekRowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
-  }, [onSelectDate]);
+    scrollToWeekRow();
+  }, [onSelectDate, scrollToWeekRow]);
 
   return (
     <div className="flex flex-col gap-4 lg:gap-6">
@@ -535,6 +547,10 @@ export function WeeklyCalendar({
         )}
       </div>
 
+      {/* Alerts + stats moved up: always visible without scrolling past the calendar */}
+      {confirmationBar}
+      {summaryBlock}
+
       {/* Row 1: month grid (left) + clickable week list (right) */}
       <div className="grid gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
       <div className="bg-card border border-border rounded-xl p-2.5">
@@ -565,10 +581,24 @@ export function WeeklyCalendar({
                 <button
                   key={key}
                   onClick={() => handleCellClick(day)}
-                  className={`relative flex flex-col items-center gap-0.5 py-2 min-h-[76px] rounded-lg transition-colors ${
+                  className={`group relative flex flex-col items-center gap-0.5 py-2 min-h-[76px] rounded-lg transition-colors ${
                     !inMonth ? 'opacity-40' : ''
                   } ${selected ? 'bg-accent' : 'hover:bg-accent/50'}`}
                 >
+                  {/* Quick-add button on hover (desktop only) */}
+                  <span
+                    role="button"
+                    tabIndex={-1}
+                    aria-label="Dodaj wydarzenie"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSlotClick(day, new Date().getHours());
+                    }}
+                    className="absolute top-1 right-1 w-5 h-5 rounded-full bg-primary text-primary-foreground hidden lg:group-hover:flex items-center justify-center shadow-sm hover:bg-primary/90"
+                  >
+                    <Plus className="w-3 h-3" />
+                  </span>
+
                   {/* Day number */}
                   <span
                     className={`w-7 h-7 flex items-center justify-center text-sm font-medium rounded-full transition-colors ${
@@ -598,30 +628,15 @@ export function WeeklyCalendar({
                     )}
                   </div>
 
-                  {/* Daily earnings — color tier based on % of month's max. Future days: invisible placeholder keeps row heights equal */}
+                  {/* Daily earnings — 3-tier color. Future days: invisible placeholder keeps row heights equal */}
                   {(() => {
                     const isFuture = day.getTime() > Date.now() && !today;
                     if (isFuture) {
                       return <span className="text-xs mt-1 leading-tight invisible">+0 PLN</span>;
                     }
                     const amount = Math.round(earningsByDay.get(key) || 0);
-                    const pct = monthMaxEarning > 0 ? amount / monthMaxEarning : 0;
-
-                    let colorClass: string;
-                    if (amount === 0) {
-                      colorClass = 'text-muted-foreground/60';
-                    } else if (pct >= 0.9) {
-                      colorClass = 'text-emerald-600 dark:text-emerald-400 font-bold';
-                    } else if (pct >= 0.6) {
-                      colorClass = 'text-emerald-500 font-semibold';
-                    } else if (pct >= 0.3) {
-                      colorClass = 'text-emerald-400';
-                    } else {
-                      colorClass = 'text-amber-500';
-                    }
-
                     return (
-                      <span className={`text-xs mt-1 leading-tight ${colorClass}`}>
+                      <span className={`text-xs mt-1 leading-tight ${earningsColorClass(amount, monthMaxEarning)}`}>
                         +{amount} PLN
                       </span>
                     );
@@ -641,18 +656,11 @@ export function WeeklyCalendar({
             const weekEnd = addDays(start, 6);
             const isActive = !!(selectedDate && selectedDate >= start && selectedDate <= weekEnd);
             const amount = Math.round(total);
-            const pct = weekMaxEarning > 0 ? amount / weekMaxEarning : 0;
-            let colorClass: string;
-            if (amount === 0) colorClass = 'text-muted-foreground/60';
-            else if (pct >= 0.9) colorClass = 'text-emerald-600 dark:text-emerald-400 font-bold';
-            else if (pct >= 0.6) colorClass = 'text-emerald-500 font-semibold';
-            else if (pct >= 0.3) colorClass = 'text-emerald-400';
-            else colorClass = 'text-amber-500';
             return (
               <button
                 key={start.toISOString()}
                 onClick={() => handleWeekSelect(start)}
-                className={`w-full flex-1 min-h-[60px] flex items-center justify-between gap-3 px-3 py-2 rounded-lg transition-colors text-left ${
+                className={`group w-full flex-1 min-h-[60px] flex items-center justify-between gap-3 px-3 py-2 rounded-lg transition-colors text-left ${
                   isActive ? 'bg-accent' : 'hover:bg-accent/50'
                 }`}
               >
@@ -664,9 +672,12 @@ export function WeeklyCalendar({
                     {format(start, 'd MMM', { locale: pl })} – {format(weekEnd, 'd MMM', { locale: pl })}
                   </span>
                 </div>
-                <span className={`text-sm tabular-nums shrink-0 ${colorClass}`}>
-                  +{amount.toLocaleString('pl-PL')} PLN
-                </span>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className={`text-sm tabular-nums ${earningsColorClass(amount, weekMaxEarning)}`}>
+                    +{amount.toLocaleString('pl-PL')} PLN
+                  </span>
+                  <ChevronRight className={`w-3.5 h-3.5 transition-colors ${isActive ? 'text-foreground' : 'text-muted-foreground/40 group-hover:text-muted-foreground'}`} />
+                </div>
               </button>
             );
           })}
@@ -674,7 +685,25 @@ export function WeeklyCalendar({
       </div>
 
       {/* Row 2: weekly time grid (desktop) / event list (mobile) — full width */}
-      <div ref={weekRowRef} className="flex flex-col gap-3 scroll-mt-4">
+      <div ref={weekRowRef} className="flex flex-col gap-2 scroll-mt-4">
+      {/* Context label — which week am I looking at, and its total */}
+      {selectedDate && (() => {
+        const ws = startOfWeek(selectedDate, { weekStartsOn: 1 });
+        const we = endOfWeek(selectedDate, { weekStartsOn: 1 });
+        const idx = weekChunks.findIndex(c => selectedDate >= c.start && selectedDate <= addDays(c.start, 6));
+        const total = idx >= 0 ? Math.round(weekChunks[idx].total) : 0;
+        return (
+          <div className="hidden lg:flex items-center justify-between gap-3 px-1">
+            <span className="text-sm text-muted-foreground">
+              {idx >= 0 && <span className="text-foreground font-semibold mr-2">Tydzień {idx + 1}</span>}
+              {format(ws, 'd MMM', { locale: pl })} – {format(we, 'd MMM yyyy', { locale: pl })}
+            </span>
+            <span className={`text-sm tabular-nums ${earningsColorClass(total, weekMaxEarning)}`}>
+              +{total.toLocaleString('pl-PL')} PLN
+            </span>
+          </div>
+        );
+      })()}
       {selectedDate ? (
         <>
           <div className="hidden lg:block bg-card border border-border rounded-xl overflow-hidden">
@@ -778,9 +807,6 @@ export function WeeklyCalendar({
         </div>
       )}
       </div>
-
-      {confirmationBar}
-      {summaryBlock}
     </div>
   );
 }

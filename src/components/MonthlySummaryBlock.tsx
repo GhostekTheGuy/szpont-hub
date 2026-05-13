@@ -166,7 +166,22 @@ export function MonthlySummaryBlock({ monthStart, monthEnd, monthLabel, onGenera
           </div>
         ) : summary ? (
           <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-            {/* Metrics */}
+            {/* Zarobki — total + delta as one self-contained metric */}
+            <div className="flex flex-col">
+              <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Zarobki</span>
+              <span className="text-sm font-bold tabular-nums text-foreground">
+                {summary.totalEarnings.toLocaleString('pl-PL', { maximumFractionDigits: 0 })} PLN
+              </span>
+              {summary.previousPeriodEarnings > 0 && (
+                <span className={`text-[10px] flex items-center gap-0.5 tabular-nums ${deltaColor}`}>
+                  {earningsDiff > 0 ? <TrendingUp className="w-2.5 h-2.5" /> : earningsDiff < 0 ? <TrendingDown className="w-2.5 h-2.5" /> : <Minus className="w-2.5 h-2.5" />}
+                  {earningsPct !== null && `${earningsDiff > 0 ? '+' : ''}${earningsPct}%`}
+                  <span className="text-muted-foreground ml-1">
+                    ({earningsDiff >= 0 ? '+' : ''}{earningsDiff.toLocaleString('pl-PL', { maximumFractionDigits: 0 })} PLN)
+                  </span>
+                </span>
+              )}
+            </div>
             <div className="flex flex-col">
               <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Godziny</span>
               <span className="text-sm font-bold tabular-nums text-foreground">
@@ -184,18 +199,6 @@ export function MonthlySummaryBlock({ monthStart, monthEnd, monthLabel, onGenera
               value={`${avgRate.toFixed(0)} PLN/h`}
               sub={`${summary.confirmedCount}/${summary.eventCount} potw.`}
             />
-            <div className="flex flex-col">
-              <span className="text-[10px] uppercase tracking-wider text-muted-foreground">vs poprzedni miesiąc</span>
-              <span className={`text-sm font-bold tabular-nums flex items-center gap-1 ${deltaColor}`}>
-                {earningsDiff > 0 ? <TrendingUp className="w-3 h-3" /> : earningsDiff < 0 ? <TrendingDown className="w-3 h-3" /> : <Minus className="w-3 h-3" />}
-                {earningsPct !== null ? `${earningsDiff > 0 ? '+' : ''}${earningsPct}%` : '—'}
-              </span>
-              {summary.previousPeriodEarnings > 0 && (
-                <span className="text-[10px] text-muted-foreground">
-                  {earningsDiff >= 0 ? '+' : ''}{earningsDiff.toLocaleString('pl-PL', { maximumFractionDigits: 0 })} PLN
-                </span>
-              )}
-            </div>
 
             {/* Wallet breakdown — compact inline */}
             {summary.byWallet.length > 0 && (
@@ -217,7 +220,7 @@ export function MonthlySummaryBlock({ monthStart, monthEnd, monthLabel, onGenera
               {summary.eventCount > 0 && (
                 <button
                   onClick={openInsight}
-                  className="flex items-center gap-1.5 bg-secondary hover:bg-accent text-secondary-foreground text-xs font-medium px-3 py-1.5 rounded-lg transition-colors border border-border"
+                  className="flex items-center gap-1.5 bg-secondary hover:bg-accent text-secondary-foreground text-sm font-medium px-3 py-2 rounded-lg transition-colors border border-border"
                 >
                   <Sparkles className="w-3.5 h-3.5" />
                   AI Insight
@@ -226,7 +229,7 @@ export function MonthlySummaryBlock({ monthStart, monthEnd, monthLabel, onGenera
               {onGenerateInvoice && summary.totalEarnings > 0 && (
                 <button
                   onClick={onGenerateInvoice}
-                  className="flex items-center gap-1.5 bg-secondary hover:bg-accent text-secondary-foreground text-xs font-medium px-3 py-1.5 rounded-lg transition-colors border border-border"
+                  className="flex items-center gap-1.5 bg-secondary hover:bg-accent text-secondary-foreground text-sm font-medium px-3 py-2 rounded-lg transition-colors border border-border"
                 >
                   <FileText className="w-3.5 h-3.5" />
                   Dokument
@@ -234,7 +237,7 @@ export function MonthlySummaryBlock({ monthStart, monthEnd, monthLabel, onGenera
               )}
               <a
                 href="/invoices"
-                className="flex items-center gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+                className="flex items-center gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium px-3 py-2 rounded-lg transition-colors"
               >
                 <FileText className="w-3.5 h-3.5" />
                 Faktura
@@ -242,7 +245,7 @@ export function MonthlySummaryBlock({ monthStart, monthEnd, monthLabel, onGenera
               {summary.totalEarnings > 0 && (
                 <button
                   onClick={() => setTaxOpen(true)}
-                  className="flex items-center gap-1.5 bg-secondary hover:bg-accent text-secondary-foreground text-xs font-medium px-3 py-1.5 rounded-lg transition-colors border border-border"
+                  className="flex items-center gap-1.5 bg-secondary hover:bg-accent text-secondary-foreground text-sm font-medium px-3 py-2 rounded-lg transition-colors border border-border"
                 >
                   <Calculator className="w-3.5 h-3.5" />
                   Podatek
