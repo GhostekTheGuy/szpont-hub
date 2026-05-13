@@ -686,7 +686,7 @@ export function WeeklyCalendar({
 
       {/* Row 2: weekly time grid (desktop) / event list (mobile) — full width */}
       <div ref={weekRowRef} className="flex flex-col gap-2 scroll-mt-4">
-      {/* Context label — which week am I looking at, and its total */}
+      {/* Context label — which week am I looking at, its total, and a local "Dodaj" button right above the week grid */}
       {selectedDate && (() => {
         const ws = startOfWeek(selectedDate, { weekStartsOn: 1 });
         const we = endOfWeek(selectedDate, { weekStartsOn: 1 });
@@ -698,9 +698,19 @@ export function WeeklyCalendar({
               {idx >= 0 && <span className="text-foreground font-semibold mr-2">Tydzień {idx + 1}</span>}
               {format(ws, 'd MMM', { locale: pl })} – {format(we, 'd MMM yyyy', { locale: pl })}
             </span>
-            <span className={`text-sm tabular-nums ${earningsColorClass(total, weekMaxEarning)}`}>
-              +{total.toLocaleString('pl-PL')} PLN
-            </span>
+            <div className="flex items-center gap-3">
+              <span className={`text-sm tabular-nums ${earningsColorClass(total, weekMaxEarning)}`}>
+                +{total.toLocaleString('pl-PL')} PLN
+              </span>
+              <button
+                onClick={() => onSlotClick(selectedDate, new Date().getHours())}
+                className="flex items-center gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium px-3 py-1.5 rounded-lg transition-colors"
+                title="Dodaj wydarzenie"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Dodaj
+              </button>
+            </div>
           </div>
         );
       })()}

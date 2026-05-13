@@ -428,21 +428,25 @@ export function CalendarPageClient({ initialEvents, initialWallets, initialOrder
             />
           }
           confirmationBar={
-            unsettledCount > 0 ? (
-              <div className="flex flex-wrap items-center justify-between gap-3 bg-card border border-border rounded-xl px-4 py-2.5">
-                <button
-                  onClick={handleSettle}
-                  disabled={settling}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-green-600 hover:bg-green-700 text-white active:scale-95 transition-all disabled:opacity-60"
-                >
-                  {settling ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                  Potwierdź wszystkie ({unsettledCount})
-                </button>
-                <span className="text-xs text-muted-foreground">
-                  {unsettledCount} {unsettledCount === 1 ? 'wydarzenie czeka na rozliczenie' : 'wydarzeń czeka na rozliczenie'}
-                </span>
-              </div>
-            ) : null
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-card border border-border rounded-xl px-4 py-2.5">
+              <button
+                onClick={handleSettle}
+                disabled={unsettledCount === 0 || settling}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                  unsettledCount > 0
+                    ? 'bg-green-600 hover:bg-green-700 text-white active:scale-95'
+                    : 'bg-secondary text-muted-foreground cursor-not-allowed'
+                }`}
+              >
+                {settling ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                Potwierdź wszystkie{unsettledCount > 0 ? ` (${unsettledCount})` : ''}
+              </button>
+              <span className="text-xs text-muted-foreground">
+                {unsettledCount === 0
+                  ? 'Wszystkie wydarzenia rozliczone'
+                  : `${unsettledCount} ${unsettledCount === 1 ? 'wydarzenie czeka na rozliczenie' : 'wydarzeń czeka na rozliczenie'}`}
+              </span>
+            </div>
           }
           actionButtons={
             <>
