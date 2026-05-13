@@ -548,7 +548,7 @@ export function WeeklyCalendar({
       </div>
 
       {/* Row 1: month grid (left) + clickable week list (middle) + stats hero (right) */}
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)_minmax(0,2fr)]">
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,5fr)_minmax(0,4fr)_minmax(0,5fr)]">
       <div className="bg-card border border-border rounded-xl p-2.5">
         {/* Day-of-week header */}
         <div className="grid grid-cols-7 mb-1">
@@ -577,24 +577,10 @@ export function WeeklyCalendar({
                 <button
                   key={key}
                   onClick={() => handleCellClick(day)}
-                  className={`group relative flex flex-col items-center gap-0.5 py-2 min-h-[76px] rounded-lg transition-colors ${
+                  className={`relative flex flex-col items-center gap-0.5 py-2 min-h-[76px] rounded-lg transition-colors ${
                     !inMonth ? 'opacity-40' : ''
                   } ${selected ? 'bg-accent' : 'hover:bg-accent/50'}`}
                 >
-                  {/* Quick-add button on hover (desktop only) */}
-                  <span
-                    role="button"
-                    tabIndex={-1}
-                    aria-label="Dodaj wydarzenie"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onSlotClick(day, new Date().getHours());
-                    }}
-                    className="absolute top-1 right-1 w-5 h-5 rounded-full bg-primary text-primary-foreground hidden lg:group-hover:flex items-center justify-center shadow-sm hover:bg-primary/90"
-                  >
-                    <Plus className="w-3 h-3" />
-                  </span>
-
                   {/* Day number */}
                   <span
                     className={`w-7 h-7 flex items-center justify-center text-sm font-medium rounded-full transition-colors ${
