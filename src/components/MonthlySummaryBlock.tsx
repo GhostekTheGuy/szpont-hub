@@ -209,8 +209,8 @@ export function MonthlySummaryBlock({ monthStart, monthEnd, monthLabel, onGenera
               </section>
             )}
 
-            {/* Actions — vertical stack at the bottom */}
-            <section className="border-t border-border pt-3 flex flex-col gap-1.5 mt-auto">
+            {/* Actions — 2x2 grid at the bottom */}
+            <section className="border-t border-border pt-3 grid grid-cols-2 gap-1.5 mt-auto">
               {summary.eventCount > 0 && (
                 <button
                   onClick={openInsight}

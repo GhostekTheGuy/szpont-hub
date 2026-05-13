@@ -548,7 +548,7 @@ export function WeeklyCalendar({
       </div>
 
       {/* Row 1: month grid (left) + clickable week list (middle) + stats hero (right) */}
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,5fr)_minmax(0,4fr)_minmax(0,5fr)]">
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,4fr)_minmax(0,3fr)_minmax(0,5fr)]">
       <div className="bg-card border border-border rounded-xl p-2.5">
         {/* Day-of-week header */}
         <div className="grid grid-cols-7 mb-1">
@@ -577,7 +577,7 @@ export function WeeklyCalendar({
                 <button
                   key={key}
                   onClick={() => handleCellClick(day)}
-                  className={`relative flex flex-col items-center gap-0.5 py-2 min-h-[76px] rounded-lg transition-colors ${
+                  className={`relative flex flex-col items-center gap-0.5 py-2 min-h-[64px] rounded-lg transition-colors ${
                     !inMonth ? 'opacity-40' : ''
                   } ${selected ? 'bg-accent' : 'hover:bg-accent/50'}`}
                 >
