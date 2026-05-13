@@ -471,13 +471,13 @@ export function WeeklyCalendar({
       </div>
 
       {/* Month grid — full width */}
-      <div className="bg-card border border-border rounded-xl p-3">
+      <div className="bg-card border border-border rounded-xl p-2.5">
         {/* Day-of-week header */}
-        <div className="grid grid-cols-7 mb-2">
+        <div className="grid grid-cols-7 mb-1">
             {DAY_LABELS.map((label) => (
               <div
                 key={label}
-                className="text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground py-2"
+                className="text-center text-[11px] font-semibold uppercase tracking-wider text-muted-foreground py-1.5"
               >
                 {label}
               </div>
@@ -499,11 +499,9 @@ export function WeeklyCalendar({
                 <button
                   key={key}
                   onClick={() => onSelectDate(day)}
-                  className={`relative flex flex-col items-center gap-1 py-2.5 min-h-[96px] rounded-xl transition-all ${
+                  className={`relative flex flex-col items-center gap-0.5 py-2 min-h-[76px] rounded-lg transition-colors ${
                     !inMonth ? 'opacity-40' : ''
-                  } ${today ? 'bg-primary/[0.06]' : ''} ${
-                    selected ? 'ring-2 ring-primary/40' : 'hover:bg-accent/40'
-                  }`}
+                  } ${selected ? 'bg-accent' : 'hover:bg-accent/50'}`}
                 >
                   {/* Day number */}
                   <span
@@ -805,7 +803,7 @@ const WeekTimeGrid = memo(function WeekTimeGrid({
       <div
         ref={scrollRef}
         className="overflow-y-auto"
-        style={{ maxHeight: 'calc(100vh - 400px)' }}
+        style={{ maxHeight: 'calc(100vh - 280px)' }}
       >
         <div className="relative flex" style={{ height: hours.length * HOUR_HEIGHT }}>
           {/* Time labels */}
