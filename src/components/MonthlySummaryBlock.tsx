@@ -136,7 +136,7 @@ export function MonthlySummaryBlock({ monthStart, monthEnd, monthLabel, onGenera
 
   return (
     <>
-      <div className="bg-card border border-border rounded-xl p-4 flex flex-col gap-4 h-full min-w-0">
+      <div className="bg-card border border-border rounded-xl p-3 flex flex-col gap-3 h-full min-w-0">
         {loading && !summary ? (
           <div className="flex-1 flex items-center justify-center">
             <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />

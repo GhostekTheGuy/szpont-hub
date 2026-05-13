@@ -577,7 +577,7 @@ export function WeeklyCalendar({
                 <button
                   key={key}
                   onClick={() => handleCellClick(day)}
-                  className={`relative flex flex-col items-center gap-0.5 py-2 min-h-[64px] rounded-lg transition-colors ${
+                  className={`relative flex flex-col items-center gap-0.5 py-1 min-h-[56px] rounded-lg transition-colors ${
                     !inMonth ? 'opacity-40' : ''
                   } ${selected ? 'bg-accent' : 'hover:bg-accent/50'}`}
                 >
