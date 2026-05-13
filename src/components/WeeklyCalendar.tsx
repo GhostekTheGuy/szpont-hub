@@ -19,7 +19,7 @@ import { formatLocalDateTime } from '@/lib/calendar-utils';
 import { Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { CalendarEvent, Order } from '@/hooks/useFinanceStore';
 
-const HOUR_HEIGHT = 56;
+const HOUR_HEIGHT = 48;
 // Default visible window — covers ~99% of realistic schedules (gym at 6, late client at 22).
 // Expanded automatically if any event in the displayed week falls outside.
 const DEFAULT_DAY_START_HOUR = 6;
@@ -873,7 +873,6 @@ const WeekTimeGrid = memo(function WeekTimeGrid({
     <div
       ref={scrollRef}
       className="overflow-y-auto"
-      style={{ maxHeight: 11 * HOUR_HEIGHT + 64 }}
     >
       {/* Day column headers — sticky inside the scroll container so its width
           matches the hour grid below (both share the same scrollbar gutter). */}
