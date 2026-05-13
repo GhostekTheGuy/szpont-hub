@@ -267,8 +267,6 @@ function useNowMinutes(): number {
   return nowMinutes;
 }
 
-type DesktopViewMode = 'day' | 'week';
-
 interface WeeklyCalendarProps {
   events: CalendarEvent[];
   orders: Order[];
@@ -405,9 +403,6 @@ export function WeeklyCalendar({
     );
   }, [selectedDate, eventsByDay]);
 
-  // Desktop view mode
-  const [desktopView, setDesktopView] = useState<DesktopViewMode>('day');
-
   // Week days derived from selectedDate for week view
   const weekDays = useMemo(() => {
     const base = selectedDate || new Date();
@@ -416,40 +411,52 @@ export function WeeklyCalendar({
   }, [selectedDate]);
 
   return (
-    <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
-      {/* Month grid */}
-      <div className="lg:w-[340px] shrink-0">
-        {/* Timer widget above calendar */}
-        {topWidget && <div className="mb-3">{topWidget}</div>}
-
-        <div className="bg-card border border-border rounded-xl p-3">
-          {/* Month navigation */}
-          <div className="flex items-center justify-between mb-2">
+    <div className="flex flex-col gap-4 lg:gap-6">
+      {/* Top bar: month nav + TimerWidget + action buttons + add event */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-1">
+          <button
+            onClick={onPrevMonth}
+            className="p-1.5 hover:bg-accent rounded-lg transition-colors"
+            disabled={loading}
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <button
+            onClick={onToday}
+            className="px-2 text-sm font-semibold text-foreground capitalize hover:text-primary transition-colors"
+            disabled={loading}
+          >
+            {format(currentMonth, 'LLLL yyyy', { locale: pl })}
+          </button>
+          <button
+            onClick={onNextMonth}
+            className="p-1.5 hover:bg-accent rounded-lg transition-colors"
+            disabled={loading}
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+        {topWidget && <div className="flex-1 min-w-0">{topWidget}</div>}
+        {(actionButtons || selectedDate) && (
+          <div className="flex items-center gap-2">
+            {actionButtons}
             <button
-              onClick={onPrevMonth}
-              className="p-1.5 hover:bg-accent rounded-lg transition-colors"
-              disabled={loading}
+              onClick={() => selectedDate && onSlotClick(selectedDate, new Date().getHours())}
+              disabled={!selectedDate}
+              className="w-9 h-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Dodaj wydarzenie"
             >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <button
-              onClick={onToday}
-              className="text-sm font-semibold text-foreground capitalize hover:text-primary transition-colors"
-              disabled={loading}
-            >
-              {format(currentMonth, 'LLLL yyyy', { locale: pl })}
-            </button>
-            <button
-              onClick={onNextMonth}
-              className="p-1.5 hover:bg-accent rounded-lg transition-colors"
-              disabled={loading}
-            >
-              <ChevronRight className="w-4 h-4" />
+              <Plus className="w-4 h-4" />
             </button>
           </div>
+        )}
+      </div>
 
-          {/* Day-of-week header */}
-          <div className="grid grid-cols-7 mb-1">
+      {/* Month grid — full width */}
+      <div className="bg-card border border-border rounded-xl p-3">
+        {/* Day-of-week header */}
+        <div className="grid grid-cols-7 mb-1">
             {DAY_LABELS.map((label) => (
               <div
                 key={label}
@@ -475,7 +482,7 @@ export function WeeklyCalendar({
                 <button
                   key={key}
                   onClick={() => onSelectDate(day)}
-                  className={`relative flex flex-col items-center py-1.5 rounded-lg transition-colors ${
+                  className={`relative flex flex-col items-center py-2 min-h-[72px] rounded-lg transition-colors ${
                     !inMonth ? 'opacity-40' : ''
                   } ${selected ? '' : 'hover:bg-accent/50'}`}
                 >
@@ -512,12 +519,12 @@ export function WeeklyCalendar({
                   {(() => {
                     const isFuture = day.getTime() > Date.now() && !today;
                     if (isFuture) {
-                      return <span className="text-[10px] mt-0.5 leading-tight invisible">+0 PLN</span>;
+                      return <span className="text-xs mt-1 leading-tight invisible">+0 PLN</span>;
                     }
                     const amount = Math.round(earningsByDay.get(key) || 0);
                     return (
                       <span
-                        className={`text-[10px] mt-0.5 leading-tight font-medium ${
+                        className={`text-xs mt-1 leading-tight font-medium ${
                           amount > 0 ? 'text-emerald-500' : 'text-muted-foreground'
                         }`}
                       >
@@ -529,95 +536,27 @@ export function WeeklyCalendar({
               );
             })}
           </div>
-        </div>
-
-        {/* Action buttons below calendar */}
-        {actionButtons && (
-          <div className="mt-3 flex items-center gap-2">
-            {actionButtons}
-          </div>
-        )}
       </div>
 
-      {/* Day detail panel */}
-      <div className="flex-1 min-w-0">
-        {selectedDate ? (
-          <>
-            {/* ===== DESKTOP: day/week grid ===== */}
-            <div className="hidden lg:block bg-card border border-border rounded-xl overflow-hidden">
-              {/* Header with view toggle */}
-              <div className="flex items-center justify-between px-5 py-3 border-b border-border">
-                <div>
-                  <h2 className="text-2xl font-bold text-foreground capitalize">
-                    {desktopView === 'day'
-                      ? format(selectedDate, 'd MMMM yyyy', { locale: pl })
-                      : format(currentMonth, 'LLLL yyyy', { locale: pl })}
-                  </h2>
-                  {desktopView === 'day' && (
-                    <p className="text-sm text-muted-foreground capitalize">
-                      {format(selectedDate, 'EEEE', { locale: pl })}
-                    </p>
-                  )}
-                </div>
-                <div className="flex items-center gap-3">
-                  {/* View toggle */}
-                  <div className="flex bg-secondary rounded-lg p-0.5">
-                    <button
-                      onClick={() => setDesktopView('day')}
-                      className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
-                        desktopView === 'day'
-                          ? 'bg-background text-foreground shadow-sm'
-                          : 'text-muted-foreground hover:text-foreground'
-                      }`}
-                    >
-                      Dzień
-                    </button>
-                    <button
-                      onClick={() => setDesktopView('week')}
-                      className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
-                        desktopView === 'week'
-                          ? 'bg-background text-foreground shadow-sm'
-                          : 'text-muted-foreground hover:text-foreground'
-                      }`}
-                    >
-                      Tydzień
-                    </button>
-                  </div>
-                  <button
-                    onClick={() => onSlotClick(selectedDate, new Date().getHours())}
-                    className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
+      {/* Week grid — full width, only when a date is selected */}
+      {selectedDate ? (
+        <>
+          {/* Desktop: WeekTimeGrid */}
+          <div className="hidden lg:block bg-card border border-border rounded-xl overflow-hidden">
+            <WeekTimeGrid
+              weekDays={weekDays}
+              eventsByDay={eventsByDay}
+              selectedDate={selectedDate}
+              onSlotClick={onSlotClick}
+              onEventClick={onEventClick}
+              onSelectDate={onSelectDate}
+              onToggleConfirmed={onToggleConfirmed}
+              onEventMove={onEventMove}
+            />
+          </div>
 
-              {/* Day or Week grid */}
-              {desktopView === 'day' ? (
-                <DayTimeGrid
-                  selectedDate={selectedDate}
-                  events={selectedDayEvents}
-                  onSlotClick={onSlotClick}
-                  onEventClick={onEventClick}
-                  onToggleConfirmed={onToggleConfirmed}
-                  onEventMove={onEventMove}
-                />
-              ) : (
-                <WeekTimeGrid
-                  weekDays={weekDays}
-                  eventsByDay={eventsByDay}
-                  selectedDate={selectedDate}
-                  onSlotClick={onSlotClick}
-                  onEventClick={onEventClick}
-                  onSelectDate={onSelectDate}
-                  onToggleConfirmed={onToggleConfirmed}
-                  onEventMove={onEventMove}
-                />
-              )}
-            </div>
-
-            {/* ===== MOBILE: event list ===== */}
-            <div className="lg:hidden bg-card border border-border rounded-xl">
+          {/* Mobile: event list */}
+          <div className="lg:hidden bg-card border border-border rounded-xl">
               <div className="flex items-center justify-between px-4 py-3 border-b border-border">
                 <h2 className="text-base font-semibold text-foreground capitalize">
                   {format(selectedDate, 'EEEE, d MMMM', { locale: pl })}
@@ -698,209 +637,15 @@ export function WeeklyCalendar({
                 )}
               </div>
             </div>
-          </>
-        ) : (
-          <div className="bg-card border border-border rounded-xl flex items-center justify-center py-16 text-sm text-muted-foreground">
-            Wybierz dzień, aby zobaczyć wydarzenia
-          </div>
-        )}
-      </div>
+        </>
+      ) : (
+        <div className="bg-card border border-border rounded-xl flex items-center justify-center py-16 text-sm text-muted-foreground">
+          Wybierz dzień, aby zobaczyć wydarzenia
+        </div>
+      )}
     </div>
   );
 }
-
-/* ── Desktop day time grid (Apple Calendar style) ── */
-
-const DayTimeGrid = memo(function DayTimeGrid({
-  selectedDate,
-  events,
-  onSlotClick,
-  onEventClick,
-  onToggleConfirmed,
-  onEventMove,
-}: {
-  selectedDate: Date;
-  events: CalendarEvent[];
-  onSlotClick: (date: Date, hour: number) => void;
-  onEventClick: (event: CalendarEvent) => void;
-  onToggleConfirmed?: (event: CalendarEvent, confirmed: boolean) => void;
-  onEventMove?: (event: CalendarEvent, newStart: string, newEnd: string) => void;
-}) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const { handlePointerDown, activeDrag, didDragRef } = useEventDrag(onEventMove);
-
-  // Scroll to first event or current hour on mount / date change
-  useEffect(() => {
-    if (!scrollRef.current) return;
-    let scrollToHour: number;
-    if (events.length > 0) {
-      const firstStart = parseISO(events[0].start_time);
-      scrollToHour = Math.max(0, firstStart.getHours() - 1);
-    } else if (isToday(selectedDate)) {
-      scrollToHour = Math.max(0, new Date().getHours() - 2);
-    } else {
-      scrollToHour = 7;
-    }
-    scrollRef.current.scrollTop = scrollToHour * HOUR_HEIGHT;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDate]);
-
-  // Memoize layout computation
-  const layoutedEvents = useMemo(() => layoutEvents(events), [events]);
-
-  // Current time indicator (updates every minute)
-  const nowMinutes = useNowMinutes();
-  const showNowLine = isToday(selectedDate);
-  const nowTop = ((nowMinutes - DAY_START_HOUR * 60) / 60) * HOUR_HEIGHT;
-
-  return (
-    <div
-      ref={scrollRef}
-      className="overflow-y-auto"
-      style={{ maxHeight: 'calc(100vh - 200px)' }}
-    >
-      <div className="relative flex" style={{ height: HOURS.length * HOUR_HEIGHT }}>
-        {/* Time labels */}
-        <div className="w-14 shrink-0 relative">
-          {HOURS.map((hour) => (
-            <div
-              key={hour}
-              className="absolute right-3 text-xs text-muted-foreground -translate-y-1/2"
-              style={{ top: (hour - DAY_START_HOUR) * HOUR_HEIGHT }}
-            >
-              {String(hour).padStart(2, '0')}:00
-            </div>
-          ))}
-        </div>
-
-        {/* Grid + events column */}
-        <div className="flex-1 relative border-l border-border">
-          {/* Hour lines */}
-          {HOURS.map((hour) => (
-            <div
-              key={hour}
-              className="absolute w-full border-t border-border/40 cursor-pointer hover:bg-accent/20 transition-colors"
-              style={{ top: (hour - DAY_START_HOUR) * HOUR_HEIGHT, height: HOUR_HEIGHT }}
-              onClick={() => onSlotClick(selectedDate, hour)}
-            />
-          ))}
-
-          {/* Drag overlay */}
-          {activeDrag && (
-            <div className="fixed inset-0 z-20 cursor-grabbing" />
-          )}
-
-          {/* Events */}
-          {layoutedEvents.map(({ event, col, totalCols }) => {
-            const start = parseISO(event.start_time);
-            const end = parseISO(event.end_time);
-            const startMin = start.getHours() * 60 + start.getMinutes();
-            const endMin = end.getHours() * 60 + end.getMinutes();
-            const effectiveEndMin = endMin <= startMin ? 24 * 60 : endMin;
-            const durationMin = effectiveEndMin - startMin;
-            const dragged = activeDrag?.eventId === event.id;
-            const displayStartMin = dragged ? activeDrag.currentStartMin : startMin;
-            const displayEndMin = displayStartMin + durationMin;
-            const top = ((displayStartMin - DAY_START_HOUR * 60) / 60) * HOUR_HEIGHT;
-            const height = Math.max((durationMin / 60) * HOUR_HEIGHT, 24);
-            const eventHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-            const earnings = eventHours * event.hourly_rate;
-            const color = getEventColor(event);
-            const draggable = isDraggableEvent(event);
-
-            return (
-              <div
-                key={event.id}
-                className={`absolute px-3 py-1.5 transition-opacity hover:opacity-90 ${
-                  dragged ? 'overflow-visible' : 'overflow-hidden'
-                } ${event.is_settled ? 'opacity-60' : ''
-                } ${dragged ? 'z-30 shadow-lg ring-2 ring-primary/30' : 'z-10'} ${draggable ? 'cursor-grab' : 'cursor-pointer'}`}
-                style={{
-                  top,
-                  height,
-                  left: `calc(${(col / totalCols) * 100}% + 4px)`,
-                  width: `calc(${(1 / totalCols) * 100}% - 6px)`,
-                  backgroundColor: color + '22',
-                  borderLeft: `3px solid ${color}`,
-
-                  transition: dragged ? 'box-shadow 0.2s' : undefined,
-                }}
-                onPointerDown={(e) => handlePointerDown(e, event, startMin, durationMin)}
-
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (didDragRef.current) { didDragRef.current = false; return; }
-                  onEventClick(event);
-                }}
-              >
-                {/* Drag time tooltip */}
-                {dragged && (
-                  <div className="absolute -top-7 left-0 bg-foreground text-background text-xs font-medium px-2 py-0.5 rounded whitespace-nowrap z-40 pointer-events-none">
-                    {formatMinutes(displayStartMin)} – {formatMinutes(displayEndMin)}
-                  </div>
-                )}
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-semibold text-foreground truncate flex items-center gap-1">
-                      {event.google_event_id && <GoogleIcon className="w-3 h-3 flex-shrink-0" />}
-                      {event.title}
-                    </div>
-                    {height > 36 && (
-                      <div className="text-xs text-muted-foreground mt-0.5">
-                        {dragged
-                          ? `${formatMinutes(displayStartMin)} – ${formatMinutes(displayEndMin)}`
-                          : `${format(start, 'HH:mm')} – ${format(end, 'HH:mm')}`}
-                        {event.event_type !== 'personal' && (
-                          <>
-                            <span className="mx-1">·</span>
-                            {earnings.toFixed(0)} PLN
-                          </>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  {onToggleConfirmed && event.event_type !== 'personal' && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onToggleConfirmed(event, !event.is_confirmed);
-                      }}
-                      className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors ${
-                        event.is_confirmed
-                          ? 'bg-primary border-primary'
-                          : 'hover:border-primary/70'
-                      }`}
-                      style={{ borderColor: event.is_confirmed ? '' : 'var(--card-foreground)' }}
-                    >
-                      {event.is_confirmed && (
-                        <svg className="w-3 h-3 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                        </svg>
-                      )}
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-
-          {/* Current time line */}
-          {showNowLine && (
-            <div
-              className="absolute left-0 right-0 z-20 pointer-events-none"
-              style={{ top: nowTop }}
-            >
-              <div className="flex items-center">
-                <div className="w-2.5 h-2.5 rounded-full bg-red-500 -ml-1.5" />
-                <div className="flex-1 h-[2px] bg-red-500" />
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-});
 
 /* ── Desktop week time grid (Apple Calendar week view) ── */
 
@@ -1007,7 +752,7 @@ const WeekTimeGrid = memo(function WeekTimeGrid({
       <div
         ref={scrollRef}
         className="overflow-y-auto"
-        style={{ maxHeight: 'calc(100vh - 260px)' }}
+        style={{ maxHeight: 'calc(100vh - 560px)' }}
       >
         <div className="relative flex" style={{ height: HOURS.length * HOUR_HEIGHT }}>
           {/* Time labels */}
