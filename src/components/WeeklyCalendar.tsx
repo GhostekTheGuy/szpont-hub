@@ -472,6 +472,16 @@ export function WeeklyCalendar({
     onSelectDate(target);
   }, [onSelectDate]);
 
+  // Smooth-scroll to the full-width week row after a day click in the monthly grid.
+  // rAF defers until after React commits the (possibly newly-mounted) week view.
+  const weekRowRef = useRef<HTMLDivElement>(null);
+  const handleCellClick = useCallback((day: Date) => {
+    onSelectDate(day);
+    requestAnimationFrame(() => {
+      weekRowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }, [onSelectDate]);
+
   return (
     <div className="flex flex-col gap-4 lg:gap-6">
       {/* Top bar: month nav + TimerWidget + action buttons + add event */}
@@ -554,7 +564,7 @@ export function WeeklyCalendar({
               return (
                 <button
                   key={key}
-                  onClick={() => onSelectDate(day)}
+                  onClick={() => handleCellClick(day)}
                   className={`relative flex flex-col items-center gap-0.5 py-2 min-h-[76px] rounded-lg transition-colors ${
                     !inMonth ? 'opacity-40' : ''
                   } ${selected ? 'bg-accent' : 'hover:bg-accent/50'}`}
@@ -664,6 +674,7 @@ export function WeeklyCalendar({
       </div>
 
       {/* Row 2: weekly time grid (desktop) / event list (mobile) — full width */}
+      <div ref={weekRowRef} className="flex flex-col gap-3 scroll-mt-4">
       {selectedDate ? (
         <>
           <div className="hidden lg:block bg-card border border-border rounded-xl overflow-hidden">
@@ -766,6 +777,7 @@ export function WeeklyCalendar({
           Wybierz dzień, aby zobaczyć wydarzenia
         </div>
       )}
+      </div>
 
       {confirmationBar}
       {summaryBlock}
@@ -865,9 +877,14 @@ const WeekTimeGrid = memo(function WeekTimeGrid({
   const nowTop = ((nowMinutes - visibleRange.start * 60) / 60) * HOUR_HEIGHT;
 
   return (
-    <div>
-      {/* Day column headers */}
-      <div className="flex border-b border-border sticky top-0 z-10 bg-card">
+    <div
+      ref={scrollRef}
+      className="overflow-y-auto"
+      style={{ maxHeight: 'calc(100vh - 280px)' }}
+    >
+      {/* Day column headers — sticky inside the scroll container so its width
+          matches the hour grid below (both share the same scrollbar gutter). */}
+      <div className="flex border-b border-border sticky top-0 z-20 bg-card">
         <div className="w-14 shrink-0" />
         {weekDays.map((day, i) => {
           const today = isToday(day);
@@ -897,13 +914,7 @@ const WeekTimeGrid = memo(function WeekTimeGrid({
         })}
       </div>
 
-      {/* Scrollable grid */}
-      <div
-        ref={scrollRef}
-        className="overflow-y-auto"
-        style={{ maxHeight: 'calc(100vh - 280px)' }}
-      >
-        <div className="relative flex" style={{ height: hours.length * HOUR_HEIGHT }}>
+      <div className="relative flex" style={{ height: hours.length * HOUR_HEIGHT }}>
           {/* Time labels */}
           <div className="w-14 shrink-0 relative">
             {hours.map((hour) => (
@@ -1083,7 +1094,6 @@ const WeekTimeGrid = memo(function WeekTimeGrid({
           })}
           </div>
         </div>
-      </div>
     </div>
   );
 });
