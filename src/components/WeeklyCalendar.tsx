@@ -395,6 +395,21 @@ export function WeeklyCalendar({
     return map;
   }, [events, orders]);
 
+  // Max earning across days of the currently displayed month — drives the
+  // color tier of each day's earnings label. Computed only over the month's
+  // own days (not the leading/trailing days from neighbouring months).
+  const monthMaxEarning = useMemo(() => {
+    let max = 0;
+    const monthS = startOfMonth(currentMonth);
+    const monthE = endOfMonth(currentMonth);
+    for (const day of eachDayOfInterval({ start: monthS, end: monthE })) {
+      const key = format(day, 'yyyy-MM-dd');
+      const v = earningsByDay.get(key) || 0;
+      if (v > max) max = v;
+    }
+    return max;
+  }, [currentMonth, earningsByDay]);
+
   // Events for selected day
   const selectedDayEvents = useMemo(() => {
     if (!selectedDate) return [];
@@ -416,27 +431,27 @@ export function WeeklyCalendar({
     <div className="flex flex-col gap-4 lg:gap-6">
       {/* Top bar: month nav + TimerWidget + action buttons + add event */}
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5 bg-secondary/60 border border-border rounded-full p-1 shadow-sm">
           <button
             onClick={onPrevMonth}
-            className="p-1.5 hover:bg-accent rounded-lg transition-colors"
             disabled={loading}
+            className="w-9 h-9 flex items-center justify-center rounded-full text-foreground/70 hover:text-foreground hover:bg-background active:scale-95 transition-all disabled:opacity-50"
           >
-            <ChevronLeft className="w-4 h-4" />
+            <ChevronLeft className="w-5 h-5" />
           </button>
           <button
             onClick={onToday}
-            className="px-2 text-sm font-semibold text-foreground capitalize hover:text-primary transition-colors"
             disabled={loading}
+            className="px-4 h-9 text-base font-bold text-foreground capitalize hover:text-primary transition-colors min-w-[150px] disabled:opacity-50"
           >
             {format(currentMonth, 'LLLL yyyy', { locale: pl })}
           </button>
           <button
             onClick={onNextMonth}
-            className="p-1.5 hover:bg-accent rounded-lg transition-colors"
             disabled={loading}
+            className="w-9 h-9 flex items-center justify-center rounded-full text-foreground/70 hover:text-foreground hover:bg-background active:scale-95 transition-all disabled:opacity-50"
           >
-            <ChevronRight className="w-4 h-4" />
+            <ChevronRight className="w-5 h-5" />
           </button>
         </div>
         {topWidget && <div className="flex-1 min-w-0">{topWidget}</div>}
@@ -458,11 +473,11 @@ export function WeeklyCalendar({
       {/* Month grid — full width */}
       <div className="bg-card border border-border rounded-xl p-3">
         {/* Day-of-week header */}
-        <div className="grid grid-cols-7 mb-1">
+        <div className="grid grid-cols-7 mb-2">
             {DAY_LABELS.map((label) => (
               <div
                 key={label}
-                className="text-center text-[11px] font-medium text-muted-foreground py-1"
+                className="text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground py-2"
               >
                 {label}
               </div>
@@ -470,7 +485,7 @@ export function WeeklyCalendar({
           </div>
 
           {/* Day cells */}
-          <div className="grid grid-cols-7">
+          <div className="grid grid-cols-7 gap-1">
             {gridDays.map((day) => {
               const key = format(day, 'yyyy-MM-dd');
               const dayEvents = eventsByDay.get(key) || [];
@@ -484,9 +499,11 @@ export function WeeklyCalendar({
                 <button
                   key={key}
                   onClick={() => onSelectDate(day)}
-                  className={`relative flex flex-col items-center py-2 min-h-[72px] rounded-lg transition-colors ${
+                  className={`relative flex flex-col items-center gap-1 py-2.5 min-h-[96px] rounded-xl transition-all ${
                     !inMonth ? 'opacity-40' : ''
-                  } ${selected ? '' : 'hover:bg-accent/50'}`}
+                  } ${today ? 'bg-primary/[0.06]' : ''} ${
+                    selected ? 'ring-2 ring-primary/40' : 'hover:bg-accent/40'
+                  }`}
                 >
                   {/* Day number */}
                   <span
@@ -517,19 +534,30 @@ export function WeeklyCalendar({
                     )}
                   </div>
 
-                  {/* Daily earnings — past/today: amount or +0 PLN; future: invisible placeholder keeps row heights equal */}
+                  {/* Daily earnings — color tier based on % of month's max. Future days: invisible placeholder keeps row heights equal */}
                   {(() => {
                     const isFuture = day.getTime() > Date.now() && !today;
                     if (isFuture) {
                       return <span className="text-xs mt-1 leading-tight invisible">+0 PLN</span>;
                     }
                     const amount = Math.round(earningsByDay.get(key) || 0);
+                    const pct = monthMaxEarning > 0 ? amount / monthMaxEarning : 0;
+
+                    let colorClass: string;
+                    if (amount === 0) {
+                      colorClass = 'text-muted-foreground/60';
+                    } else if (pct >= 0.9) {
+                      colorClass = 'text-emerald-600 dark:text-emerald-400 font-bold';
+                    } else if (pct >= 0.6) {
+                      colorClass = 'text-emerald-500 font-semibold';
+                    } else if (pct >= 0.3) {
+                      colorClass = 'text-emerald-400';
+                    } else {
+                      colorClass = 'text-amber-500';
+                    }
+
                     return (
-                      <span
-                        className={`text-xs mt-1 leading-tight font-medium ${
-                          amount > 0 ? 'text-emerald-500' : 'text-muted-foreground'
-                        }`}
-                      >
+                      <span className={`text-xs mt-1 leading-tight ${colorClass}`}>
                         +{amount} PLN
                       </span>
                     );
@@ -777,7 +805,7 @@ const WeekTimeGrid = memo(function WeekTimeGrid({
       <div
         ref={scrollRef}
         className="overflow-y-auto"
-        style={{ maxHeight: 'calc(100vh - 560px)' }}
+        style={{ maxHeight: 'calc(100vh - 400px)' }}
       >
         <div className="relative flex" style={{ height: hours.length * HOUR_HEIGHT }}>
           {/* Time labels */}
