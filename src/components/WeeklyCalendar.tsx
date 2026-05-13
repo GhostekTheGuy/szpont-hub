@@ -843,17 +843,32 @@ const WeekTimeGrid = memo(function WeekTimeGrid({
   useEffect(() => {
     if (!scrollRef.current) return;
     let scrollToHour: number;
-    if (allWeekEvents.length > 0) {
+    // Prefer the first event of the selected day — gives the user the grid
+    // positioned right at their day's actual start. Falls back to first event
+    // of the week, then to "now" if today, then to 8 AM.
+    let firstHourOfSelected: number | null = null;
+    if (selectedDate) {
+      const key = format(selectedDate, 'yyyy-MM-dd');
+      const dayEvents = eventsByDay.get(key) || [];
+      if (dayEvents.length > 0) {
+        const earliest = dayEvents.reduce((min, e) =>
+          parseISO(e.start_time).getTime() < parseISO(min.start_time).getTime() ? e : min,
+        );
+        firstHourOfSelected = parseISO(earliest.start_time).getHours();
+      }
+    }
+    if (firstHourOfSelected !== null) {
+      scrollToHour = Math.max(visibleRange.start, firstHourOfSelected - 1);
+    } else if (allWeekEvents.length > 0) {
       const firstStart = parseISO(allWeekEvents[0].start_time);
       scrollToHour = Math.max(visibleRange.start, firstStart.getHours() - 1);
     } else {
       const today = weekDays.find(d => isToday(d));
       scrollToHour = today ? Math.max(visibleRange.start, new Date().getHours() - 2) : Math.max(visibleRange.start, 8);
     }
-    // Offset relative to visible range start
     scrollRef.current.scrollTop = (scrollToHour - visibleRange.start) * HOUR_HEIGHT;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [weekDays, visibleRange.start]);
+  }, [weekDays, selectedDate, eventsByDay, visibleRange.start]);
 
   // Memoize layout computation per day
   const layoutByDay = useMemo(() => {
@@ -873,6 +888,7 @@ const WeekTimeGrid = memo(function WeekTimeGrid({
     <div
       ref={scrollRef}
       className="overflow-y-auto"
+      style={{ maxHeight: 12 * HOUR_HEIGHT + 64 }}
     >
       {/* Day column headers — sticky inside the scroll container so its width
           matches the hour grid below (both share the same scrollbar gutter). */}
