@@ -286,7 +286,7 @@ interface WeeklyCalendarProps {
   topWidget?: React.ReactNode;
   actionButtons?: React.ReactNode;
   summaryBlock?: React.ReactNode;
-  confirmationBar?: React.ReactNode;
+  weekLabelActions?: React.ReactNode;
 }
 
 function GoogleIcon({ className = "w-3 h-3" }: { className?: string }) {
@@ -364,7 +364,7 @@ export function WeeklyCalendar({
   topWidget,
   actionButtons,
   summaryBlock,
-  confirmationBar,
+  weekLabelActions,
 }: WeeklyCalendarProps) {
   // Build the grid of days: from Monday before month start to Sunday after month end
   const gridDays = useMemo(() => {
@@ -547,8 +547,7 @@ export function WeeklyCalendar({
         )}
       </div>
 
-      {/* Alerts + stats moved up: always visible without scrolling past the calendar */}
-      {confirmationBar}
+      {/* Stats moved up: always visible without scrolling past the calendar */}
       {summaryBlock}
 
       {/* Row 1: month grid (left) + clickable week list (right) */}
@@ -702,6 +701,7 @@ export function WeeklyCalendar({
               <span className={`text-sm tabular-nums ${earningsColorClass(total, weekMaxEarning)}`}>
                 +{total.toLocaleString('pl-PL')} PLN
               </span>
+              {weekLabelActions}
               <button
                 onClick={() => onSlotClick(selectedDate, new Date().getHours())}
                 className="flex items-center gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium px-3 py-1.5 rounded-lg transition-colors"
