@@ -895,7 +895,7 @@ const WeekTimeGrid = memo(function WeekTimeGrid({
     <div
       ref={scrollRef}
       className="overflow-y-auto"
-      style={{ maxHeight: 12 * HOUR_HEIGHT + 64 }}
+      style={{ maxHeight: 15 * HOUR_HEIGHT + 64 }}
     >
       {/* Day column headers — sticky inside the scroll container so its width
           matches the hour grid below (both share the same scrollbar gutter). */}
