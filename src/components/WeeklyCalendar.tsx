@@ -525,8 +525,8 @@ export function WeeklyCalendar({
         )}
       </div>
 
-      {/* Month grid (left) + week-nav + week view (right) */}
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+      {/* Row 1: month grid (left) + clickable week list (right) */}
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
       <div className="bg-card border border-border rounded-xl p-2.5">
         {/* Day-of-week header */}
         <div className="grid grid-cols-7 mb-1">
@@ -625,150 +625,147 @@ export function WeeklyCalendar({
         {/* Right column on lg — clickable week list + week time grid (or
             mobile event list on smaller screens). Falls below the monthly
             card on <lg by grid auto-flow. */}
-        <aside className="flex flex-col gap-3 min-w-0">
-          {/* Clickable week navigation */}
-          <nav className="bg-card border border-border rounded-xl p-2 flex flex-col gap-0.5">
-            {weekChunks.map(({ start, total }, idx) => {
-              const weekEnd = addDays(start, 6);
-              const isActive = !!(selectedDate && selectedDate >= start && selectedDate <= weekEnd);
-              const amount = Math.round(total);
-              const pct = weekMaxEarning > 0 ? amount / weekMaxEarning : 0;
-              let colorClass: string;
-              if (amount === 0) colorClass = 'text-muted-foreground/60';
-              else if (pct >= 0.9) colorClass = 'text-emerald-600 dark:text-emerald-400 font-bold';
-              else if (pct >= 0.6) colorClass = 'text-emerald-500 font-semibold';
-              else if (pct >= 0.3) colorClass = 'text-emerald-400';
-              else colorClass = 'text-amber-500';
-              return (
-                <button
-                  key={start.toISOString()}
-                  onClick={() => handleWeekSelect(start)}
-                  className={`w-full flex items-center justify-between gap-3 px-3 py-2 rounded-lg transition-colors text-left ${
-                    isActive ? 'bg-accent' : 'hover:bg-accent/50'
-                  }`}
-                >
-                  <div className="flex items-baseline gap-3 min-w-0">
-                    <span className="text-[11px] uppercase tracking-wider text-muted-foreground shrink-0">
-                      Tydzień {idx + 1}
-                    </span>
-                    <span className="text-xs text-muted-foreground/80 truncate">
-                      {format(start, 'd MMM', { locale: pl })} – {format(weekEnd, 'd MMM', { locale: pl })}
-                    </span>
-                  </div>
-                  <span className={`text-sm tabular-nums shrink-0 ${colorClass}`}>
-                    +{amount.toLocaleString('pl-PL')} PLN
+        {/* Clickable week list — fills the column height to match the monthly card */}
+        <nav className="bg-card border border-border rounded-xl p-2 flex flex-col gap-0.5 min-w-0">
+          {weekChunks.map(({ start, total }, idx) => {
+            const weekEnd = addDays(start, 6);
+            const isActive = !!(selectedDate && selectedDate >= start && selectedDate <= weekEnd);
+            const amount = Math.round(total);
+            const pct = weekMaxEarning > 0 ? amount / weekMaxEarning : 0;
+            let colorClass: string;
+            if (amount === 0) colorClass = 'text-muted-foreground/60';
+            else if (pct >= 0.9) colorClass = 'text-emerald-600 dark:text-emerald-400 font-bold';
+            else if (pct >= 0.6) colorClass = 'text-emerald-500 font-semibold';
+            else if (pct >= 0.3) colorClass = 'text-emerald-400';
+            else colorClass = 'text-amber-500';
+            return (
+              <button
+                key={start.toISOString()}
+                onClick={() => handleWeekSelect(start)}
+                className={`w-full flex-1 min-h-[60px] flex items-center justify-between gap-3 px-3 py-2 rounded-lg transition-colors text-left ${
+                  isActive ? 'bg-accent' : 'hover:bg-accent/50'
+                }`}
+              >
+                <div className="flex flex-col min-w-0">
+                  <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                    Tydzień {idx + 1}
                   </span>
-                </button>
-              );
-            })}
-          </nav>
-
-          {/* Desktop week time grid */}
-          {selectedDate ? (
-            <div className="hidden lg:block bg-card border border-border rounded-xl overflow-hidden">
-              <WeekTimeGrid
-                weekDays={weekDays}
-                eventsByDay={eventsByDay}
-                selectedDate={selectedDate}
-                onSlotClick={onSlotClick}
-                onEventClick={onEventClick}
-                onSelectDate={onSelectDate}
-                onToggleConfirmed={onToggleConfirmed}
-                onEventMove={onEventMove}
-              />
-            </div>
-          ) : (
-            <div className="hidden lg:flex bg-card border border-border rounded-xl items-center justify-center py-16 text-sm text-muted-foreground">
-              Wybierz dzień, aby zobaczyć wydarzenia
-            </div>
-          )}
-
-          {/* Mobile event list */}
-          {selectedDate && (
-            <div className="lg:hidden bg-card border border-border rounded-xl">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-                <h2 className="text-base font-semibold text-foreground capitalize">
-                  {format(selectedDate, 'EEEE, d MMMM', { locale: pl })}
-                </h2>
-                <button
-                  onClick={() => onSlotClick(selectedDate, new Date().getHours())}
-                  className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors"
-                >
-                  <Plus className="w-4 h-4" />
-                </button>
-              </div>
-
-              <div className="p-3 space-y-2">
-                {selectedDayEvents.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-8">
-                    Brak wydarzeń
-                  </p>
-                ) : (
-                  selectedDayEvents.map((event) => {
-                    const start = parseISO(event.start_time);
-                    const end = parseISO(event.end_time);
-                    const eventHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-                    const earnings = eventHours * event.hourly_rate;
-                    const indicatorColor = getEventColor(event);
-
-                    return (
-                      <div
-                        key={event.id}
-                        onClick={() => onEventClick(event)}
-                        className={`flex items-stretch gap-3 p-3 rounded-lg cursor-pointer hover:bg-accent/50 transition-colors ${
-                          event.is_settled ? 'opacity-60' : ''
-                        }`}
-                      >
-                        <div
-                          className="w-1 rounded-full shrink-0"
-                          style={{ backgroundColor: indicatorColor }}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium text-sm text-foreground truncate flex items-center gap-1">
-                            {event.google_event_id && <GoogleIcon className="w-3 h-3 flex-shrink-0" />}
-                            {event.title}
-                          </div>
-                          <div className="text-xs text-muted-foreground mt-0.5">
-                            {format(start, 'HH:mm')} – {format(end, 'HH:mm')}
-                            <span className="mx-1.5">·</span>
-                            {eventHours.toFixed(1)}h
-                            {event.event_type !== 'personal' && (
-                              <>
-                                <span className="mx-1.5">·</span>
-                                {earnings.toFixed(0)} PLN
-                              </>
-                            )}
-                          </div>
-                        </div>
-                        {onToggleConfirmed && event.event_type !== 'personal' && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onToggleConfirmed(event, !event.is_confirmed);
-                            }}
-                            className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 self-center transition-colors ${
-                              event.is_confirmed
-                                ? 'bg-primary border-primary'
-                                : 'hover:border-primary/70'
-                            }`}
-                            style={{ borderColor: event.is_confirmed ? '' : 'var(--card-foreground)' }}
-                          >
-                            {event.is_confirmed && (
-                              <svg className="w-3 h-3 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                              </svg>
-                            )}
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-          )}
-        </aside>
+                  <span className="text-xs text-muted-foreground/80 truncate">
+                    {format(start, 'd MMM', { locale: pl })} – {format(weekEnd, 'd MMM', { locale: pl })}
+                  </span>
+                </div>
+                <span className={`text-sm tabular-nums shrink-0 ${colorClass}`}>
+                  +{amount.toLocaleString('pl-PL')} PLN
+                </span>
+              </button>
+            );
+          })}
+        </nav>
       </div>
+
+      {/* Row 2: weekly time grid (desktop) / event list (mobile) — full width */}
+      {selectedDate ? (
+        <>
+          <div className="hidden lg:block bg-card border border-border rounded-xl overflow-hidden">
+            <WeekTimeGrid
+              weekDays={weekDays}
+              eventsByDay={eventsByDay}
+              selectedDate={selectedDate}
+              onSlotClick={onSlotClick}
+              onEventClick={onEventClick}
+              onSelectDate={onSelectDate}
+              onToggleConfirmed={onToggleConfirmed}
+              onEventMove={onEventMove}
+            />
+          </div>
+
+          <div className="lg:hidden bg-card border border-border rounded-xl">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+              <h2 className="text-base font-semibold text-foreground capitalize">
+                {format(selectedDate, 'EEEE, d MMMM', { locale: pl })}
+              </h2>
+              <button
+                onClick={() => onSlotClick(selectedDate, new Date().getHours())}
+                className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-3 space-y-2">
+              {selectedDayEvents.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  Brak wydarzeń
+                </p>
+              ) : (
+                selectedDayEvents.map((event) => {
+                  const start = parseISO(event.start_time);
+                  const end = parseISO(event.end_time);
+                  const eventHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+                  const earnings = eventHours * event.hourly_rate;
+                  const indicatorColor = getEventColor(event);
+
+                  return (
+                    <div
+                      key={event.id}
+                      onClick={() => onEventClick(event)}
+                      className={`flex items-stretch gap-3 p-3 rounded-lg cursor-pointer hover:bg-accent/50 transition-colors ${
+                        event.is_settled ? 'opacity-60' : ''
+                      }`}
+                    >
+                      <div
+                        className="w-1 rounded-full shrink-0"
+                        style={{ backgroundColor: indicatorColor }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-sm text-foreground truncate flex items-center gap-1">
+                          {event.google_event_id && <GoogleIcon className="w-3 h-3 flex-shrink-0" />}
+                          {event.title}
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-0.5">
+                          {format(start, 'HH:mm')} – {format(end, 'HH:mm')}
+                          <span className="mx-1.5">·</span>
+                          {eventHours.toFixed(1)}h
+                          {event.event_type !== 'personal' && (
+                            <>
+                              <span className="mx-1.5">·</span>
+                              {earnings.toFixed(0)} PLN
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      {onToggleConfirmed && event.event_type !== 'personal' && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onToggleConfirmed(event, !event.is_confirmed);
+                          }}
+                          className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 self-center transition-colors ${
+                            event.is_confirmed
+                              ? 'bg-primary border-primary'
+                              : 'hover:border-primary/70'
+                          }`}
+                          style={{ borderColor: event.is_confirmed ? '' : 'var(--card-foreground)' }}
+                        >
+                          {event.is_confirmed && (
+                            <svg className="w-3 h-3 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </>
+      ) : (
+        <div className="bg-card border border-border rounded-xl flex items-center justify-center py-16 text-sm text-muted-foreground">
+          Wybierz dzień, aby zobaczyć wydarzenia
+        </div>
+      )}
 
       {confirmationBar}
       {summaryBlock}
