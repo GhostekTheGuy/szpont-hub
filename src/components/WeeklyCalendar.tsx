@@ -17,7 +17,7 @@ import {
 import { pl } from 'date-fns/locale';
 import { formatLocalDateTime } from '@/lib/calendar-utils';
 import { Plus, ChevronLeft, ChevronRight } from 'lucide-react';
-import type { CalendarEvent } from '@/hooks/useFinanceStore';
+import type { CalendarEvent, Order } from '@/hooks/useFinanceStore';
 
 const HOUR_HEIGHT = 56;
 const DAY_START_HOUR = 0;
@@ -271,6 +271,7 @@ type DesktopViewMode = 'day' | 'week';
 
 interface WeeklyCalendarProps {
   events: CalendarEvent[];
+  orders: Order[];
   currentMonth: Date;
   selectedDate: Date | null;
   onSelectDate: (date: Date) => void;
@@ -336,6 +337,7 @@ function getEventColor(event: CalendarEvent): string {
 
 export function WeeklyCalendar({
   events,
+  orders,
   currentMonth,
   selectedDate,
   onSelectDate,
@@ -369,6 +371,29 @@ export function WeeklyCalendar({
     }
     return map;
   }, [events]);
+
+  // Daily earnings from settled work events + settled flat-billed orders.
+  // Hourly-billed orders contribute via their linked calendar events, so
+  // counting them again would double-count — mirrors the rule used by
+  // getMonthlySummary on the server.
+  const earningsByDay = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const ev of events) {
+      if (!ev.is_settled) continue;
+      if (ev.event_type === 'personal') continue;
+      const key = ev.start_time.split('T')[0];
+      const hours = (parseISO(ev.end_time).getTime() - parseISO(ev.start_time).getTime()) / 3_600_000;
+      map.set(key, (map.get(key) || 0) + hours * ev.hourly_rate);
+    }
+    for (const o of orders) {
+      if (!o.is_settled) continue;
+      if (o.billing_type !== 'flat') continue;
+      if (!o.completion_date) continue;
+      const key = o.completion_date.split('T')[0];
+      map.set(key, (map.get(key) || 0) + o.amount);
+    }
+    return map;
+  }, [events, orders]);
 
   // Events for selected day
   const selectedDayEvents = useMemo(() => {
@@ -482,6 +507,24 @@ export function WeeklyCalendar({
                       </span>
                     )}
                   </div>
+
+                  {/* Daily earnings — past/today: amount or +0 PLN; future: invisible placeholder keeps row heights equal */}
+                  {(() => {
+                    const isFuture = day.getTime() > Date.now() && !today;
+                    if (isFuture) {
+                      return <span className="text-[10px] mt-0.5 leading-tight invisible">+0 PLN</span>;
+                    }
+                    const amount = Math.round(earningsByDay.get(key) || 0);
+                    return (
+                      <span
+                        className={`text-[10px] mt-0.5 leading-tight font-medium ${
+                          amount > 0 ? 'text-emerald-500' : 'text-muted-foreground'
+                        }`}
+                      >
+                        +{amount} PLN
+                      </span>
+                    );
+                  })()}
                 </button>
               );
             })}

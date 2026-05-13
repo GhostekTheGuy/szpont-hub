@@ -410,6 +410,7 @@ export function CalendarPageClient({ initialEvents, initialWallets, initialOrder
       <div className={`${loading ? 'opacity-50 pointer-events-none transition-opacity' : 'transition-opacity'}`}>
         <WeeklyCalendar
           events={calendarEvents}
+          orders={orders}
           currentMonth={currentMonth}
           selectedDate={selectedDate}
           onSelectDate={handleSelectDate}
