@@ -5,9 +5,9 @@ import { useFinanceStore, pick, type Wallet, type CalendarEvent, type Order } fr
 import { getCalendarEvents, toggleEventConfirmed, moveCalendarEvent, moveRecurringEvent, getUnsettledCount, settleAllUnsettledAction } from '@/app/actions';
 import { WeeklyCalendar } from '@/components/WeeklyCalendar';
 import { TimerWidget } from '@/components/TimerWidget';
-import { WorkSummaryPanel } from '@/components/WorkSummaryPanel';
+import { MonthlySummaryBlock } from '@/components/MonthlySummaryBlock';
 import { useToast } from '@/components/Toast';
-import { Check, Timer, AlertTriangle, Loader2, BarChart3 } from 'lucide-react';
+import { Check, Timer, AlertTriangle, Loader2 } from 'lucide-react';
 
 const CalendarEventModal = lazy(() => import('@/components/CalendarEventModal').then(m => ({ default: m.CalendarEventModal })));
 const InvoiceModal = lazy(() => import('@/components/InvoiceModal').then(m => ({ default: m.InvoiceModal })));
@@ -15,14 +15,14 @@ const ScanTogglModal = lazy(() => import('@/components/ScanTogglModal').then(m =
 const GoogleCalendarSettings = lazy(() => import('@/components/GoogleCalendarSettings').then(m => ({ default: m.GoogleCalendarSettings })));
 import {
   format,
-  startOfWeek,
-  endOfWeek,
   startOfMonth,
   endOfMonth,
   addMonths,
   subMonths,
   isAfter,
   endOfDay,
+  startOfWeek,
+  endOfWeek,
 } from 'date-fns';
 import { pl } from 'date-fns/locale';
 import { formatLocalDateTime } from '@/lib/calendar-utils';
@@ -375,11 +375,6 @@ export function CalendarPageClient({ initialEvents, initialWallets, initialOrder
       });
   }, [calendarEvents, monthStart, monthEnd]);
 
-  // For WorkSummaryPanel: derive week from selectedDate
-  const summaryDate = selectedDate || new Date();
-  const weekStart = startOfWeek(summaryDate, { weekStartsOn: 1 });
-  const weekEnd = endOfWeek(summaryDate, { weekStartsOn: 1 });
-
   return (
     <>
       {/* Future event warning popup */}
@@ -423,6 +418,15 @@ export function CalendarPageClient({ initialEvents, initialWallets, initialOrder
           onToday={goToToday}
           loading={loading}
           topWidget={<TimerWidget wallets={wallets} orders={orders} onStop={() => refreshCalendarEvents(currentMonth)} />}
+          summaryBlock={
+            <MonthlySummaryBlock
+              monthStart={formatLocalDateTime(monthStart)}
+              monthEnd={formatLocalDateTime(monthEnd)}
+              monthLabel={format(currentMonth, 'LLLL yyyy', { locale: pl })}
+              onGenerateInvoice={() => setIsInvoiceModalOpen(true)}
+              refreshKey={summaryRefreshKey}
+            />
+          }
           actionButtons={
             <>
               {googleConn?.connected ? (
@@ -490,19 +494,6 @@ export function CalendarPageClient({ initialEvents, initialWallets, initialOrder
 
       </div>
 
-      {/* Summary panel below calendar */}
-      <div>
-        <WorkSummaryPanel
-          weekStart={formatLocalDateTime(weekStart)}
-          weekEnd={formatLocalDateTime(weekEnd)}
-          monthStart={formatLocalDateTime(monthStart)}
-          monthEnd={formatLocalDateTime(monthEnd)}
-          monthLabel={format(currentMonth, 'LLLL yyyy', { locale: pl })}
-          onGenerateInvoice={() => setIsInvoiceModalOpen(true)}
-          refreshKey={summaryRefreshKey}
-        />
-      </div>
-
       {/* Modals — lazy loaded */}
       {isEventModalOpen && (
         <Suspense fallback={null}>
@@ -550,15 +541,6 @@ export function CalendarPageClient({ initialEvents, initialWallets, initialOrder
           />
         </Suspense>
       )}
-
-      {/* Sticky scroll-to-summary button */}
-      <button
-        onClick={() => document.getElementById('work-summary-panel')?.scrollIntoView({ behavior: 'smooth' })}
-        className="fixed bottom-6 right-6 z-40 bg-primary hover:bg-primary/90 text-primary-foreground rounded-full p-3 shadow-lg transition-all hover:scale-105"
-        title="Podsumowanie"
-      >
-        <BarChart3 className="w-5 h-5" />
-      </button>
 
       {/* Recurring event move dialog */}
       {recurringMoveData && (

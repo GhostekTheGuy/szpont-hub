@@ -13,6 +13,7 @@ import {
   startOfWeek,
   endOfWeek,
   eachDayOfInterval,
+  getISOWeek,
 } from 'date-fns';
 import { pl } from 'date-fns/locale';
 import { formatLocalDateTime } from '@/lib/calendar-utils';
@@ -285,6 +286,7 @@ interface WeeklyCalendarProps {
   loading?: boolean;
   topWidget?: React.ReactNode;
   actionButtons?: React.ReactNode;
+  summaryBlock?: React.ReactNode;
 }
 
 function GoogleIcon({ className = "w-3 h-3" }: { className?: string }) {
@@ -351,6 +353,7 @@ export function WeeklyCalendar({
   loading,
   topWidget,
   actionButtons,
+  summaryBlock,
 }: WeeklyCalendarProps) {
   // Build the grid of days: from Monday before month start to Sunday after month end
   const gridDays = useMemo(() => {
@@ -410,6 +413,38 @@ export function WeeklyCalendar({
     return max;
   }, [currentMonth, earningsByDay]);
 
+  // Sum of earnings across in-month days — drives the "Total" pill in the top bar.
+  const totalMonthEarnings = useMemo(() => {
+    let sum = 0;
+    const monthS = startOfMonth(currentMonth);
+    const monthE = endOfMonth(currentMonth);
+    for (const day of eachDayOfInterval({ start: monthS, end: monthE })) {
+      sum += earningsByDay.get(format(day, 'yyyy-MM-dd')) || 0;
+    }
+    return sum;
+  }, [currentMonth, earningsByDay]);
+
+  // Per-week earnings aligned to the monthly grid rows. Computed locally from
+  // earningsByDay so leading/trailing days fall in the correct visual row
+  // (ISO-week numbers from the server would mis-bucket them).
+  const weekChunks = useMemo(() => {
+    const chunks: { start: Date; total: number }[] = [];
+    for (let i = 0; i < gridDays.length; i += 7) {
+      const week = gridDays.slice(i, i + 7);
+      const total = week.reduce(
+        (s, d) => s + (earningsByDay.get(format(d, 'yyyy-MM-dd')) || 0),
+        0,
+      );
+      chunks.push({ start: week[0], total });
+    }
+    return chunks;
+  }, [gridDays, earningsByDay]);
+
+  const weekMaxEarning = useMemo(
+    () => weekChunks.reduce((m, c) => (c.total > m ? c.total : m), 0),
+    [weekChunks],
+  );
+
   // Events for selected day
   const selectedDayEvents = useMemo(() => {
     if (!selectedDate) return [];
@@ -426,6 +461,22 @@ export function WeeklyCalendar({
     const ws = startOfWeek(base, { weekStartsOn: 1 });
     return Array.from({ length: 7 }, (_, i) => addDays(ws, i));
   }, [selectedDate]);
+
+  // Scroll the week view into the viewport when the user clicks a day in the
+  // monthly grid. Month-nav buttons set selectedDate via the parent without
+  // going through handleCellClick, so they intentionally don't trigger this.
+  const desktopWeekRef = useRef<HTMLDivElement>(null);
+  const mobileWeekRef = useRef<HTMLDivElement>(null);
+  const handleCellClick = useCallback((day: Date) => {
+    onSelectDate(day);
+    // rAF defers to after React commits the (possibly newly-mounted) week grid.
+    requestAnimationFrame(() => {
+      const isDesktop = typeof window !== 'undefined'
+        && window.matchMedia('(min-width: 1024px)').matches;
+      const target = isDesktop ? desktopWeekRef.current : mobileWeekRef.current;
+      target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }, [onSelectDate]);
 
   return (
     <div className="flex flex-col gap-4 lg:gap-6">
@@ -454,6 +505,16 @@ export function WeeklyCalendar({
             <ChevronRight className="w-5 h-5" />
           </button>
         </div>
+        <div
+          className="hidden md:flex items-center h-9 px-4 bg-secondary/60 border border-border rounded-full shadow-sm"
+          title="Suma zarobków w bieżącym miesiącu"
+        >
+          <span className="text-xs uppercase tracking-wider text-muted-foreground mr-2">Total</span>
+          <span className="text-sm font-bold text-foreground tabular-nums">
+            {new Intl.NumberFormat('pl-PL', { maximumFractionDigits: 0 }).format(totalMonthEarnings)}
+            <span className="text-xs font-normal text-muted-foreground ml-1">PLN</span>
+          </span>
+        </div>
         {topWidget && <div className="flex-1 min-w-0">{topWidget}</div>}
         {(actionButtons || selectedDate) && (
           <div className="flex items-center gap-2">
@@ -470,7 +531,8 @@ export function WeeklyCalendar({
         )}
       </div>
 
-      {/* Month grid — full width */}
+      {/* Month grid + per-week summary column */}
+      <div className="grid gap-3 lg:grid-cols-[1fr_220px]">
       <div className="bg-card border border-border rounded-xl p-2.5">
         {/* Day-of-week header */}
         <div className="grid grid-cols-7 mb-1">
@@ -498,7 +560,7 @@ export function WeeklyCalendar({
               return (
                 <button
                   key={key}
-                  onClick={() => onSelectDate(day)}
+                  onClick={() => handleCellClick(day)}
                   className={`relative flex flex-col items-center gap-0.5 py-2 min-h-[76px] rounded-lg transition-colors ${
                     !inMonth ? 'opacity-40' : ''
                   } ${selected ? 'bg-accent' : 'hover:bg-accent/50'}`}
@@ -566,11 +628,52 @@ export function WeeklyCalendar({
           </div>
       </div>
 
+        {/* Per-week summary column (aligned to grid rows). Hidden on <lg. */}
+        <aside className="hidden lg:flex flex-col gap-1">
+          {/* Spacer matching the height of the day-of-week header (text-[11px] py-1.5 + mb-1) */}
+          <div className="h-[26px] mb-1" />
+          {weekChunks.map(({ start, total }, idx) => {
+            const amount = Math.round(total);
+            const pct = weekMaxEarning > 0 ? amount / weekMaxEarning : 0;
+            let colorClass: string;
+            if (amount === 0) {
+              colorClass = 'text-muted-foreground/60';
+            } else if (pct >= 0.9) {
+              colorClass = 'text-emerald-600 dark:text-emerald-400 font-bold';
+            } else if (pct >= 0.6) {
+              colorClass = 'text-emerald-500 font-semibold';
+            } else if (pct >= 0.3) {
+              colorClass = 'text-emerald-400';
+            } else {
+              colorClass = 'text-amber-500';
+            }
+            return (
+              <div
+                key={start.toISOString()}
+                className="min-h-[76px] flex flex-col justify-center rounded-lg bg-card border border-border px-3"
+              >
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  Tydzień {idx + 1}
+                </div>
+                <div className="text-[10px] text-muted-foreground/70 mb-0.5">
+                  ISO {getISOWeek(start)}
+                </div>
+                <div className={`text-sm leading-tight ${colorClass}`}>
+                  +{amount.toLocaleString('pl-PL')} PLN
+                </div>
+              </div>
+            );
+          })}
+        </aside>
+      </div>
+
+      {summaryBlock}
+
       {/* Week grid — full width, only when a date is selected */}
       {selectedDate ? (
         <>
           {/* Desktop: WeekTimeGrid */}
-          <div className="hidden lg:block bg-card border border-border rounded-xl overflow-hidden">
+          <div ref={desktopWeekRef} className="hidden lg:block bg-card border border-border rounded-xl overflow-hidden">
             <WeekTimeGrid
               weekDays={weekDays}
               eventsByDay={eventsByDay}
@@ -584,7 +687,7 @@ export function WeeklyCalendar({
           </div>
 
           {/* Mobile: event list */}
-          <div className="lg:hidden bg-card border border-border rounded-xl">
+          <div ref={mobileWeekRef} className="lg:hidden bg-card border border-border rounded-xl">
               <div className="flex items-center justify-between px-4 py-3 border-b border-border">
                 <h2 className="text-base font-semibold text-foreground capitalize">
                   {format(selectedDate, 'EEEE, d MMMM', { locale: pl })}
