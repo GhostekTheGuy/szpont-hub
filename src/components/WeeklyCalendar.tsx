@@ -547,11 +547,8 @@ export function WeeklyCalendar({
         )}
       </div>
 
-      {/* Stats moved up: always visible without scrolling past the calendar */}
-      {summaryBlock}
-
-      {/* Row 1: month grid (left) + clickable week list (right) */}
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+      {/* Row 1: month grid (left) + clickable week list (middle) + stats hero (right) */}
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)_minmax(0,2fr)]">
       <div className="bg-card border border-border rounded-xl p-2.5">
         {/* Day-of-week header */}
         <div className="grid grid-cols-7 mb-1">
@@ -681,6 +678,9 @@ export function WeeklyCalendar({
             );
           })}
         </nav>
+
+        {/* Third column: month stats (Hero number) */}
+        {summaryBlock}
       </div>
 
       {/* Row 2: weekly time grid (desktop) / event list (mobile) — full width */}

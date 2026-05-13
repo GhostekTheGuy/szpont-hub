@@ -43,26 +43,6 @@ interface Props {
   refreshKey?: number;
 }
 
-function Metric({
-  label,
-  value,
-  sub,
-  valueColor,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  valueColor?: string;
-}) {
-  return (
-    <div className="flex flex-col">
-      <span className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</span>
-      <span className={`text-sm font-bold tabular-nums ${valueColor || 'text-foreground'}`}>{value}</span>
-      {sub && <span className="text-[10px] text-muted-foreground">{sub}</span>}
-    </div>
-  );
-}
-
 export function MonthlySummaryBlock({ monthStart, monthEnd, monthLabel, onGenerateInvoice, refreshKey }: Props) {
   const [summary, setSummary] = useState<SummaryData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -150,111 +130,125 @@ export function MonthlySummaryBlock({ monthStart, monthEnd, monthLabel, onGenera
   const earningsPct = summary?.previousPeriodEarnings
     ? ((earningsDiff / summary.previousPeriodEarnings) * 100).toFixed(0)
     : null;
-  const hoursDiff = summary ? summary.totalHours - summary.previousPeriodHours : 0;
   const avgRate = summary && summary.totalHours > 0 ? summary.totalEarnings / summary.totalHours : 0;
   const deltaColor =
     earningsDiff > 0 ? 'text-green-500' : earningsDiff < 0 ? 'text-red-500' : 'text-muted-foreground';
-  const hoursDeltaColor =
-    hoursDiff > 0 ? 'text-green-500' : hoursDiff < 0 ? 'text-red-500' : 'text-muted-foreground';
 
   return (
     <>
-      <div className="bg-card border border-border rounded-xl px-4 py-3">
+      <div className="bg-card border border-border rounded-xl p-4 flex flex-col gap-4 h-full min-w-0">
         {loading && !summary ? (
-          <div className="flex items-center justify-center py-2">
+          <div className="flex-1 flex items-center justify-center">
             <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
           </div>
         ) : summary ? (
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-            {/* Zarobki — total + delta as one self-contained metric */}
-            <div className="flex flex-col">
-              <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Zarobki</span>
-              <span className="text-sm font-bold tabular-nums text-foreground">
-                {summary.totalEarnings.toLocaleString('pl-PL', { maximumFractionDigits: 0 })} PLN
-              </span>
+          <>
+            {/* Hero — total earnings */}
+            <section>
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Zarobki</div>
+              <div className="text-3xl font-bold tabular-nums text-foreground leading-tight mt-0.5">
+                {summary.totalEarnings.toLocaleString('pl-PL', { maximumFractionDigits: 0 })}
+                <span className="text-base font-medium text-muted-foreground ml-1">PLN</span>
+              </div>
               {summary.previousPeriodEarnings > 0 && (
-                <span className={`text-[10px] flex items-center gap-0.5 tabular-nums ${deltaColor}`}>
-                  {earningsDiff > 0 ? <TrendingUp className="w-2.5 h-2.5" /> : earningsDiff < 0 ? <TrendingDown className="w-2.5 h-2.5" /> : <Minus className="w-2.5 h-2.5" />}
-                  {earningsPct !== null && `${earningsDiff > 0 ? '+' : ''}${earningsPct}%`}
+                <div className={`flex items-center gap-1 text-xs tabular-nums mt-1 ${deltaColor}`}>
+                  {earningsDiff > 0 ? (
+                    <TrendingUp className="w-3.5 h-3.5" />
+                  ) : earningsDiff < 0 ? (
+                    <TrendingDown className="w-3.5 h-3.5" />
+                  ) : (
+                    <Minus className="w-3.5 h-3.5" />
+                  )}
+                  <span className="font-semibold">
+                    {earningsPct !== null && `${earningsDiff > 0 ? '+' : ''}${earningsPct}%`}
+                  </span>
                   <span className="text-muted-foreground ml-1">
                     ({earningsDiff >= 0 ? '+' : ''}{earningsDiff.toLocaleString('pl-PL', { maximumFractionDigits: 0 })} PLN)
                   </span>
-                </span>
+                </div>
               )}
-            </div>
-            <div className="flex flex-col">
-              <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Godziny</span>
-              <span className="text-sm font-bold tabular-nums text-foreground">
-                {summary.totalHours.toFixed(1)}h
-              </span>
-              {summary.previousPeriodHours > 0 && (
-                <span className={`text-[10px] flex items-center gap-0.5 ${hoursDeltaColor}`}>
-                  {hoursDiff > 0 ? <TrendingUp className="w-2.5 h-2.5" /> : hoursDiff < 0 ? <TrendingDown className="w-2.5 h-2.5" /> : <Minus className="w-2.5 h-2.5" />}
-                  {hoursDiff > 0 ? '+' : ''}{hoursDiff.toFixed(1)}h
-                </span>
-              )}
-            </div>
-            <Metric
-              label="Śr. stawka"
-              value={`${avgRate.toFixed(0)} PLN/h`}
-              sub={`${summary.confirmedCount}/${summary.eventCount} potw.`}
-            />
+            </section>
 
-            {/* Wallet breakdown — compact inline */}
+            {/* Meta — hours, rate, confirmed ratio */}
+            <section className="border-t border-border pt-3 space-y-1">
+              <div className="flex items-baseline justify-between text-sm">
+                <span className="text-muted-foreground">Godziny</span>
+                <span className="font-semibold tabular-nums text-foreground">
+                  {summary.totalHours.toFixed(1)}h
+                </span>
+              </div>
+              <div className="flex items-baseline justify-between text-sm">
+                <span className="text-muted-foreground">Śr. stawka</span>
+                <span className="font-semibold tabular-nums text-foreground">
+                  {avgRate.toFixed(0)} PLN/h
+                </span>
+              </div>
+              <div className="flex items-baseline justify-between text-xs">
+                <span className="text-muted-foreground">Potwierdzone</span>
+                <span className="text-muted-foreground tabular-nums">
+                  {summary.confirmedCount}/{summary.eventCount}
+                </span>
+              </div>
+            </section>
+
+            {/* Wallet breakdown */}
             {summary.byWallet.length > 0 && (
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-l border-border pl-4">
+              <section className="border-t border-border pt-3 space-y-1.5">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Per portfel</div>
                 {summary.byWallet.map(w => (
-                  <div key={w.id} className="flex items-center gap-1.5">
-                    <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: w.color || 'var(--primary)' }} />
-                    <span className="text-xs text-foreground truncate max-w-[110px]">{w.name}</span>
-                    <span className="text-xs font-medium text-foreground tabular-nums">
+                  <div key={w.id} className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: w.color || 'var(--primary)' }} />
+                      <span className="text-sm text-foreground truncate">{w.name}</span>
+                    </div>
+                    <span className="text-sm font-medium tabular-nums text-foreground shrink-0">
                       {w.earnings.toLocaleString('pl-PL', { maximumFractionDigits: 0 })}
                     </span>
                   </div>
                 ))}
-              </div>
+              </section>
             )}
 
-            {/* Actions — pushed right */}
-            <div className="flex flex-wrap items-center gap-2 ml-auto">
+            {/* Actions — vertical stack at the bottom */}
+            <section className="border-t border-border pt-3 flex flex-col gap-1.5 mt-auto">
               {summary.eventCount > 0 && (
                 <button
                   onClick={openInsight}
-                  className="flex items-center gap-1.5 bg-secondary hover:bg-accent text-secondary-foreground text-sm font-medium px-3 py-2 rounded-lg transition-colors border border-border"
+                  className="w-full flex items-center justify-center gap-2 bg-secondary hover:bg-accent text-secondary-foreground text-sm font-medium px-3 py-2 rounded-lg transition-colors border border-border"
                 >
-                  <Sparkles className="w-3.5 h-3.5" />
+                  <Sparkles className="w-4 h-4" />
                   AI Insight
-                </button>
-              )}
-              {onGenerateInvoice && summary.totalEarnings > 0 && (
-                <button
-                  onClick={onGenerateInvoice}
-                  className="flex items-center gap-1.5 bg-secondary hover:bg-accent text-secondary-foreground text-sm font-medium px-3 py-2 rounded-lg transition-colors border border-border"
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  Dokument
                 </button>
               )}
               <a
                 href="/invoices"
-                className="flex items-center gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium px-3 py-2 rounded-lg transition-colors"
+                className="w-full flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-medium px-3 py-2 rounded-lg transition-colors"
               >
-                <FileText className="w-3.5 h-3.5" />
+                <FileText className="w-4 h-4" />
                 Faktura
               </a>
+              {onGenerateInvoice && summary.totalEarnings > 0 && (
+                <button
+                  onClick={onGenerateInvoice}
+                  className="w-full flex items-center justify-center gap-2 bg-secondary hover:bg-accent text-secondary-foreground text-sm font-medium px-3 py-2 rounded-lg transition-colors border border-border"
+                >
+                  <FileText className="w-4 h-4" />
+                  Dokument
+                </button>
+              )}
               {summary.totalEarnings > 0 && (
                 <button
                   onClick={() => setTaxOpen(true)}
-                  className="flex items-center gap-1.5 bg-secondary hover:bg-accent text-secondary-foreground text-sm font-medium px-3 py-2 rounded-lg transition-colors border border-border"
+                  className="w-full flex items-center justify-center gap-2 bg-secondary hover:bg-accent text-secondary-foreground text-sm font-medium px-3 py-2 rounded-lg transition-colors border border-border"
                 >
-                  <Calculator className="w-3.5 h-3.5" />
+                  <Calculator className="w-4 h-4" />
                   Podatek
                 </button>
               )}
-            </div>
-          </div>
+            </section>
+          </>
         ) : (
-          <div className="text-center text-muted-foreground py-2 text-sm">
+          <div className="flex-1 flex items-center justify-center text-center text-muted-foreground text-sm">
             Brak danych za ten miesiąc
           </div>
         )}
