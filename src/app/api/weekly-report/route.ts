@@ -91,7 +91,7 @@ Odpowiedz TYLKO tekstem raportu, bez nagłówków ani formatowania markdown.`;
           Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          model: "meta-llama/llama-4-scout-17b-16e-instruct",
+          model: "llama-3.3-70b-versatile",
           messages: [{ role: "user", content: prompt }],
           max_tokens: 512,
           temperature: 0.7,
