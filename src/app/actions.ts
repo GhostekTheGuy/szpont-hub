@@ -350,14 +350,16 @@ export async function getWalletChartData(
   const startStr = startDate.toISOString().split('T')[0];
   const endStr = today.toISOString().split('T')[0];
 
-  const { wallets, transactions } = await fetchWalletsAndTransactions(userId);
+  // Parallel: wallet+transactions fetch and exchange rates (independent)
+  const [{ wallets, transactions }, currentRates] = await Promise.all([
+    fetchWalletsAndTransactions(userId),
+    getExchangeRates(),
+  ]);
   const wallet = wallets.find(w => w.id === walletId);
   if (!wallet) return null;
 
   // Uwzględnij WSZYSTKIE transakcje dla tego portfela — saldo = initial_balance + sum(transactions)
   const walletTransactions = transactions.filter(t => t.wallet === walletId);
-
-  const currentRates = await getExchangeRates();
 
   const currentBalance = convertAmount(wallet.balance, 'PLN', displayCurrency, currentRates);
 
@@ -435,16 +437,19 @@ export async function addTransactionAction(data: {
   if (data.description && (typeof data.description !== 'string' || data.description.length > 500)) throw new Error("Invalid description");
   if (data.date && !/^\d{4}-\d{2}-\d{2}$/.test(data.date)) throw new Error("Invalid date");
 
-  const dek = await getDEK();
   const currency: Currency = data.currency && ['PLN', 'USD', 'EUR'].includes(data.currency) ? data.currency as Currency : 'PLN';
 
-  // 1. Pobierz portfel
-  const { data: wallet, error: walletError } = await supabaseAdmin
-    .from('wallets')
-    .select('*')
-    .eq('id', data.wallet)
-    .eq('user_id', userId)
-    .single();
+  // 1. Parallel fetch: DEK + wallet + exchange rates (all independent)
+  const [dek, { data: wallet, error: walletError }, rates] = await Promise.all([
+    getDEK(),
+    supabaseAdmin
+      .from('wallets')
+      .select('*')
+      .eq('id', data.wallet)
+      .eq('user_id', userId)
+      .single(),
+    getExchangeRates(),
+  ]);
 
   if (walletError || !wallet) {
     console.error('Error finding wallet:', walletError);
@@ -455,7 +460,6 @@ export async function addTransactionAction(data: {
   const currentBalance = decryptNumber(wallet.balance, dek);
 
   // Przelicz kwotę na PLN dla salda portfela
-  const rates = await getExchangeRates();
   const amountInPLN = convertAmount(data.amount, currency, 'PLN', rates);
 
   // 2. Dodaj transakcję (zaszyfrowane pola)
@@ -574,13 +578,16 @@ export async function deleteTransactionAction(id: string) {
   const userId = await getUserId();
   if (!userId) throw new Error("Unauthorized");
 
-  const dek = await getDEK();
-
-  const { data: transaction } = await supabaseAdmin
-    .from('transactions')
-    .select('*, wallet:wallets(*)')
-    .eq('id', id)
-    .single();
+  // Parallel: DEK + transaction (w/ wallet) + rates (all independent)
+  const [dek, { data: transaction }, rates] = await Promise.all([
+    getDEK(),
+    supabaseAdmin
+      .from('transactions')
+      .select('*, wallet:wallets(*)')
+      .eq('id', id)
+      .single(),
+    getExchangeRates(),
+  ]);
 
   if (!transaction || transaction.wallet?.user_id !== userId) return;
 
@@ -590,7 +597,6 @@ export async function deleteTransactionAction(id: string) {
 
   // Przelicz na PLN jeśli inna waluta
   const currency: Currency = transaction.currency || 'PLN';
-  const rates = await getExchangeRates();
   const amountInPLN = convertAmount(transactionAmount, currency, 'PLN', rates);
 
   // Cofnij saldo w PLN (zaszyfrowane)
@@ -669,14 +675,16 @@ export async function editTransactionAction(id: string, data: {
   if (typeof data?.category !== 'string' || data.category.length > 100) throw new Error("Invalid category");
   if (data.date && !/^\d{4}-\d{2}-\d{2}$/.test(data.date)) throw new Error("Invalid date");
 
-  const dek = await getDEK();
-  const rates = await getExchangeRates();
-
-  const { data: oldTransaction } = await supabaseAdmin
-    .from('transactions')
-    .select('*, wallet:wallets(*)')
-    .eq('id', id)
-    .single();
+  // Parallel: DEK + rates + old transaction (all independent)
+  const [dek, rates, { data: oldTransaction }] = await Promise.all([
+    getDEK(),
+    getExchangeRates(),
+    supabaseAdmin
+      .from('transactions')
+      .select('*, wallet:wallets(*)')
+      .eq('id', id)
+      .single(),
+  ]);
 
   if (!oldTransaction || oldTransaction.wallet?.user_id !== userId) return;
 
@@ -862,16 +870,16 @@ export async function recalculateWalletBalance(walletId: string) {
   const userId = await getUserId();
   if (!userId) throw new Error("Unauthorized");
 
-  const dek = await getDEK();
-
-  const [{ data: wallet }, { data: transactions }] = await Promise.all([
+  // Parallel: DEK + wallet + transactions + rates (all independent)
+  const [dek, { data: wallet }, { data: transactions }, rates] = await Promise.all([
+    getDEK(),
     supabaseAdmin.from('wallets').select('*').eq('id', walletId).eq('user_id', userId).single(),
     supabaseAdmin.from('transactions').select('*').eq('wallet_id', walletId),
+    getExchangeRates(),
   ]);
 
   if (!wallet) throw new Error("Wallet not found");
 
-  const rates = await getExchangeRates();
   const initialBalance = wallet.initial_balance ? decryptNumber(wallet.initial_balance, dek) : 0;
 
   let balance = initialBalance;
@@ -1961,43 +1969,54 @@ export async function settleWeekAction(weekStart: string, weekEnd: string) {
     );
   }
 
-  // Najpierw oznacz eventy jako settled (zapobiega podwójnemu rozliczeniu)
+  // Najpierw oznacz eventy jako settled (zapobiega podwójnemu rozliczeniu) +
+  // równolegle pobierz aktualne salda portfeli, żeby uniknąć N round-tripów
+  // wewnątrz pętli niżej.
   const eventIds = filteredEvents.map(e => e.id);
-  await supabaseAdmin
-    .from('calendar_events')
-    .update({ is_settled: true })
-    .in('id', eventIds);
+  const walletIds = Array.from(walletEarnings.keys());
+  const weekDate = weekStart.split('T')[0];
+  const createdAt = new Date().toISOString();
 
-  // Stwórz transakcje income i zaktualizuj salda — sekwencyjnie per portfel, aby uniknąć race condition
-  for (const [walletId, totalEarnings] of Array.from(walletEarnings.entries())) {
-    await supabaseAdmin
-      .from('transactions')
-      .insert({
-        id: nanoid(),
-        amount: encryptNumber(totalEarnings, dek),
-        category: encryptString('Praca', dek),
-        description: encryptString(`Zarobki za tydzień ${weekStart.split('T')[0]}`, dek),
-        type: 'income',
-        date: weekStart.split('T')[0],
-        wallet_id: walletId,
-        currency: 'PLN',
-        created_at: new Date().toISOString(),
-      });
-
-    const { data: wallet } = await supabaseAdmin
+  const [, { data: walletsData }] = await Promise.all([
+    supabaseAdmin
+      .from('calendar_events')
+      .update({ is_settled: true })
+      .in('id', eventIds),
+    supabaseAdmin
       .from('wallets')
-      .select('balance')
-      .eq('id', walletId)
-      .single();
+      .select('id, balance')
+      .in('id', walletIds),
+  ]);
 
-    if (!wallet) continue;
+  const balanceById = new Map(
+    (walletsData || []).map(w => [w.id, decryptNumber(w.balance, dek)])
+  );
 
-    const currentBalance = decryptNumber(wallet.balance, dek);
-    await supabaseAdmin
-      .from('wallets')
-      .update({ balance: encryptNumber(currentBalance + totalEarnings, dek) })
-      .eq('id', walletId);
-  }
+  // Bulk insert all weekly-earnings transactions in a single round-trip.
+  const transactionsToInsert = Array.from(walletEarnings.entries()).map(([walletId, totalEarnings]) => ({
+    id: nanoid(),
+    amount: encryptNumber(totalEarnings, dek),
+    category: encryptString('Praca', dek),
+    description: encryptString(`Zarobki za tydzień ${weekDate}`, dek),
+    type: 'income',
+    date: weekDate,
+    wallet_id: walletId,
+    currency: 'PLN',
+    created_at: createdAt,
+  }));
+
+  // Update balances in parallel — different wallet IDs, no race between them.
+  await Promise.all([
+    supabaseAdmin.from('transactions').insert(transactionsToInsert),
+    ...Array.from(walletEarnings.entries()).map(([walletId, totalEarnings]) => {
+      const current = balanceById.get(walletId);
+      if (current === undefined) return Promise.resolve();
+      return supabaseAdmin
+        .from('wallets')
+        .update({ balance: encryptNumber(current + totalEarnings, dek) })
+        .eq('id', walletId);
+    }),
+  ]);
 
   revalidatePages('calendar', 'wallets', 'dashboard');
   return { settled: filteredEvents.length };
