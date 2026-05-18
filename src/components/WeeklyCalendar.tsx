@@ -609,7 +609,7 @@ export function WeeklyCalendar({
             mobile event list on smaller screens). Falls below the monthly
             card on <lg by grid auto-flow. */}
         {/* Clickable week list — fills the column height to match the monthly card */}
-        <nav className="bg-card border border-border rounded-xl p-2 flex flex-col gap-0.5 min-w-0">
+        <nav className="bg-card border border-border rounded-xl p-2 hidden lg:flex flex-col gap-0.5 min-w-0">
           {weekChunks.map(({ start, total }, idx) => {
             const weekEnd = addDays(start, 6);
             const isActive = !!(selectedDate && selectedDate >= start && selectedDate <= weekEnd);
@@ -641,8 +641,8 @@ export function WeeklyCalendar({
           })}
         </nav>
 
-        {/* Third column: month stats (Hero number) */}
-        {summaryBlock}
+        {/* Third column: month stats (Hero number) — desktop only; mobile renders below row 2 */}
+        <div className="hidden lg:block">{summaryBlock}</div>
       </div>
 
       {/* Row 2: weekly time grid (desktop) / event list (mobile) — full width */}
@@ -786,6 +786,9 @@ export function WeeklyCalendar({
         </div>
       )}
       </div>
+
+      {/* Mobile-only: monthly summary below the day list (desktop renders it in row 1) */}
+      <div className="lg:hidden">{summaryBlock}</div>
     </div>
   );
 }
