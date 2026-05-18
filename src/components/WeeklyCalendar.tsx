@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useEffect, useRef, useState, useCallback, memo } from 'react';
+import { useMemo, useEffect, useLayoutEffect, useRef, useState, useCallback, memo } from 'react';
 import {
   format,
   isToday,
@@ -19,7 +19,9 @@ import { formatLocalDateTime } from '@/lib/calendar-utils';
 import { Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { CalendarEvent, Order } from '@/hooks/useFinanceStore';
 
-const HOUR_HEIGHT = 48;
+const HOUR_HEIGHT_DEFAULT = 48;
+const MIN_HOUR_HEIGHT = 32;
+const STICKY_HEADER_PX = 64;
 // Default visible window — covers ~99% of realistic schedules (gym at 6, late client at 22).
 // Expanded automatically if any event in the displayed week falls outside.
 const DEFAULT_DAY_START_HOUR = 6;
@@ -47,10 +49,13 @@ function useEventDrag(
   onEventMove?: (event: CalendarEvent, newStart: string, newEnd: string) => void,
   gridRef?: React.RefObject<HTMLDivElement | null>,
   weekDaysRef?: React.MutableRefObject<Date[]>,
+  hourHeight: number = HOUR_HEIGHT_DEFAULT,
 ) {
   const dragRef = useRef<DragInfo | null>(null);
   const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const didDragRef = useRef(false);
+  const hourHeightRef = useRef(hourHeight);
+  hourHeightRef.current = hourHeight;
   const [, setTick] = useState(0);
   const rerender = useCallback(() => setTick(t => t + 1), []);
 
@@ -98,7 +103,7 @@ function useEventDrag(
       }
       e.preventDefault();
       const dy = e.clientY - info.startY;
-      const deltaMin = Math.round((dy / HOUR_HEIGHT) * 60 / SNAP_MINUTES) * SNAP_MINUTES;
+      const deltaMin = Math.round((dy / hourHeightRef.current) * 60 / SNAP_MINUTES) * SNAP_MINUTES;
       const newMin = Math.max(0, Math.min(24 * 60 - info.durationMin, info.originalStartMin + deltaMin));
 
       let dayChanged = false;
@@ -810,7 +815,18 @@ const WeekTimeGrid = memo(function WeekTimeGrid({
   const dayColumnsRef = useRef<HTMLDivElement>(null);
   const weekDaysRef = useRef(weekDays);
   weekDaysRef.current = weekDays;
-  const { handlePointerDown, activeDrag, didDragRef } = useEventDrag(onEventMove, dayColumnsRef, weekDaysRef);
+
+  // Fit-to-viewport sizing — hourHeight grows to fill available height under
+  // the grid; if rows would compress below MIN_HOUR_HEIGHT, fall back to
+  // inner scroll. See plan: co-my-lisz-o-tym-humble-token.md
+  const [gridSize, setGridSize] = useState({
+    hourHeight: HOUR_HEIGHT_DEFAULT,
+    available: HOUR_HEIGHT_DEFAULT * 15,
+    scrollEnabled: true,
+  });
+  const { hourHeight, available: availableForGrid, scrollEnabled } = gridSize;
+
+  const { handlePointerDown, activeDrag, didDragRef } = useEventDrag(onEventMove, dayColumnsRef, weekDaysRef, hourHeight);
 
   // Collect all events for this week to determine scroll position and adaptive range
   const allWeekEvents = useMemo(() => {
@@ -847,7 +863,49 @@ const WeekTimeGrid = memo(function WeekTimeGrid({
     [visibleRange]
   );
 
+  // Measure available viewport space below the grid container and pick an
+  // hourHeight that fits all `hours.length` rows. If clamped to MIN, enable
+  // inner scroll as a fallback.
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    let raf = 0;
+    const measure = () => {
+      if (raf) cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const rect = el.getBoundingClientRect();
+        const available = Math.max(200, window.innerHeight - rect.top - 8);
+        const rows = hours.length;
+        if (rows <= 0) return;
+        const ideal = Math.floor((available - STICKY_HEADER_PX) / rows);
+        const nextHourHeight = Math.max(MIN_HOUR_HEIGHT, ideal);
+        const nextScroll = ideal < MIN_HOUR_HEIGHT;
+        setGridSize(prev =>
+          prev.hourHeight === nextHourHeight &&
+          prev.available === available &&
+          prev.scrollEnabled === nextScroll
+            ? prev
+            : { hourHeight: nextHourHeight, available, scrollEnabled: nextScroll }
+        );
+      });
+    };
+
+    measure();
+    // document.body observer catches layout shifts from sibling content
+    // (summary block load, month grid resize) without feedback loops on `el`.
+    const ro = new ResizeObserver(measure);
+    ro.observe(document.body);
+    window.addEventListener('resize', measure);
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+      ro.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [hours.length]);
+
   useEffect(() => {
+    if (!scrollEnabled) return;
     if (!scrollRef.current) return;
     let scrollToHour: number;
     // Prefer the first event of the selected day — gives the user the grid
@@ -873,9 +931,9 @@ const WeekTimeGrid = memo(function WeekTimeGrid({
       const today = weekDays.find(d => isToday(d));
       scrollToHour = today ? Math.max(visibleRange.start, new Date().getHours() - 2) : Math.max(visibleRange.start, 8);
     }
-    scrollRef.current.scrollTop = (scrollToHour - visibleRange.start) * HOUR_HEIGHT;
+    scrollRef.current.scrollTop = (scrollToHour - visibleRange.start) * hourHeight;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [weekDays, selectedDate, eventsByDay, visibleRange.start]);
+  }, [weekDays, selectedDate, eventsByDay, visibleRange.start, scrollEnabled, hourHeight]);
 
   // Memoize layout computation per day
   const layoutByDay = useMemo(() => {
@@ -889,13 +947,17 @@ const WeekTimeGrid = memo(function WeekTimeGrid({
   }, [weekDays, eventsByDay]);
 
   const nowMinutes = useNowMinutes();
-  const nowTop = ((nowMinutes - visibleRange.start * 60) / 60) * HOUR_HEIGHT;
+  const nowTop = ((nowMinutes - visibleRange.start * 60) / 60) * hourHeight;
 
   return (
     <div
       ref={scrollRef}
-      className="overflow-y-auto"
-      style={{ maxHeight: 15 * HOUR_HEIGHT + 64 }}
+      className={scrollEnabled ? 'overflow-y-auto' : 'overflow-hidden'}
+      style={
+        scrollEnabled
+          ? { maxHeight: availableForGrid }
+          : { height: hours.length * hourHeight + STICKY_HEADER_PX }
+      }
     >
       {/* Day column headers — sticky inside the scroll container so its width
           matches the hour grid below (both share the same scrollbar gutter). */}
@@ -929,14 +991,14 @@ const WeekTimeGrid = memo(function WeekTimeGrid({
         })}
       </div>
 
-      <div className="relative flex" style={{ height: hours.length * HOUR_HEIGHT }}>
+      <div className="relative flex" style={{ height: hours.length * hourHeight }}>
           {/* Time labels */}
           <div className="w-14 shrink-0 relative">
             {hours.map((hour) => (
               <div
                 key={hour}
                 className="absolute right-3 text-xs text-muted-foreground -translate-y-1/2"
-                style={{ top: (hour - visibleRange.start) * HOUR_HEIGHT }}
+                style={{ top: (hour - visibleRange.start) * hourHeight }}
               >
                 {String(hour).padStart(2, '0')}:00
               </div>
@@ -960,7 +1022,7 @@ const WeekTimeGrid = memo(function WeekTimeGrid({
                   <div
                     key={hour}
                     className="absolute w-full border-t border-border/40 cursor-pointer hover:bg-accent/20 transition-colors"
-                    style={{ top: (hour - visibleRange.start) * HOUR_HEIGHT, height: HOUR_HEIGHT }}
+                    style={{ top: (hour - visibleRange.start) * hourHeight, height: hourHeight }}
                     onClick={() => onSlotClick(day, hour)}
                   />
                 ))}
@@ -982,8 +1044,8 @@ const WeekTimeGrid = memo(function WeekTimeGrid({
                   const draggedAway = dragged && activeDrag.currentDayIndex !== dayIndex;
                   const displayStartMin = dragged && !draggedAway ? activeDrag.currentStartMin : startMin;
                   const displayEndMin = displayStartMin + durationMin;
-                  const top = ((displayStartMin - visibleRange.start * 60) / 60) * HOUR_HEIGHT;
-                  const height = Math.max((durationMin / 60) * HOUR_HEIGHT, 20);
+                  const top = ((displayStartMin - visibleRange.start * 60) / 60) * hourHeight;
+                  const height = Math.max((durationMin / 60) * hourHeight, 20);
                   const eventHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
                   const earnings = eventHours * event.hourly_rate;
                   const color = getEventColor(event);
@@ -1067,8 +1129,8 @@ const WeekTimeGrid = memo(function WeekTimeGrid({
                 {isDragTarget && (() => {
                   const ev = activeDrag.event;
                   const ghostColor = getEventColor(ev);
-                  const ghostTop = ((activeDrag.currentStartMin - visibleRange.start * 60) / 60) * HOUR_HEIGHT;
-                  const ghostHeight = Math.max((activeDrag.durationMin / 60) * HOUR_HEIGHT, 20);
+                  const ghostTop = ((activeDrag.currentStartMin - visibleRange.start * 60) / 60) * hourHeight;
+                  const ghostHeight = Math.max((activeDrag.durationMin / 60) * hourHeight, 20);
                   const ghostEndMin = activeDrag.currentStartMin + activeDrag.durationMin;
                   return (
                     <div
