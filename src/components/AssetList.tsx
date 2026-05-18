@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import Image from 'next/image';
 import { Asset, useFinanceStore } from '@/hooks/useFinanceStore';
 import { TrendingUp, TrendingDown, Coins, Edit2, Trash2, BadgeDollarSign } from 'lucide-react';
@@ -51,7 +52,7 @@ interface AssetListProps {
   standalone?: boolean;
 }
 
-export function AssetList({ assets, onEdit, onDelete, onSell, standalone }: AssetListProps) {
+export const AssetList = memo(function AssetList({ assets, onEdit, onDelete, onSell, standalone }: AssetListProps) {
   const balanceMasked = useFinanceStore(s => s.balanceMasked);
   const totalValue = assets.reduce((sum, asset) => sum + asset.total_value, 0);
 
@@ -194,4 +195,4 @@ export function AssetList({ assets, onEdit, onDelete, onSell, standalone }: Asse
       </div>
     </div>
   );
-}
+});

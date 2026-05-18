@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { WalletCard } from '@/components/WalletCard';
@@ -140,25 +140,25 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
     return { totalNetWorth: netWorth, totalIncome: income, totalOutcome: outcome, profit: income - outcome, periodLabel: range };
   }, [wallets, assets, transactions, range, displayCurrency, exchangeRates]);
 
-  const handleDeleteTransaction = async (id: string) => {
+  const handleDeleteTransaction = useCallback(async (id: string) => {
     if (await confirm({ title: 'Czy na pewno chcesz usunąć tę transakcję?', variant: 'danger', confirmLabel: 'Usuń' })) await deleteTransactionAction(id);
-  };
+  }, [confirm]);
 
-  const handleDeleteWallet = async (id: string) => {
+  const handleDeleteWallet = useCallback(async (id: string) => {
     if (await confirm({ title: 'Czy na pewno chcesz usunąć ten portfel?', variant: 'danger', confirmLabel: 'Usuń' })) await deleteWalletAction(id);
-  };
+  }, [confirm]);
 
-  const handleDeleteGoal = async (id: string) => {
+  const handleDeleteGoal = useCallback(async (id: string) => {
     if (await confirm({ title: 'Czy na pewno chcesz usunąć ten cel?', variant: 'danger', confirmLabel: 'Usuń' })) await deleteGoalAction(id);
-  };
+  }, [confirm]);
 
-  const handleRecalculate = async (id: string) => {
+  const handleRecalculate = useCallback(async (id: string) => {
     try {
       await recalculateWalletBalance(id);
     } catch (error) {
       console.error(error);
     }
-  };
+  }, []);
 
   const profitPercent = stats.totalOutcome > 0 ? (stats.profit / stats.totalOutcome) * 100 : 0;
 
