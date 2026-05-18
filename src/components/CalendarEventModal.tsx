@@ -290,6 +290,7 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
   };
 
   return (
+    <>
     <AnimatePresence>
       {isOpen && (
         <motion.div
@@ -324,53 +325,6 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
                 <X className="w-5 h-5" />
               </button>
             </div>
-
-            {/* Recurring delete options overlay */}
-            <AnimatePresence>
-              {showDeleteOptions && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 10 }}
-                  transition={{ duration: 0.15 }}
-                  className="mb-6 p-4 bg-destructive/5 border border-destructive/20 rounded-xl space-y-2"
-                >
-                  <p className="text-sm font-medium text-card-foreground mb-3">Jak chcesz usunąć to wydarzenie?</p>
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteRecurring('this')}
-                    disabled={loading}
-                    className="w-full text-left px-3 py-2.5 text-sm rounded-lg hover:bg-destructive/10 text-foreground transition-colors disabled:opacity-50"
-                  >
-                    Tylko to wydarzenie
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteRecurring('this_and_future')}
-                    disabled={loading}
-                    className="w-full text-left px-3 py-2.5 text-sm rounded-lg hover:bg-destructive/10 text-foreground transition-colors disabled:opacity-50"
-                  >
-                    To i przyszłe wydarzenia
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteRecurring('all')}
-                    disabled={loading}
-                    className="w-full text-left px-3 py-2.5 text-sm rounded-lg hover:bg-destructive/10 text-foreground transition-colors disabled:opacity-50"
-                  >
-                    Wszystkie wydarzenia
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowDeleteOptions(false)}
-                    disabled={loading}
-                    className="w-full text-center px-3 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-                  >
-                    Anuluj
-                  </button>
-                </motion.div>
-              )}
-            </AnimatePresence>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* Event type toggle */}
@@ -581,5 +535,66 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
         </motion.div>
       )}
     </AnimatePresence>
+
+    {/* Recurring delete options popup */}
+    <AnimatePresence>
+      {showDeleteOptions && (
+        <motion.div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          onClick={() => { if (!loading) setShowDeleteOptions(false); }}
+        >
+          <motion.div
+            className="bg-card border border-border rounded-xl p-6 w-full max-w-sm shadow-xl"
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold text-card-foreground mb-2">Usuń cykliczne wydarzenie</h3>
+            <p className="text-sm text-muted-foreground mb-4">Jak chcesz usunąć to wydarzenie?</p>
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => handleDeleteRecurring('this')}
+                disabled={loading}
+                className="w-full text-left px-4 py-2.5 text-sm font-medium rounded-lg bg-secondary hover:bg-accent text-secondary-foreground transition-colors disabled:opacity-50"
+              >
+                Tylko to wydarzenie
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDeleteRecurring('this_and_future')}
+                disabled={loading}
+                className="w-full text-left px-4 py-2.5 text-sm font-medium rounded-lg bg-secondary hover:bg-accent text-secondary-foreground transition-colors disabled:opacity-50"
+              >
+                To i przyszłe wydarzenia
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDeleteRecurring('all')}
+                disabled={loading}
+                className="w-full text-left px-4 py-2.5 text-sm font-medium rounded-lg bg-destructive/10 hover:bg-destructive/20 text-destructive transition-colors disabled:opacity-50"
+              >
+                Wszystkie wydarzenia
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowDeleteOptions(false)}
+                disabled={loading}
+                className="w-full text-center px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+              >
+                Anuluj
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+    </>
   );
 }
