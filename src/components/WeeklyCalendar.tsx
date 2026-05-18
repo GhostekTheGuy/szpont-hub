@@ -870,15 +870,15 @@ const WeekTimeGrid = memo(function WeekTimeGrid({
   // hourHeight that fits all `hours.length` rows. If clamped to MIN, enable
   // inner scroll as a fallback.
   useLayoutEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-
     let raf = 0;
     const measure = () => {
       if (raf) cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
-        const rect = el.getBoundingClientRect();
-        const available = Math.max(200, window.innerHeight - rect.top - 8);
+        // Grid is always sized to the viewport — independent of its position
+        // in document flow. Default desktop view places it below the 3-feature
+        // row; scrollIntoView (from day/week click) snaps it to the viewport
+        // top and it fills the screen.
+        const available = Math.max(200, window.innerHeight - 16);
         const rows = hours.length;
         if (rows <= 0) return;
         const ideal = Math.floor((available - STICKY_HEADER_PX) / rows);
@@ -895,14 +895,9 @@ const WeekTimeGrid = memo(function WeekTimeGrid({
     };
 
     measure();
-    // document.body observer catches layout shifts from sibling content
-    // (summary block load, month grid resize) without feedback loops on `el`.
-    const ro = new ResizeObserver(measure);
-    ro.observe(document.body);
     window.addEventListener('resize', measure);
     return () => {
       if (raf) cancelAnimationFrame(raf);
-      ro.disconnect();
       window.removeEventListener('resize', measure);
     };
   }, [hours.length]);
