@@ -34,7 +34,14 @@ export function WeeklyReportModal() {
       }
 
       if (!res.ok) {
-        setError({ type: 'generic', message: 'Wystąpił błąd podczas generowania raportu.' });
+        const body = await res.json().catch(() => ({} as Record<string, unknown>));
+        const upstream = typeof body.upstreamStatus === 'number' ? ` (upstream ${body.upstreamStatus})` : '';
+        const detailsRaw = typeof body.details === 'string' ? body.details : '';
+        const details = detailsRaw ? ` — ${detailsRaw.slice(0, 200)}` : '';
+        setError({
+          type: 'generic',
+          message: `Wystąpił błąd podczas generowania raportu${upstream}${details}`,
+        });
         return;
       }
 

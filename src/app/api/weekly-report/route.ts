@@ -101,8 +101,15 @@ Odpowiedz TYLKO tekstem raportu, bez nagłówków ani formatowania markdown.`;
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("Groq API error:", errorText);
-      return NextResponse.json({ error: "Błąd API AI" }, { status: 502 });
+      console.error("Groq API error:", response.status, errorText);
+      return NextResponse.json(
+        {
+          error: "Błąd API AI",
+          upstreamStatus: response.status,
+          details: errorText.slice(0, 500),
+        },
+        { status: 502 }
+      );
     }
 
     const result = await response.json();
