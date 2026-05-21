@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { TrendingUp, TrendingDown, Minus, Loader2, Sparkles, FileText, Calculator, X } from 'lucide-react';
 import { getMonthlySummary } from '@/app/actions';
+import { useFinanceStore, pick } from '@/hooks/useFinanceStore';
 import { calculatePIT } from '@/lib/tax-calculator';
 import { generatePITPDF } from '@/lib/invoice-pdf';
 import { formatLocalDate } from '@/lib/calendar-utils';
@@ -32,8 +33,21 @@ interface SummaryData {
   eventCount: number;
 }
 
-const summaryCache = new Map<string, { data: SummaryData; timestamp: number }>();
-const SUMMARY_CACHE_TTL = 5 * 60 * 1000;
+// Previous-period numbers come from the server (we don't have prior months in
+// the client store). They rarely change from current-month actions, so cache
+// them per month with a generous TTL. Current-period totals are derived
+// client-side from the live store — no cache there.
+const prevCache = new Map<string, { earnings: number; hours: number; timestamp: number }>();
+const PREV_CACHE_TTL = 5 * 60 * 1000;
+
+function getISOWeekLabel(date: Date): string {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
+  const week1 = new Date(d.getFullYear(), 0, 4);
+  const weekNum = 1 + Math.round(((d.getTime() - week1.getTime()) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7);
+  return `Tydzień ${weekNum}`;
+}
 
 interface Props {
   monthStart: string;
@@ -44,8 +58,8 @@ interface Props {
 }
 
 export function MonthlySummaryBlock({ monthStart, monthEnd, monthLabel, onGenerateInvoice, refreshKey }: Props) {
-  const [summary, setSummary] = useState<SummaryData | null>(null);
-  const [loading, setLoading] = useState(false);
+  const { calendarEvents, orders, wallets } = useFinanceStore(pick('calendarEvents', 'orders', 'wallets'));
+  const [prevData, setPrevData] = useState<{ earnings: number; hours: number } | null>(null);
   const [ai, setAi] = useState<{ open: boolean; text: string | null; loading: boolean }>({
     open: false,
     text: null,
@@ -53,37 +67,132 @@ export function MonthlySummaryBlock({ monthStart, monthEnd, monthLabel, onGenera
   });
   const [taxOpen, setTaxOpen] = useState(false);
 
-  const loadSummary = useCallback(async () => {
-    const cacheKey = `${monthStart}|${monthEnd}`;
-    const cached = summaryCache.get(cacheKey);
-    if (cached && Date.now() - cached.timestamp < SUMMARY_CACHE_TTL) {
-      setSummary(cached.data);
-      setLoading(false);
-      return;
+  // Current-period summary derived from the live store. Recomputes on every
+  // optimistic update (toggle confirmed, settle, drag/move, etc.) so the
+  // numbers track the calendar grid in lockstep — no server roundtrip in the
+  // hot path. Date strings are local YYYY-MM-DDTHH:mm:ss; lexicographic
+  // comparison matches chronological order.
+  const currentSummary = useMemo(() => {
+    const walletMap = new Map(wallets.map(w => [w.id, { name: w.name, color: w.color }]));
+    const monthStartDate = monthStart.split('T')[0];
+    const monthEndDate = monthEnd.split('T')[0];
+
+    let total = 0;
+    let totalHours = 0;
+    let workEventCount = 0;
+    let confirmedCount = 0;
+    let unsettledCount = 0;
+    const byWallet = new Map<string, { name: string; color: string; earnings: number; hours: number }>();
+    const weeklyBreakdown = new Map<string, number>();
+
+    for (const e of calendarEvents) {
+      if (e.start_time < monthStart || e.start_time > monthEnd) continue;
+      if ((e.event_type || 'work') !== 'work') continue;
+      workEventCount++;
+      if (!e.is_confirmed) continue;
+      confirmedCount++;
+      if (!e.is_settled) unsettledCount++;
+
+      const hours = (new Date(e.end_time).getTime() - new Date(e.start_time).getTime()) / 3_600_000;
+      const earnings = hours * e.hourly_rate;
+      total += earnings;
+      totalHours += hours;
+
+      const weekNum = getISOWeekLabel(new Date(e.start_time));
+      weeklyBreakdown.set(weekNum, (weeklyBreakdown.get(weekNum) || 0) + earnings);
+
+      if (e.wallet_id) {
+        const wallet = walletMap.get(e.wallet_id);
+        const existing = byWallet.get(e.wallet_id) || {
+          name: wallet?.name || e.walletName || '',
+          color: wallet?.color || e.walletColor || '',
+          earnings: 0,
+          hours: 0,
+        };
+        existing.earnings += earnings;
+        existing.hours += hours;
+        byWallet.set(e.wallet_id, existing);
+      }
     }
-    if (cached) {
-      setSummary(cached.data);
-      setLoading(false);
-    } else {
-      setLoading(true);
+
+    let orderCount = 0;
+    let orderUnsettled = 0;
+    for (const o of orders) {
+      if (o.billing_type !== 'flat') continue;
+      if (!o.completion_date) continue;
+      const date = o.completion_date.split('T')[0];
+      if (date < monthStartDate || date > monthEndDate) continue;
+      orderCount++;
+      if (!o.is_settled) orderUnsettled++;
+      const amount = o.amount;
+      if (amount <= 0) continue;
+      total += amount;
+
+      const weekNum = getISOWeekLabel(new Date(o.completion_date));
+      weeklyBreakdown.set(weekNum, (weeklyBreakdown.get(weekNum) || 0) + amount);
+
+      if (o.wallet_id) {
+        const wallet = walletMap.get(o.wallet_id);
+        const existing = byWallet.get(o.wallet_id) || {
+          name: wallet?.name || o.walletName || '',
+          color: wallet?.color || '',
+          earnings: 0,
+          hours: 0,
+        };
+        existing.earnings += amount;
+        byWallet.set(o.wallet_id, existing);
+      }
     }
-    try {
-      const data = await getMonthlySummary(monthStart, monthEnd);
-      if (data) summaryCache.set(cacheKey, { data, timestamp: Date.now() });
-      setSummary(data);
-    } finally {
-      setLoading(false);
-    }
-  }, [monthStart, monthEnd]);
+
+    return {
+      totalEarnings: total,
+      totalHours,
+      byWallet: Array.from(byWallet.entries()).map(([id, data]) => ({ id, ...data })),
+      weeklyBreakdown: Array.from(weeklyBreakdown.entries())
+        .map(([week, earnings]) => ({ week, earnings }))
+        .sort((a, b) => a.week.localeCompare(b.week)),
+      unsettledCount: unsettledCount + orderUnsettled,
+      confirmedCount: confirmedCount + orderCount,
+      eventCount: workEventCount + orderCount,
+    };
+  }, [calendarEvents, orders, wallets, monthStart, monthEnd]);
+
+  const summary: SummaryData = {
+    ...currentSummary,
+    previousPeriodEarnings: prevData?.earnings ?? 0,
+    previousPeriodHours: prevData?.hours ?? 0,
+  };
+
+  // Whether we have any signal to display. With store-driven current-period
+  // we essentially always do (empty store → zeros), but we still gate the
+  // "Brak danych" message on whether anything exists in the month.
+  const hasData = currentSummary.eventCount > 0;
 
   const lastRefreshKeyRef = useRef<number | undefined>(refreshKey);
   useEffect(() => {
-    if (lastRefreshKeyRef.current !== refreshKey) {
-      summaryCache.clear();
-      lastRefreshKeyRef.current = refreshKey;
+    const cacheKey = `${monthStart}|${monthEnd}`;
+    const cached = prevCache.get(cacheKey);
+    const refreshKeyChanged = lastRefreshKeyRef.current !== refreshKey;
+    lastRefreshKeyRef.current = refreshKey;
+
+    if (cached && !refreshKeyChanged && Date.now() - cached.timestamp < PREV_CACHE_TTL) {
+      setPrevData({ earnings: cached.earnings, hours: cached.hours });
+      return;
     }
-    loadSummary();
-  }, [monthStart, monthEnd, refreshKey, loadSummary]);
+    if (cached) {
+      setPrevData({ earnings: cached.earnings, hours: cached.hours });
+    }
+
+    let cancelled = false;
+    getMonthlySummary(monthStart, monthEnd).then(data => {
+      if (cancelled || !data) return;
+      const prev = { earnings: data.previousPeriodEarnings, hours: data.previousPeriodHours };
+      prevCache.set(cacheKey, { ...prev, timestamp: Date.now() });
+      setPrevData(prev);
+    }).catch(() => {});
+
+    return () => { cancelled = true; };
+  }, [monthStart, monthEnd, refreshKey]);
 
   useEffect(() => {
     if (!ai.open && !taxOpen) return;
@@ -98,7 +207,6 @@ export function MonthlySummaryBlock({ monthStart, monthEnd, monthLabel, onGenera
   }, [ai.open, taxOpen]);
 
   const openInsight = async () => {
-    if (!summary) return;
     setAi({ open: true, text: null, loading: true });
     try {
       const res = await fetch('/api/calendar-summary', {
@@ -126,22 +234,18 @@ export function MonthlySummaryBlock({ monthStart, monthEnd, monthLabel, onGenera
     }
   };
 
-  const earningsDiff = summary ? summary.totalEarnings - summary.previousPeriodEarnings : 0;
-  const earningsPct = summary?.previousPeriodEarnings
+  const earningsDiff = summary.totalEarnings - summary.previousPeriodEarnings;
+  const earningsPct = summary.previousPeriodEarnings
     ? ((earningsDiff / summary.previousPeriodEarnings) * 100).toFixed(0)
     : null;
-  const avgRate = summary && summary.totalHours > 0 ? summary.totalEarnings / summary.totalHours : 0;
+  const avgRate = summary.totalHours > 0 ? summary.totalEarnings / summary.totalHours : 0;
   const deltaColor =
     earningsDiff > 0 ? 'text-green-500' : earningsDiff < 0 ? 'text-red-500' : 'text-muted-foreground';
 
   return (
     <>
       <div className="bg-card border border-border rounded-xl p-3 flex flex-col gap-3 h-full min-w-0">
-        {loading && !summary ? (
-          <div className="flex-1 flex items-center justify-center">
-            <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-          </div>
-        ) : summary ? (
+        {hasData ? (
           <>
             {/* Hero — total earnings */}
             <section>
@@ -294,7 +398,7 @@ export function MonthlySummaryBlock({ monthStart, monthEnd, monthLabel, onGenera
         </div>
       )}
 
-      {taxOpen && summary && summary.totalEarnings > 0 && (() => {
+      {taxOpen && summary.totalEarnings > 0 && (() => {
         const tax = calculatePIT(summary.totalEarnings);
         return (
           <div
