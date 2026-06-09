@@ -2,9 +2,12 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Polityka prywatności — $zpont Hub',
+  title: 'Polityka prywatności',
   description:
-    'Polityka prywatności serwisu $zpont Hub — informacje o przetwarzaniu danych osobowych, RODO i plikach cookies.',
+    'Polityka prywatności serwisu $zpont Hub (SzpontHub) — informacje o przetwarzaniu danych osobowych, RODO i plikach cookies.',
+  alternates: {
+    canonical: '/polityka-prywatnosci',
+  },
 };
 
 export default function PolitykaPrywatnosciPage() {

@@ -2,9 +2,12 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Regulamin — $zpont Hub',
+  title: 'Regulamin',
   description:
-    'Regulamin serwisu $zpont Hub — warunki korzystania, płatności, polityka zwrotów i anulowania subskrypcji.',
+    'Regulamin serwisu $zpont Hub (SzpontHub) — warunki korzystania, płatności, polityka zwrotów i anulowania subskrypcji.',
+  alternates: {
+    canonical: '/regulamin',
+  },
 };
 
 export default function RegulaminPage() {
