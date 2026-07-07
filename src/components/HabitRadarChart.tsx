@@ -10,6 +10,11 @@ interface Props {
 }
 
 export function HabitRadarChart({ habits, entries }: Props) {
+  // Hooki muszą być wywołane bezwarunkowo i przed jakimkolwiek early return,
+  // inaczej zmiana liczby nawyków (2↔3) zmienia liczbę hooków i React się wywala.
+  const reactId = useId();
+  const gradientId = `radar-gradient-${reactId.replace(/:/g, '')}`;
+
   if (habits.length < 3) {
     return (
       <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
@@ -63,10 +68,6 @@ export function HabitRadarChart({ habits, entries }: Props) {
     return getPoint(angles[i], r);
   });
   const dataPath = dataPoints.map(p => `${p.x},${p.y}`).join(' ');
-
-  // Gradient ID — useId() avoids clashes & fixes url(#id) on mobile
-  const reactId = useId();
-  const gradientId = `radar-gradient-${reactId.replace(/:/g, '')}`;
 
   return (
     <div className="flex flex-col items-center">

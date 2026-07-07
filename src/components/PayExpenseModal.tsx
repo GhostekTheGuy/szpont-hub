@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { type RecurringExpense } from '@/hooks/useFinanceStore';
 import { payRecurringExpense, skipRecurringExpense } from '@/app/actions';
@@ -19,10 +19,11 @@ export function PayExpenseModal({ isOpen, onClose, expense }: PayExpenseModalPro
   const [amount, setAmount] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Set default amount when expense changes
-  if (expense && amount === '') {
-    setAmount(expense.amount.toString());
-  }
+  // Ustaw domyślną kwotę gdy modal się otwiera dla danego wydatku.
+  // (Wcześniej setAmount w trakcie renderu uniemożliwiał wyczyszczenie pola.)
+  useEffect(() => {
+    if (isOpen && expense) setAmount(expense.amount.toString());
+  }, [isOpen, expense]);
 
   const handlePay = async (e: React.FormEvent) => {
     e.preventDefault();

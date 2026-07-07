@@ -699,16 +699,20 @@ export function WeeklyCalendar({
           </div>
 
           <div className="lg:hidden bg-card border border-border rounded-xl">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-              <h2 className="text-base font-semibold text-foreground capitalize">
+            <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-border">
+              <h2 className="text-base font-semibold text-foreground capitalize min-w-0 truncate">
                 {format(selectedDate, 'EEEE, d MMMM', { locale: pl })}
               </h2>
-              <button
-                onClick={() => onSlotClick(selectedDate, new Date().getHours())}
-                className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                {/* Rozliczenie tygodnia dostępne też na mobile (wcześniej tylko na desktopie) */}
+                {weekLabelActions}
+                <button
+                  onClick={() => onSlotClick(selectedDate, new Date().getHours())}
+                  className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors shrink-0"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
             <div className="p-3 space-y-2">

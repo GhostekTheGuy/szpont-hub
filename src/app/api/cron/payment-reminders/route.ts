@@ -5,8 +5,15 @@ import { getTransporter, EMAIL_FROM } from '@/lib/mailer';
 const REMIND_DAYS_BEFORE = 3;
 
 export async function GET(request: Request) {
+  const cronSecret = process.env.CRON_SECRET;
+  // Nie pozwól uruchomić crona, gdy sekret nie jest skonfigurowany
+  // (inaczej nagłówek "Bearer undefined" przechodziłby autoryzację).
+  if (!cronSecret) {
+    console.error('CRON_SECRET is not configured');
+    return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 });
+  }
   const authHeader = request.headers.get('authorization');
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -42,20 +49,25 @@ export async function GET(request: Request) {
     byUser.set(exp.user_id, list);
   }
 
-  // Fetch emails for all users in one query
+  // Fetch emails for all relevant users. listUsers zwraca max 50 kont na stronę —
+  // trzeba stronicować, inaczej użytkownicy spoza 1. strony nie dostaliby przypomnień.
   const userIds = Array.from(byUser.keys());
-  const { data: usersData, error: usersError } = await supabaseAdmin.auth.admin.listUsers();
-
-  if (usersError) {
-    console.error('Error fetching users:', usersError);
-    return NextResponse.json({ error: 'Users fetch error' }, { status: 500 });
-  }
-
+  const neededIds = new Set(userIds);
   const emailMap = new Map<string, string>();
-  for (const user of usersData.users) {
-    if (user.email && userIds.includes(user.id)) {
-      emailMap.set(user.id, user.email);
+  const PER_PAGE = 200;
+  for (let page = 1; neededIds.size > 0; page++) {
+    const { data: usersData, error: usersError } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: PER_PAGE });
+    if (usersError) {
+      console.error('Error fetching users:', usersError);
+      return NextResponse.json({ error: 'Users fetch error' }, { status: 500 });
     }
+    for (const user of usersData.users) {
+      if (user.email && neededIds.has(user.id)) {
+        emailMap.set(user.id, user.email);
+        neededIds.delete(user.id);
+      }
+    }
+    if (usersData.users.length < PER_PAGE) break; // ostatnia strona
   }
 
   let sent = 0;

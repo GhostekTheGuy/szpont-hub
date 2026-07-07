@@ -51,12 +51,16 @@ function AuthPageContent() {
       });
 
       if (error) {
-        if (error.message.includes('Email not confirmed')) {
+        const msg = error.message.toLowerCase();
+        if (msg.includes('email not confirmed')) {
           setError('Email nie został potwierdzony. Sprawdź skrzynkę pocztową i kliknij link weryfikacyjny.');
+        } else if (msg.includes('rate limit') || msg.includes('too many')) {
+          setError('Zbyt wiele prób. Odczekaj chwilę i spróbuj ponownie.');
         } else {
-          setError(error.message === 'Invalid login credentials'
+          // Mapuj znane błędy Supabase na polski; dla nieznanych — generyczny komunikat
+          setError(msg.includes('invalid login credentials')
             ? 'Nieprawidłowy email lub hasło.'
-            : error.message);
+            : 'Nie udało się zalogować. Sprawdź dane i spróbuj ponownie.');
           setShowReset(true);
           setResetEmail(loginData.email);
         }

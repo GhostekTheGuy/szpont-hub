@@ -22,13 +22,13 @@ type ViewMode = 'today' | 'weekly' | 'overall';
 
 function getFrequencyLabel(frequency: string): string {
   switch (frequency) {
-    case 'daily': return 'Everyday';
-    case 'weekdays': return 'Weekdays';
-    case '5_per_week': return '5 days per week';
-    case '4_per_week': return '4 days per week';
-    case '3_per_week': return '3 days per week';
-    case '2_per_week': return '2 days per week';
-    default: return 'Everyday';
+    case 'daily': return 'Codziennie';
+    case 'weekdays': return 'Dni robocze';
+    case '5_per_week': return '5 dni w tygodniu';
+    case '4_per_week': return '4 dni w tygodniu';
+    case '3_per_week': return '3 dni w tygodniu';
+    case '2_per_week': return '2 dni w tygodniu';
+    default: return 'Codziennie';
   }
 }
 

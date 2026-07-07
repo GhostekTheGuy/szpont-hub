@@ -95,7 +95,10 @@ export function ExpenseModal({ isOpen, onClose, editingExpense }: ExpenseModalPr
   }, [editingExpense, isOpen, wallets]);
 
   const computeNextDueDate = (day: number, freq: string): string => {
-    const today = new Date();
+    const now = new Date();
+    // Porównujemy po samej dacie (bez godziny) — inaczej wydatek płatny DZIŚ (północ < teraz)
+    // przeskakiwał o miesiąc/kwartał/rok.
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const thisMonth = new Date(today.getFullYear(), today.getMonth(), Math.min(day, 28));
     if (thisMonth >= today) return format(thisMonth, 'yyyy-MM-dd');
     if (freq === 'monthly') {

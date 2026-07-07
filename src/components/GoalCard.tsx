@@ -40,7 +40,7 @@ export const GoalCard = memo(function GoalCard({ goal, displayCurrency, onEdit, 
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2">
             <span className="text-sm font-medium text-foreground truncate">{goal.name}</span>
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="flex items-center gap-1 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
               <button
                 onClick={() => onEdit(goal)}
                 className="p-1 text-muted-foreground hover:text-foreground transition-colors"

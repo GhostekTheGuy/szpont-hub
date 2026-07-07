@@ -178,12 +178,18 @@ export function TimerWidget({ wallets, orders = [], onStop }: TimerWidgetProps) 
     if (!timerState) return;
     setSaving(true);
     try {
+      // Faktyczny czas pracy = zakumulowane ms + trwający segment (jeśli nie na pauzie).
+      // Wcześniej zapisywano cały odstęp start→teraz, wliczając pauzy → zawyżone zarobki.
+      const now = Date.now();
+      const workedMs = timerState.accumulatedMs + (timerState.isPaused ? 0 : now - timerState.resumeTime);
+      const endDate = new Date(now);
+      const startDate = new Date(now - Math.max(0, workedMs));
       await addCalendarEvent({
         title: timerState.title,
         wallet_id: timerState.walletId,
         hourly_rate: timerState.hourlyRate,
-        start_time: formatLocalDateTime(new Date(timerState.originalStartTime)),
-        end_time: formatLocalDateTime(new Date()),
+        start_time: formatLocalDateTime(startDate),
+        end_time: formatLocalDateTime(endDate),
         is_recurring: false,
         recurrence_rule: null,
         order_id: timerState.orderId,
@@ -197,14 +203,14 @@ export function TimerWidget({ wallets, orders = [], onStop }: TimerWidgetProps) 
       onStop();
     } catch (error) {
       console.error('Error saving timer event:', error);
-      toast('Blad zapisu wydarzenia', 'error');
+      toast('Błąd zapisu wydarzenia', 'error');
     } finally {
       setSaving(false);
     }
   }, [timerState, onStop, toast]);
 
   const handleCancel = useCallback(async () => {
-    if (!await confirm({ title: 'Anulowac timer?', description: 'Czas nie zostanie zapisany.', variant: 'danger', confirmLabel: 'Anuluj timer' })) return;
+    if (!await confirm({ title: 'Anulować timer?', description: 'Czas nie zostanie zapisany.', variant: 'danger', confirmLabel: 'Anuluj timer' })) return;
     clearTimerState();
     setTimerState(null);
   }, [confirm]);
@@ -297,7 +303,7 @@ export function TimerWidget({ wallets, orders = [], onStop }: TimerWidgetProps) 
                 {isPaused ? (
                   <>
                     <Play className="w-3.5 h-3.5" />
-                    Wznow
+                    Wznów
                   </>
                 ) : (
                   <>
@@ -344,7 +350,7 @@ export function TimerWidget({ wallets, orders = [], onStop }: TimerWidgetProps) 
                 onChange={e => handleOrderSelect(e.target.value)}
                 className="w-full bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
               >
-                <option value="">Reczny wpis...</option>
+                <option value="">Ręczny wpis...</option>
                 {hourlyOrders.map(o => (
                   <option key={o.id} value={o.id}>
                     {o.title} ({o.hourly_rate} PLN/h)
@@ -359,7 +365,7 @@ export function TimerWidget({ wallets, orders = [], onStop }: TimerWidgetProps) 
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="Tytul..."
+                placeholder="Tytuł..."
                 className="bg-secondary border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-ring flex-1 min-w-0"
                 onKeyDown={(e) => e.key === 'Enter' && handleStart()}
               />

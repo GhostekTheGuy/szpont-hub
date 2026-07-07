@@ -101,13 +101,10 @@ Odpowiedz TYLKO tekstem raportu, bez nagłówków ani formatowania markdown.`;
 
     if (!response.ok) {
       const errorText = await response.text();
+      // Szczegóły upstream logujemy tylko po stronie serwera — nie wyciekamy ich klientowi
       console.error("Groq API error:", response.status, errorText);
       return NextResponse.json(
-        {
-          error: "Błąd API AI",
-          upstreamStatus: response.status,
-          details: errorText.slice(0, 500),
-        },
+        { error: "Nie udało się wygenerować raportu. Spróbuj ponownie za chwilę." },
         { status: 502 }
       );
     }

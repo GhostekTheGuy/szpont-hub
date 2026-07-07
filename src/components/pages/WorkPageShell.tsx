@@ -44,10 +44,12 @@ export function WorkPageShell({ calendarView, projectsView }: Props) {
         </div>
       </div>
 
-      {/* Views — hide inactive view via CSS to preserve state (avoids re-sync on switch) */}
+      {/* Views — hide inactive view via CSS to preserve state (avoids re-sync on switch).
+          Oba widoki pozostają zamontowane; odmontowanie Projektów resetowało store do
+          snapshotu SSR, przez co świeżo dodane zlecenie znikało do pełnego reloadu. */}
       <div className="px-4 lg:px-0">
         <div className={view !== 'calendar' ? 'hidden' : undefined}>{calendarView}</div>
-        {view === 'projects' && projectsView}
+        <div className={view !== 'projects' ? 'hidden' : undefined}>{projectsView}</div>
       </div>
     </>
   );

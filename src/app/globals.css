@@ -144,6 +144,25 @@ html {
   scroll-behavior: smooth;
 }
 
+/* Widoczny fokus klawiatury w całej aplikacji. Przyciski/inputy w dashboardzie
+   sklejają klasy ręcznie i nie miały stanu :focus-visible — nawigacja Tabem była
+   niewidoczna. Ten globalny styl daje spójny pierścień fokusu (tylko dla klawiatury,
+   nie myszy, dzięki :focus-visible). */
+:where(a, button, input, select, textarea, [role="button"], [tabindex]):focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm, 0.5rem);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 /* Hide scrollbar on mobile */
 @media (max-width: 1023px) {
   ::-webkit-scrollbar {

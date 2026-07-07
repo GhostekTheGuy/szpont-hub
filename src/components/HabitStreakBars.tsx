@@ -26,13 +26,15 @@ export function HabitStreakBars({ habits, entries }: Props) {
     let streak = 0;
     const d = new Date(today);
 
-    // Count consecutive days backwards from today
-    while (true) {
-      const dateStr = format(d, 'yyyy-MM-dd');
-      const completed = entries.some(
-        e => e.habit_id === habit.id && e.date === dateStr && e.completed
-      );
-      if (!completed) break;
+    const isDone = (date: Date) => entries.some(
+      e => e.habit_id === habit.id && e.date === format(date, 'yyyy-MM-dd') && e.completed
+    );
+
+    // Jeśli dzisiaj jeszcze nieodhaczone, nie zerujemy serii — liczymy od wczoraj
+    // (dzisiejszy dzień „w toku" nie powinien kasować passy do wczoraj).
+    if (!isDone(d)) d.setDate(d.getDate() - 1);
+
+    while (isDone(d)) {
       streak++;
       d.setDate(d.getDate() - 1);
     }

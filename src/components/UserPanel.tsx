@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { signOutAction, resetPasswordAction, setBalanceMasked, setOnboardingDone, setPreferredCurrency } from '@/app/actions';
 import { useFinanceStore } from '@/hooks/useFinanceStore';
+import { useToast } from '@/components/Toast';
 import type { Currency } from '@/lib/exchange-rates';
 
 interface Subscription {
@@ -35,6 +36,7 @@ interface UserPanelProps {
 }
 
 export function UserPanel({ userName, userEmail, avatarUrl, subscription }: UserPanelProps) {
+  const { toast } = useToast();
   const { theme, setTheme } = useTheme();
   const balanceMasked = useFinanceStore(s => s.balanceMasked);
   const toggleBalanceMask = useFinanceStore(s => s.toggleBalanceMask);
@@ -61,8 +63,9 @@ export function UserPanel({ userName, userEmail, avatarUrl, subscription }: User
       });
       const { url } = await res.json();
       if (url) window.location.href = url;
+      else toast('Nie udało się rozpocząć płatności. Spróbuj ponownie.', 'error');
     } catch {
-      // silently fail
+      toast('Błąd połączenia przy przejściu na Pro. Spróbuj ponownie.', 'error');
     } finally {
       setCheckoutLoading(false);
     }
@@ -74,8 +77,9 @@ export function UserPanel({ userName, userEmail, avatarUrl, subscription }: User
       const res = await fetch('/api/stripe/portal', { method: 'POST' });
       const { url } = await res.json();
       if (url) window.location.href = url;
+      else toast('Nie udało się otworzyć zarządzania subskrypcją.', 'error');
     } catch {
-      // silently fail
+      toast('Błąd połączenia. Spróbuj ponownie.', 'error');
     } finally {
       setPortalLoading(false);
     }
@@ -98,9 +102,12 @@ export function UserPanel({ userName, userEmail, avatarUrl, subscription }: User
       if (res.ok) {
         const { url } = await res.json();
         setCurrentAvatar(url);
+        toast('Zdjęcie profilowe zaktualizowane', 'success');
+      } else {
+        toast('Nie udało się przesłać zdjęcia. Sprawdź format i rozmiar (max 2 MB).', 'error');
       }
     } catch {
-      // silently fail
+      toast('Błąd przesyłania zdjęcia. Spróbuj ponownie.', 'error');
     } finally {
       setUploading(false);
     }
@@ -112,7 +119,7 @@ export function UserPanel({ userName, userEmail, avatarUrl, subscription }: User
       setResetSent(true);
       setTimeout(() => setResetSent(false), 3000);
     } catch {
-      // silently fail
+      toast('Nie udało się wysłać linku do resetu hasła. Spróbuj ponownie.', 'error');
     }
   };
 

@@ -18,12 +18,15 @@ export function WeeklyReportInit({ lastReport }: { lastReport: string | null }) 
     // Auto-popup tylko w poniedziałek
     if (day !== 1) return;
 
-    // Oblicz początek bieżącego tygodnia (poniedziałek 00:00)
-    const thisMonday = new Date(now);
-    thisMonday.setHours(0, 0, 0, 0);
-
-    // Jeśli brak raportu lub ostatni raport sprzed tego tygodnia
-    if (!lastReport || new Date(lastReport) < thisMonday) {
+    // Backend ogranicza generowanie do 1 raportu na 7 dni (okno kroczące). Auto-popup
+    // musi respektować tę samą regułę — inaczej użytkownik, który wygenerował raport np.
+    // w środę, w poniedziałek dostawał popup od razu kończący się błędem limitu.
+    if (!lastReport) {
+      setShowWeeklyReport(true);
+      return;
+    }
+    const daysSince = (now.getTime() - new Date(lastReport).getTime()) / 86_400_000;
+    if (daysSince >= 7) {
       setShowWeeklyReport(true);
     }
   }, [lastReport, setShowWeeklyReport]);

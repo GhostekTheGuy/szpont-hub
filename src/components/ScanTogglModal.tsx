@@ -24,6 +24,7 @@ interface ScannedEntry {
   wallet_id: string;
   order_id: string;
   selected: boolean;
+  saved?: boolean;
 }
 
 export function ScanTogglModal({ isOpen, onClose }: ScanTogglModalProps) {
@@ -181,9 +182,14 @@ export function ScanTogglModal({ isOpen, onClose }: ScanTogglModalProps) {
     setError(null);
     setSavedCount(0);
 
+    // Zapisuj po indeksie z pełnej listy i oznaczaj zapisane, żeby po częściowym
+    // błędzie ponowna próba nie dublowała już zapisanych wpisów (podwójne zarobki).
+    let done = 0;
     try {
-      for (let i = 0; i < selected.length; i++) {
-        const e = selected[i];
+      for (let idx = 0; idx < entries.length; idx++) {
+        const e = entries[idx];
+        if (!e.selected || e.saved) continue;
+
         // Normalize time to HH:MM format (AI may return HH:MM:SS)
         const startNorm = e.start_time.split(':').slice(0, 2).join(':');
         const endNorm = e.end_time.split(':').slice(0, 2).join(':');
@@ -207,13 +213,16 @@ export function ScanTogglModal({ isOpen, onClose }: ScanTogglModalProps) {
           event_type: 'work',
           order_id: e.order_id || null,
         });
-        setSavedCount(i + 1);
+        // Oznacz jako zapisany, aby retry go pominął
+        setEntries(prev => prev.map((it, i) => i === idx ? { ...it, saved: true } : it));
+        done++;
+        setSavedCount(done);
       }
       handleClose();
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Nieznany błąd';
       console.error('Save error:', msg);
-      setError(`Błąd zapisu wydarzeń: ${msg}`);
+      setError(`Zapisano ${done} z ${selected.length}. Błąd przy kolejnym wpisie: ${msg}. Ponów, aby dokończyć.`);
       setState('results');
     }
   };

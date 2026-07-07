@@ -20,6 +20,20 @@ export function formatLocalDate(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+// Wyciąga wall-clock (godzinę widoczną w kalendarzu Google) wprost z RFC3339,
+// np. "2026-07-07T14:00:00+02:00" -> "2026-07-07T14:00:00", bez konwersji do strefy
+// serwera. Aplikacja przechowuje czasy jako "floating local", więc godzina musi zostać
+// taka, jaką ustawił użytkownik w Google, niezależnie od strefy serwera (UTC na Vercel).
+export function googleDateTimeToLocal(dateTime: string): string {
+  const m = dateTime.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (m) {
+    const [, y, mo, d, h, min, s] = m;
+    return `${y}-${mo}-${d}T${h}:${min}:${s || '00'}`;
+  }
+  // Fallback: gdyby format był nietypowy, zachowaj dotychczasowe zachowanie
+  return formatLocalDateTime(new Date(dateTime));
+}
+
 export interface RawCalendarEvent {
   id: string;
   start_time: string;

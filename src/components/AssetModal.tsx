@@ -218,11 +218,18 @@ export function AssetModal({ isOpen, onClose, editingAsset, onDelete, wallets = 
       if (costBasis) {
         const parsed = parseFloat(costBasis);
         if (costCurrency === 'USD') {
-          const rateRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=usd&vs_currencies=pln');
+          // Poprawny kurs USD→PLN z Frankfurter (tego samego źródła co reszta aplikacji).
+          // Wcześniejszy endpoint CoinGecko ids=usd nie istnieje i zawsze dawał fallback 4.0.
           let usdToPln = 4.0;
-          if (rateRes.ok) {
-            const rateData = await rateRes.json();
-            usdToPln = rateData?.usd?.pln || 4.0;
+          try {
+            const rateRes = await fetch('https://api.frankfurter.app/latest?from=USD&to=PLN');
+            if (rateRes.ok) {
+              const rateData = await rateRes.json();
+              const rate = Number(rateData?.rates?.PLN);
+              if (Number.isFinite(rate) && rate > 0) usdToPln = rate;
+            }
+          } catch {
+            // zostaw fallback
           }
           costBasisPLN = parsed * usdToPln;
         } else {

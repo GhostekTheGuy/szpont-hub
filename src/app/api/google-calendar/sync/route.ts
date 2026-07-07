@@ -7,7 +7,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { decryptFromCookie, encryptString, decryptString, encryptNumber } from '@/lib/crypto';
 import { fetchEvents, getRefreshedTokens } from '@/lib/google-calendar';
 import { rateLimit } from '@/lib/rate-limit';
-import { formatLocalDateTime } from '@/lib/calendar-utils';
+import { googleDateTimeToLocal } from '@/lib/calendar-utils';
 
 export async function POST() {
   const user = await getUser();
@@ -129,6 +129,10 @@ export async function POST() {
         .map(e => e.id);
       const activeEvents = result.events.filter(e => e.status !== 'cancelled');
 
+      // Jeśli którykolwiek zapis eventów zawiedzie, NIE awansujemy sync_token —
+      // inaczej kolejny sync inkrementalny pominąłby te eventy i przepadłyby trwale.
+      let hadWriteError = false;
+
       // Batch delete cancelled events
       if (cancelledIds.length > 0) {
         const { error: deleteError } = await supabaseAdmin
@@ -139,6 +143,7 @@ export async function POST() {
 
         if (deleteError) {
           console.error('[Google Sync] Failed to delete cancelled events:', deleteError);
+          hadWriteError = true;
         }
       }
 
@@ -164,28 +169,33 @@ export async function POST() {
               .from('calendar_events')
               .update({
                 title: encryptString(event.summary, dek),
-                start_time: formatLocalDateTime(new Date(event.start)),
-                end_time: formatLocalDateTime(new Date(event.end)),
+                start_time: googleDateTimeToLocal(event.start),
+                end_time: googleDateTimeToLocal(event.end),
               })
               .eq('id', existingMap.get(event.id)!);
 
             if (updateError) {
               console.error('[Google Sync] Failed to update event:', updateError);
+              hadWriteError = true;
             }
           } else {
+            // Jeśli użytkownik przypisał do tego kalendarza portfel i stawkę, traktujemy
+            // jego wydarzenia jako pracę (billowalne). Wcześniej pola wallet/rate w ustawieniach
+            // nie miały żadnego efektu, bo eventy zawsze zapisywano jako 'personal'.
+            const isBillable = !!mapping.wallet_id && !!mapping.hourly_rate;
             toInsert.push({
               id: nanoid(),
               user_id: user.id,
               title: encryptString(event.summary, dek),
               wallet_id: mapping.wallet_id || null,
               hourly_rate: mapping.hourly_rate || defaultRate,
-              start_time: formatLocalDateTime(new Date(event.start)),
-              end_time: formatLocalDateTime(new Date(event.end)),
+              start_time: googleDateTimeToLocal(event.start),
+              end_time: googleDateTimeToLocal(event.end),
               is_recurring: false,
               recurrence_rule: null,
               is_settled: false,
               is_confirmed: false,
-              event_type: 'personal',
+              event_type: isBillable ? 'work' : 'personal',
               google_event_id: event.id,
               google_calendar_id: mapping.google_calendar_id,
               created_at: new Date().toISOString(),
@@ -201,17 +211,20 @@ export async function POST() {
 
           if (insertError) {
             console.error('[Google Sync] Failed to insert events:', insertError);
+            hadWriteError = true;
           }
         }
 
         totalSynced += activeEvents.length;
       }
 
-      // Save sync token and last synced time
+      // Save sync token and last synced time. Przy błędzie zapisu zachowaj stary token,
+      // żeby następny sync ponownie pobrał te zmiany (zamiast je trwale pominąć).
+      const nextToken = hadWriteError ? mapping.sync_token : (result.nextSyncToken || mapping.sync_token);
       const { error: syncTokenError } = await supabaseAdmin
         .from('google_calendar_mappings')
         .update({
-          sync_token: result.nextSyncToken || mapping.sync_token,
+          sync_token: nextToken,
           last_synced_at: new Date().toISOString(),
         })
         .eq('id', mapping.id);

@@ -110,6 +110,10 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
       ratesCache.set(range, { rates, timestamp: Date.now() });
       setHistoricalRates(rates);
       setRatesReady(true);
+    }).catch((err) => {
+      // Bez .catch nieudane pobranie kursów zostawiało wykres netto na zawsze w skeletonie
+      console.error('Failed to load historical rates:', err);
+      if (!cancelled) setRatesReady(true);
     });
     return () => { cancelled = true; };
   }, [range]);
@@ -565,7 +569,7 @@ export function DashboardOverview({ initialWallets, initialTransactions, initial
       <div id="m-transactions" className="lg:hidden px-4 mt-3 scroll-mt-24">
         <div className="flex items-center justify-between mb-2">
           <span className="text-[10px] font-semibold tracking-[0.2em] text-muted-foreground uppercase">Ostatnie transakcje</span>
-          <Link href="/transactions" className="flex items-center gap-1 text-xs text-primary hover:underline">
+          <Link href="/wallets#transactions-section" className="flex items-center gap-1 text-xs text-primary hover:underline">
             Wszystkie <ArrowRight className="w-3 h-3" />
           </Link>
         </div>
@@ -721,7 +725,7 @@ function RecurringExpensesCard({
               </div>
               <button
                 onClick={(e) => { e.stopPropagation(); onPay(expense); }}
-                className="shrink-0 px-2.5 py-1.5 text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 rounded-md transition-colors opacity-0 group-hover:opacity-100"
+                className="shrink-0 px-2.5 py-1.5 text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 rounded-md transition-colors lg:opacity-0 lg:group-hover:opacity-100"
               >
                 Opłać
               </button>

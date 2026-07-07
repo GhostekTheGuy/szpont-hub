@@ -97,7 +97,16 @@ export async function getHistoricalRates(
 
     // Frankfurter zwraca { rates: { "2026-01-01": { USD: 0.25, EUR: 0.23 }, ... } }
     const ratesData = json.rates || {};
+
+    // Zainicjuj od NAJWCZEŚNIEJSZEGO dostępnego notowania, żeby dni z początku zakresu
+    // wypadające w weekend/święto (przed pierwszym kursem) użyły najbliższego dnia
+    // roboczego, a nie stałego FALLBACK_RATES (USD 0.25) — to dawało ~6% błędu na wykresie.
+    const availableDates = Object.keys(ratesData).sort();
     let lastRates: ExchangeRates = FALLBACK_RATES;
+    if (availableDates.length > 0) {
+      const first = ratesData[availableDates[0]];
+      lastRates = { PLN: 1, USD: first.USD, EUR: first.EUR };
+    }
 
     // Wypełnij każdy dzień w zakresie (w tym weekendy — użyj ostatniego dostępnego kursu)
     const current = new Date(startDate);

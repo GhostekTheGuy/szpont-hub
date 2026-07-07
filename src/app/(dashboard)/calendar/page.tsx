@@ -21,7 +21,7 @@ export default async function CalendarPage() {
   if (!calendarData || !walletsData) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
-        <div className="text-foreground text-center">Ladowanie danych...</div>
+        <div className="text-foreground text-center">Ładowanie danych...</div>
       </div>
     );
   }

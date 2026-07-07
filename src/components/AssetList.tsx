@@ -185,7 +185,7 @@ export const AssetList = memo(function AssetList({ assets, onEdit, onDelete, onS
                         ? 'bg-gradient-to-r from-green-600 to-green-400'
                         : 'bg-gradient-to-r from-red-600 to-red-400'
                     }`}
-                    style={{ width: `${Math.min((asset.total_value / totalValue) * 100, 100)}%` }}
+                    style={{ width: `${totalValue > 0 ? Math.min((asset.total_value / totalValue) * 100, 100) : 0}%` }}
                   />
                 </div>
               </div>

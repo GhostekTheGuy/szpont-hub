@@ -76,9 +76,13 @@ const config: Config = {
   			}
   		},
   		borderRadius: {
-  			lg: 'var(--radius)',
+  			sm: 'calc(var(--radius) - 4px)',
   			md: 'calc(var(--radius) - 2px)',
-  			sm: 'calc(var(--radius) - 4px)'
+  			lg: 'var(--radius)',
+  			// xl/2xl muszą być WIĘKSZE niż lg — inaczej karty (rounded-xl) są mniej
+  			// zaokrąglone niż przyciski (rounded-lg), co odwraca hierarchię promieni.
+  			xl: 'calc(var(--radius) + 0.25rem)',
+  			'2xl': 'calc(var(--radius) + 0.5rem)'
   		},
   		fontFamily: {
   			sans: [

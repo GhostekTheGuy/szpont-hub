@@ -22,6 +22,7 @@ interface ScannedTransaction {
   description: string;
   currency: Currency;
   selected: boolean;
+  saved?: boolean;
 }
 
 export function ScanReceiptModal({ isOpen, onClose }: ScanReceiptModalProps) {
@@ -162,9 +163,13 @@ export function ScanReceiptModal({ isOpen, onClose }: ScanReceiptModalProps) {
     setError(null);
     setSavedCount(0);
 
+    // Oznaczaj zapisane wpisy, żeby ponowna próba po częściowym błędzie ich nie dublowała.
+    let done = 0;
     try {
-      for (let i = 0; i < selected.length; i++) {
-        const t = selected[i];
+      for (let idx = 0; idx < transactions.length; idx++) {
+        const t = transactions[idx];
+        if (!t.selected || t.saved) continue;
+
         const numericAmount = parseFloat(t.amount);
         const finalAmount = t.type === 'outcome' ? -Math.abs(numericAmount) : Math.abs(numericAmount);
 
@@ -177,11 +182,13 @@ export function ScanReceiptModal({ isOpen, onClose }: ScanReceiptModalProps) {
           type: t.type,
           currency: t.currency,
         });
-        setSavedCount(i + 1);
+        setTransactions(prev => prev.map((it, i) => i === idx ? { ...it, saved: true } : it));
+        done++;
+        setSavedCount(done);
       }
       handleClose();
     } catch {
-      setError('Błąd zapisu transakcji');
+      setError(`Zapisano ${done} z ${selected.length}. Ponów, aby dokończyć pozostałe.`);
       setState('results');
     }
   };

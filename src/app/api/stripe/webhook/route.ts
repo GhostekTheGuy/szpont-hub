@@ -34,8 +34,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ received: true, duplicate: true });
   }
 
-  await supabaseAdmin.from('stripe_events').insert({ event_id: event.id });
-
   try {
     switch (event.type) {
       case 'checkout.session.completed': {
@@ -109,10 +107,21 @@ export async function POST(req: NextRequest) {
     }
   } catch (error) {
     console.error('Webhook handler error:', error instanceof Error ? error.message : 'Unknown error');
+    // Nie zapisujemy markera idempotencji — zwracamy 500, aby Stripe ponowił dostarczenie.
     return NextResponse.json(
       { error: 'Webhook handler failed' },
       { status: 500 }
     );
+  }
+
+  // Marker idempotencji zapisujemy dopiero PO udanej obsłudze.
+  // Wymaga UNIQUE constraint na stripe_events.event_id — przy równoległym duplikacie
+  // drugi insert zawiedzie i jest bezpiecznie ignorowany.
+  const { error: markError } = await supabaseAdmin
+    .from('stripe_events')
+    .insert({ event_id: event.id });
+  if (markError && markError.code !== '23505') {
+    console.error('Failed to persist stripe event marker:', markError.message);
   }
 
   return NextResponse.json({ received: true });

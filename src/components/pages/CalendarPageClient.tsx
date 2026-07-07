@@ -7,7 +7,7 @@ import { WeeklyCalendar } from '@/components/WeeklyCalendar';
 import { TimerWidget } from '@/components/TimerWidget';
 import { MonthlySummaryBlock } from '@/components/MonthlySummaryBlock';
 import { useToast } from '@/components/Toast';
-import { Check, Timer, AlertTriangle, Loader2 } from 'lucide-react';
+import { Check, Timer, Loader2 } from 'lucide-react';
 
 const CalendarEventModal = lazy(() => import('@/components/CalendarEventModal').then(m => ({ default: m.CalendarEventModal })));
 const InvoiceModal = lazy(() => import('@/components/InvoiceModal').then(m => ({ default: m.InvoiceModal })));
@@ -62,13 +62,9 @@ export function CalendarPageClient({ initialEvents, initialWallets, initialOrder
   const [prefillDate, setPrefillDate] = useState<Date | null>(null);
   const [prefillHour, setPrefillHour] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
-  const [futureWarning, setFutureWarning] = useState(false);
-  const futureWarningTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [googleConn, setGoogleConn] = useState<GoogleConnection | null>(googleConnection || null);
   const [recurringMoveData, setRecurringMoveData] = useState<{ event: CalendarEvent; newStart: string; newEnd: string } | null>(null);
   const lastSyncRef = useRef<number>(0);
-  const [syncError, setSyncError] = useState<string | null>(null);
-  const syncErrorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [summaryRefreshKey, setSummaryRefreshKey] = useState(0);
 
   const monthStart = startOfMonth(currentMonth);
@@ -109,11 +105,11 @@ export function CalendarPageClient({ initialEvents, initialWallets, initialOrder
 
   const [autoSyncing, setAutoSyncing] = useState(false);
 
-  const showSyncError = useCallback((msg: string, duration = 5000) => {
-    if (syncErrorTimer.current) clearTimeout(syncErrorTimer.current);
-    setSyncError(msg);
-    syncErrorTimer.current = setTimeout(() => setSyncError(null), duration);
-  }, []);
+  // Ujednolicone z resztą aplikacji: błędy synchronizacji pokazujemy jako toast
+  // (wcześniej był osobny popup top-center — dwa różne systemy powiadomień).
+  const showSyncError = useCallback((msg: string) => {
+    toast(msg, 'error');
+  }, [toast]);
 
   const syncGoogleCalendar = useCallback(async ({ silent = false } = {}): Promise<{ error?: string }> => {
     if (silent) setAutoSyncing(true);
@@ -230,9 +226,7 @@ export function CalendarPageClient({ initialEvents, initialWallets, initialOrder
   const handleToggleConfirmed = useCallback(async (event: CalendarEvent, confirmed: boolean) => {
     // Block confirming future events
     if (confirmed && isAfter(new Date(event.start_time), endOfDay(new Date()))) {
-      if (futureWarningTimer.current) clearTimeout(futureWarningTimer.current);
-      setFutureWarning(true);
-      futureWarningTimer.current = setTimeout(() => setFutureWarning(false), 3500);
+      toast('Nie można zatwierdzić wydarzenia z przyszłości', 'warning');
       return;
     }
 
@@ -469,29 +463,7 @@ export function CalendarPageClient({ initialEvents, initialWallets, initialOrder
 
   return (
     <>
-      {/* Future event warning popup */}
-      {futureWarning && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] animate-in fade-in slide-in-from-top-2 duration-200">
-          <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-4 py-3 shadow-lg">
-            <AlertTriangle className="w-4 h-4 text-yellow-500 shrink-0" />
-            <span className="text-sm text-foreground">Nie można zatwierdzić wydarzenia z przyszłości</span>
-            <button onClick={() => setFutureWarning(false)} className="text-muted-foreground hover:text-foreground ml-2 text-lg leading-none">&times;</button>
-          </div>
-        </div>
-      )}
-
-      {/* Sync error popup */}
-      {syncError && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] animate-in fade-in slide-in-from-top-2 duration-200">
-          <div className="flex items-center gap-2 bg-card border border-destructive/30 rounded-lg px-4 py-3 shadow-lg">
-            <AlertTriangle className="w-4 h-4 text-destructive shrink-0" />
-            <span className="text-sm text-foreground">{syncError}</span>
-            <button onClick={() => setSyncError(null)} className="text-muted-foreground hover:text-foreground ml-2 text-lg leading-none">&times;</button>
-          </div>
-        </div>
-      )}
-
-      {/* Auto-sync indicator removed — spinner now shown inline on Google button */}
+      {/* Ostrzeżenia i błędy synchronizacji pokazywane są teraz przez system toastów */}
 
       {/* Content */}
       <div className={`${loading ? 'opacity-50 pointer-events-none transition-opacity' : 'transition-opacity'}`}>

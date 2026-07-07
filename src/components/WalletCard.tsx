@@ -183,7 +183,7 @@ export const WalletCard = memo(function WalletCard({ wallet, assets, exchangeRat
         {renderBackground()}
 
         {/* Action buttons */}
-        <div className="absolute top-3 right-3 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-200 translate-y-1 group-hover:translate-y-0 z-20">
+        <div className="absolute top-3 right-3 flex gap-1.5 lg:opacity-0 lg:group-hover:opacity-100 transition-all duration-200 lg:translate-y-1 lg:group-hover:translate-y-0 z-20">
           {onRecalculate && (
             <button
               onClick={(e) => { e.stopPropagation(); onRecalculate(wallet.id); }}

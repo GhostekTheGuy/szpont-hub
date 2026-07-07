@@ -17,6 +17,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '@/components/Toast';
 import { format } from 'date-fns';
 import { formatLocalDateTime } from '@/lib/calendar-utils';
+import { useEscapeToClose } from '@/hooks/useModalDismiss';
 
 interface CalendarEventModalProps {
   isOpen: boolean;
@@ -40,6 +41,7 @@ function extractParentId(instanceId: string): string {
 
 export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate, prefillHour }: CalendarEventModalProps) {
   const { toast, confirm } = useToast();
+  useEscapeToClose(isOpen, () => onClose());
   const wallets = useFinanceStore(s => s.wallets);
   const orders = useFinanceStore(s => s.orders);
   const hourlyOrders = orders.filter(o => o.billing_type === 'hourly' && o.status !== 'settled' && o.hourly_rate);
@@ -221,7 +223,9 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
             cancelLabel: 'Nie, zostaw transakcję',
           });
           if (choice) {
-            await deleteCalendarEvent(editingEvent.id, true);
+            // Cofnij transakcję ORAZ wyklucz instancję (marker EXCLUDED),
+            // inaczej odrodzi się przy ekspansji i można ją rozliczyć ponownie.
+            await deleteRecurringInstance(editingEvent.id, true);
           } else {
             await deleteRecurringInstance(editingEvent.id);
           }
@@ -299,13 +303,18 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
+          onClick={() => { if (!loading) onClose(); }}
         >
           <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-label={editingEvent ? 'Edytuj wydarzenie' : 'Nowe wydarzenie'}
             className="bg-card border border-border rounded-xl p-6 w-full max-w-md shadow-xl max-h-[90dvh] overflow-y-auto"
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
             transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+            onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-center mb-6">
               <div className="flex items-center gap-2">
@@ -321,7 +330,7 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
                   </svg>
                 )}
               </div>
-              <button onClick={() => onClose()} className="text-muted-foreground hover:text-foreground transition-colors" disabled={loading}>
+              <button onClick={() => onClose()} aria-label="Zamknij" className="text-muted-foreground hover:text-foreground transition-colors" disabled={loading}>
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -462,7 +471,7 @@ export function CalendarEventModal({ isOpen, onClose, editingEvent, prefillDate,
                     }}
                     className="w-full bg-input border border-border rounded-lg px-3 py-2 text-foreground outline-none focus:ring-2 focus:ring-ring transition-all"
                   >
-                    <option value="">Brak (reczny wpis)</option>
+                    <option value="">Brak (ręczny wpis)</option>
                     {hourlyOrders.map(o => (
                       <option key={o.id} value={o.id}>{o.title} ({o.hourly_rate} PLN/h)</option>
                     ))}

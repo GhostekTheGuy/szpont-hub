@@ -40,7 +40,7 @@ interface Props {
 }
 
 const STATUS_CONFIG: Record<OrderStatus, { label: string; icon: typeof CircleDashed; color: string; bg: string }> = {
-  pending: { label: 'Oczekujace', icon: CircleDashed, color: 'text-muted-foreground', bg: 'bg-muted/50' },
+  pending: { label: 'Oczekujące', icon: CircleDashed, color: 'text-muted-foreground', bg: 'bg-muted/50' },
   in_progress: { label: 'W trakcie', icon: PlayCircle, color: 'text-blue-500', bg: 'bg-blue-500/10' },
   completed: { label: 'Wykonane', icon: CheckCircle2, color: 'text-green-500', bg: 'bg-green-500/10' },
   settled: { label: 'Rozliczone', icon: Banknote, color: 'text-emerald-600', bg: 'bg-emerald-500/10' },
@@ -167,8 +167,10 @@ export function ProjectsPageClient({ initialClients, initialOrders, initialWalle
     let orderCount = 0;
 
     for (const o of orders) {
-      const created = new Date(o.created_at);
-      if (created.getMonth() === currentMonth && created.getFullYear() === currentYear) {
+      // Atrybucja miesiąca po completion_date (spójnie z getMonthlySummary/MonthlySummaryBlock),
+      // z fallbackiem na created_at gdy zlecenie nie ma jeszcze daty ukończenia.
+      const attrDate = new Date(o.completion_date || o.created_at);
+      if (attrDate.getMonth() === currentMonth && attrDate.getFullYear() === currentYear) {
         orderCount++;
         total += o.amount;
         if (o.is_settled) {
@@ -198,11 +200,11 @@ export function ProjectsPageClient({ initialClients, initialOrders, initialWalle
   const handleDeleteClient = async (client: Client) => {
     const clientOrders = ordersByClient.get(client.id);
     const msg = clientOrders && clientOrders.length > 0
-      ? `Klient "${client.name}" ma ${clientOrders.length} zlecen. Usuniecie klienta usunie rowniez wszystkie zlecenia.`
+      ? `Klient "${client.name}" ma ${clientOrders.length} zleceń. Usunięcie klienta usunie również wszystkie zlecenia.`
       : `Czy na pewno chcesz usunac klienta "${client.name}"?`;
 
     const ok = await confirm({
-      title: 'Usun klienta',
+      title: 'Usuń klienta',
       description: msg,
       variant: 'danger',
       confirmLabel: 'Usun',
@@ -214,14 +216,14 @@ export function ProjectsPageClient({ initialClients, initialOrders, initialWalle
       toast('Klient usuniety', 'success');
       refreshData();
     } catch {
-      toast('Blad przy usuwaniu', 'error');
+      toast('Błąd przy usuwaniu', 'error');
     }
   };
 
   const handleDeleteOrder = async (order: Order) => {
     const ok = await confirm({
-      title: 'Usun zlecenie',
-      description: `Czy na pewno chcesz usunac zlecenie "${order.title}"?`,
+      title: 'Usuń zlecenie',
+      description: `Czy na pewno chcesz usunąć zlecenie "${order.title}"?`,
       variant: 'danger',
       confirmLabel: 'Usun',
     });
@@ -232,7 +234,7 @@ export function ProjectsPageClient({ initialClients, initialOrders, initialWalle
       toast('Zlecenie usuniete', 'success');
       refreshData();
     } catch {
-      toast('Blad przy usuwaniu', 'error');
+      toast('Błąd przy usuwaniu', 'error');
     }
   };
 
@@ -254,19 +256,19 @@ export function ProjectsPageClient({ initialClients, initialOrders, initialWalle
     const ordersToSettle = orders.filter(o => ids.includes(o.id) && !o.is_settled);
 
     if (ordersToSettle.length === 0) {
-      toast('Wybrane zlecenia sa juz rozliczone', 'warning');
+      toast('Wybrane zlecenia są już rozliczone', 'warning');
       return;
     }
 
     const withoutWallet = ordersToSettle.filter(o => !o.wallet_id);
     if (withoutWallet.length > 0) {
-      toast(`${withoutWallet.length} zlecen nie ma przypisanego portfela`, 'warning');
+      toast(`${withoutWallet.length} zleceń nie ma przypisanego portfela`, 'warning');
     }
 
     const totalAmount = ordersToSettle.filter(o => o.wallet_id).reduce((sum, o) => sum + o.amount, 0);
     const ok = await confirm({
       title: 'Rozlicz zlecenia',
-      description: `Rozliczyc ${ordersToSettle.filter(o => o.wallet_id).length} zlecen na laczna kwote ${totalAmount.toFixed(2)} PLN?`,
+      description: `Rozliczyć ${ordersToSettle.filter(o => o.wallet_id).length} zleceń na łączną kwotę ${totalAmount.toFixed(2)} PLN?`,
       confirmLabel: 'Rozlicz',
     });
     if (!ok) return;
@@ -274,11 +276,11 @@ export function ProjectsPageClient({ initialClients, initialOrders, initialWalle
     setSettling(true);
     try {
       const result = await settleOrdersAction(ids);
-      toast(`Rozliczono ${result.settled} zlecen`, 'success');
+      toast(`Rozliczono ${result.settled} zleceń`, 'success');
       setSelectedOrders(new Set());
       refreshData();
     } catch {
-      toast('Blad przy rozliczaniu', 'error');
+      toast('Błąd przy rozliczaniu', 'error');
     } finally {
       setSettling(false);
     }
@@ -335,7 +337,7 @@ export function ProjectsPageClient({ initialClients, initialOrders, initialWalle
           <div className="text-xl lg:text-2xl font-bold text-foreground">{monthlySummary.orderCount}</div>
         </div>
         <div className="bg-card border border-border rounded-xl p-3 lg:p-4">
-          <div className="text-xs text-muted-foreground mb-1">Laczna kwota</div>
+          <div className="text-xs text-muted-foreground mb-1">Łączna kwota</div>
           <div className="text-xl lg:text-2xl font-bold text-foreground">{monthlySummary.total.toFixed(2)} <span className="text-xs lg:text-sm font-normal text-muted-foreground">PLN</span></div>
         </div>
         <div className="bg-card border border-border rounded-xl p-3 lg:p-4">
@@ -411,8 +413,8 @@ export function ProjectsPageClient({ initialClients, initialOrders, initialWalle
       {clients.length === 0 ? (
         <div className="text-center py-16">
           <Users className="w-12 h-12 mx-auto text-muted-foreground/30 mb-4" />
-          <p className="text-muted-foreground mb-2">Brak klientow</p>
-          <p className="text-sm text-muted-foreground/70">Dodaj pierwszego klienta, zeby zaczac zarzadzac zleceniami</p>
+          <p className="text-muted-foreground mb-2">Brak klientów</p>
+          <p className="text-sm text-muted-foreground/70">Dodaj pierwszego klienta, żeby zacząć zarządzać zleceniami</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -464,7 +466,7 @@ export function ProjectsPageClient({ initialClients, initialOrders, initialWalle
                       <div className="text-sm font-semibold text-amber-500">{unsettledAmount.toFixed(2)} PLN</div>
                     )}
                     <div className="flex items-center justify-end gap-1.5 text-xs text-muted-foreground">
-                      <span>{allClientOrders.length} zlecen</span>
+                      <span>{allClientOrders.length} zleceń</span>
                       {unsettledCount > 0 && (
                         <span className="px-1.5 py-0.5 bg-amber-500/15 text-amber-500 rounded-full text-[10px] font-semibold leading-none">
                           {unsettledCount} do rozliczenia
@@ -514,7 +516,7 @@ export function ProjectsPageClient({ initialClients, initialOrders, initialWalle
 
                     {clientOrders.length === 0 ? (
                       <div className="px-4 py-6 text-center text-sm text-muted-foreground">
-                        {statusFilter !== 'all' || tagFilter ? 'Brak zlecen z wybranymi filtrami' : 'Brak zlecen dla tego klienta'}
+                        {statusFilter !== 'all' || tagFilter ? 'Brak zleceń z wybranymi filtrami' : 'Brak zleceń dla tego klienta'}
                       </div>
                     ) : (
                       <div className="divide-y divide-border">

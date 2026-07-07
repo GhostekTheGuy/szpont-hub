@@ -22,6 +22,33 @@ import { expandRecurringEvents, mergeWithExpanded, formatLocalDateTime } from '@
 import { time } from '@/lib/timing';
 import { revalidatePages, isValidISODate, parseInstanceId, getUserId, getDEK } from '@/lib/server-internals';
 
+// Waliduje, że podany portfel i/lub zlecenie należą do użytkownika.
+// Chroni przed IDOR: podpięciem cudzego wallet_id/order_id pod własny rekord.
+async function assertOwnsWalletAndOrder(
+  userId: string,
+  walletId?: string | null,
+  orderId?: string | null,
+) {
+  if (walletId) {
+    const { data } = await supabaseAdmin
+      .from('wallets')
+      .select('id')
+      .eq('id', walletId)
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (!data) throw new Error('Portfel nie istnieje lub nie należy do użytkownika');
+  }
+  if (orderId) {
+    const { data } = await supabaseAdmin
+      .from('orders')
+      .select('id')
+      .eq('id', orderId)
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (!data) throw new Error('Zlecenie nie istnieje lub nie należy do użytkownika');
+  }
+}
+
 // --- SZYFROWANIE: SESJA ---
 
 export async function initEncryptionSession(password: string) {
@@ -164,7 +191,7 @@ export async function getDashboardData() {
     getExchangeRates(),
     supabaseAdmin.from('assets').select('id, user_id, name, symbol, coingecko_id, quantity, current_price, total_value, change_24h, cost_basis, asset_type, wallet_id, created_at').eq('user_id', userId),
     supabaseAdmin.from('goals').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
-    supabaseAdmin.from('calendar_events').select('*').eq('user_id', userId).eq('is_confirmed', true).neq('event_type', 'personal'),
+    supabaseAdmin.from('calendar_events').select('*').eq('user_id', userId).eq('is_confirmed', true).or('event_type.is.null,event_type.neq.personal'),
     supabaseAdmin.from('recurring_expenses').select('*').eq('user_id', userId).eq('is_active', true).order('next_due_date', { ascending: true }),
     supabaseAdmin.from('habits').select('*').eq('user_id', userId).order('created_at', { ascending: true }),
     supabaseAdmin.from('habit_entries').select('*, habit:habits!inner(user_id)').eq('habit.user_id', userId),
@@ -503,6 +530,17 @@ export async function addTransferAction(data: {
   const userId = await getUserId();
   if (!userId) throw new Error("Unauthorized");
 
+  // Walidacja kwoty — NaN/Infinity trwale zepsułyby saldo, ujemna odwróciłaby transfer
+  if (typeof data.amount !== 'number' || !Number.isFinite(data.amount) || data.amount <= 0) {
+    throw new Error('Nieprawidłowa kwota transferu');
+  }
+  if (typeof data.fromWalletId !== 'string' || typeof data.toWalletId !== 'string' || !data.fromWalletId || !data.toWalletId) {
+    throw new Error('Nieprawidłowy portfel');
+  }
+  if (data.fromWalletId === data.toWalletId) {
+    throw new Error('Portfel źródłowy i docelowy muszą być różne');
+  }
+
   const dek = await getDEK();
   const rates = await getExchangeRates();
   const amountInPLN = convertAmount(data.amount, data.currency, 'PLN', rates);
@@ -523,8 +561,34 @@ export async function addTransferAction(data: {
   const outcomeDesc = data.description ? `${data.description} → ${toName}` : `→ ${toName}`;
   const incomeDesc = data.description ? `${data.description} ← ${fromName}` : `← ${fromName}`;
 
+  // Najpierw zaktualizuj salda obu portfeli (rollback przy błędzie), a transakcje wstaw
+  // dopiero po sukcesie — żeby błąd nie zostawił transakcji bez odzwierciedlenia w saldzie.
+  const { error: fromError } = await supabaseAdmin
+    .from('wallets')
+    .update({ balance: encryptNumber(fromBalance - amountInPLN, dek) })
+    .eq('id', data.fromWalletId)
+    .eq('user_id', userId);
+
+  if (fromError) throw new Error('Transfer failed: source wallet update error');
+
+  const { error: toError } = await supabaseAdmin
+    .from('wallets')
+    .update({ balance: encryptNumber(toBalance + amountInPLN, dek) })
+    .eq('id', data.toWalletId)
+    .eq('user_id', userId);
+
+  if (toError) {
+    // Rollback: przywróć saldo portfela źródłowego
+    await supabaseAdmin
+      .from('wallets')
+      .update({ balance: encryptNumber(fromBalance, dek) })
+      .eq('id', data.fromWalletId)
+      .eq('user_id', userId);
+    throw new Error('Transfer failed: destination wallet update error');
+  }
+
   // Utwórz 2 transakcje: outcome z fromWallet, income do toWallet
-  await supabaseAdmin.from('transactions').insert([
+  const { error: txError } = await supabaseAdmin.from('transactions').insert([
     {
       id: nanoid(),
       amount: encryptNumber(-Math.abs(data.amount), dek),
@@ -549,26 +613,11 @@ export async function addTransferAction(data: {
     },
   ]);
 
-  // Zaktualizuj salda obu portfeli sekwencyjnie (rollback przy błędzie)
-  const { error: fromError } = await supabaseAdmin
-    .from('wallets')
-    .update({ balance: encryptNumber(fromBalance - amountInPLN, dek) })
-    .eq('id', data.fromWalletId);
-
-  if (fromError) throw new Error('Transfer failed: source wallet update error');
-
-  const { error: toError } = await supabaseAdmin
-    .from('wallets')
-    .update({ balance: encryptNumber(toBalance + amountInPLN, dek) })
-    .eq('id', data.toWalletId);
-
-  if (toError) {
-    // Rollback: przywróć saldo portfela źródłowego
-    await supabaseAdmin
-      .from('wallets')
-      .update({ balance: encryptNumber(fromBalance, dek) })
-      .eq('id', data.fromWalletId);
-    throw new Error('Transfer failed: destination wallet update error');
+  if (txError) {
+    // Rollback obu sald — nie zostawiaj przesunięcia bez transakcji
+    await supabaseAdmin.from('wallets').update({ balance: encryptNumber(fromBalance, dek) }).eq('id', data.fromWalletId).eq('user_id', userId);
+    await supabaseAdmin.from('wallets').update({ balance: encryptNumber(toBalance, dek) }).eq('id', data.toWalletId).eq('user_id', userId);
+    throw new Error('Transfer failed: transaction insert error');
   }
 
   revalidatePages('dashboard', 'wallets', 'calendar');
@@ -694,14 +743,25 @@ export async function editTransactionAction(id: string, data: {
   const oldCurrency: Currency = oldTransaction.currency || 'PLN';
   const oldAmountInPLN = convertAmount(oldAmount, oldCurrency, 'PLN', rates);
 
-  // 1. Cofnij starą transakcję w PLN (zaszyfrowane)
+  const newCurrency: Currency = data.currency && ['PLN', 'USD', 'EUR'].includes(data.currency) ? data.currency as Currency : 'PLN';
+
+  // 0. Zwaliduj nowy portfel PRZED jakąkolwiek mutacją — inaczej przy nieistniejącym/cudzym
+  //    portfelu stare saldo zostałoby pomniejszone, a nowe nigdy nie zwiększone.
+  const { data: newWallet } = await supabaseAdmin
+    .from('wallets')
+    .select('*')
+    .eq('id', data.wallet)
+    .eq('user_id', userId)
+    .single();
+
+  if (!newWallet) throw new Error('Wallet not found');
+
+  // 1. Cofnij starą transakcję ze starego portfela w PLN (zaszyfrowane)
   const revertedBalance = oldWalletBalance - oldAmountInPLN;
   await supabaseAdmin
     .from('wallets')
     .update({ balance: encryptNumber(revertedBalance, dek) })
     .eq('id', oldTransaction.wallet_id);
-
-  const newCurrency: Currency = data.currency && ['PLN', 'USD', 'EUR'].includes(data.currency) ? data.currency as Currency : 'PLN';
 
   // 2. Zaktualizuj transakcję (zaszyfrowane pola)
   await supabaseAdmin
@@ -717,23 +777,18 @@ export async function editTransactionAction(id: string, data: {
     })
     .eq('id', id);
 
-  // 3. Dodaj do nowego portfela (przeliczone na PLN)
+  // 3. Dodaj do nowego portfela (przeliczone na PLN).
+  //    Jeśli portfel się nie zmienił, odczytaj świeże saldo po cofnięciu z kroku 1.
   const newAmountInPLN = convertAmount(data.amount, newCurrency, 'PLN', rates);
-  const { data: newWallet } = await supabaseAdmin
-    .from('wallets')
-    .select('*')
-    .eq('id', data.wallet)
-    .eq('user_id', userId)
-    .single();
-
-  if (!newWallet) throw new Error('Wallet not found');
-
-  const newWalletBalance = decryptNumber(newWallet.balance, dek);
+  const newWalletBalance = newWallet.id === oldTransaction.wallet_id
+    ? revertedBalance
+    : decryptNumber(newWallet.balance, dek);
   const updatedBalance = newWalletBalance + newAmountInPLN;
   await supabaseAdmin
     .from('wallets')
     .update({ balance: encryptNumber(updatedBalance, dek) })
-    .eq('id', newWallet.id);
+    .eq('id', newWallet.id)
+    .eq('user_id', userId);
 
   revalidatePages('dashboard', 'wallets', 'calendar');
 }
@@ -918,10 +973,22 @@ export async function deleteWalletAction(id: string) {
     .delete()
     .eq('wallet_id', id);
 
+  // Wyzeruj referencje do portfela w zależnych tabelach, żeby nie zostały osierocone
+  // wskaźniki (settle nie może księgować na nieistniejący portfel, a formularze
+  // nie mogą pokazywać martwego wyboru). Scope po user_id dla bezpieczeństwa.
+  await Promise.all([
+    supabaseAdmin.from('calendar_events').update({ wallet_id: null }).eq('wallet_id', id).eq('user_id', userId),
+    supabaseAdmin.from('orders').update({ wallet_id: null }).eq('wallet_id', id).eq('user_id', userId),
+    supabaseAdmin.from('assets').update({ wallet_id: null }).eq('wallet_id', id).eq('user_id', userId),
+    supabaseAdmin.from('goals').update({ wallet_id: null }).eq('wallet_id', id).eq('user_id', userId),
+    supabaseAdmin.from('recurring_expenses').update({ wallet_id: null }).eq('wallet_id', id).eq('user_id', userId),
+  ]);
+
   await supabaseAdmin
     .from('wallets')
     .delete()
-    .eq('id', id);
+    .eq('id', id)
+    .eq('user_id', userId);
 
   revalidatePages('dashboard', 'wallets', 'calendar');
 }
@@ -1172,6 +1239,9 @@ export async function addCalendarEvent(data: {
   const isPersonalEvent = data.event_type === 'personal';
   if (!isPersonalEvent && data.hourly_rate <= 0) throw new Error('Stawka godzinowa musi być większa od 0');
 
+  // Zwaliduj, że wskazany portfel i zlecenie należą do użytkownika (ochrona przed IDOR)
+  await assertOwnsWalletAndOrder(userId, isPersonalEvent ? null : data.wallet_id, data.order_id);
+
   const dek = await getDEK();
 
   const { error } = await supabaseAdmin
@@ -1210,12 +1280,15 @@ export async function editCalendarEvent(id: string, data: {
   event_type?: 'work' | 'personal';
   order_id?: string | null;
 }) {
-  if (!isValidISODate(data.start_time) || !isValidISODate(data.end_time)) throw new Error('Invalid date');
-  if (new Date(data.end_time).getTime() <= new Date(data.start_time).getTime()) throw new Error('End time must be after start time');
+  if (!isValidISODate(data.start_time) || !isValidISODate(data.end_time)) throw new Error('Nieprawidłowy format daty');
+  if (new Date(data.end_time).getTime() <= new Date(data.start_time).getTime()) throw new Error('Czas zakończenia musi być po czasie rozpoczęcia');
   const isPersonal = data.event_type === 'personal';
-  if (!isPersonal && data.hourly_rate <= 0) throw new Error('Invalid hourly rate');
+  if (!isPersonal && data.hourly_rate <= 0) throw new Error('Stawka godzinowa musi być większa od 0');
   const userId = await getUserId();
-  if (!userId) throw new Error('Unauthorized');
+  if (!userId) throw new Error('Sesja wygasła — zaloguj się ponownie');
+
+  // Ochrona przed IDOR: portfel i zlecenie muszą należeć do użytkownika
+  await assertOwnsWalletAndOrder(userId, isPersonal ? null : data.wallet_id, data.order_id);
 
   const dek = await getDEK();
 
@@ -1571,7 +1644,7 @@ export async function editRecurringInstance(instanceId: string, data: {
   }
 }
 
-export async function deleteRecurringInstance(instanceId: string) {
+export async function deleteRecurringInstance(instanceId: string, reverseTransaction = false) {
   const userId = await getUserId();
   if (!userId) throw new Error('Unauthorized');
 
@@ -1580,11 +1653,53 @@ export async function deleteRecurringInstance(instanceId: string) {
 
   const { data: existing } = await supabaseAdmin
     .from('calendar_events')
-    .select('id, user_id')
+    .select('*')
     .eq('id', instanceId)
     .single();
 
   if (existing && existing.user_id === userId) {
+    // Jeśli instancja była rozliczona i prosimy o cofnięcie — odejmij zarobki z portfela.
+    // Musi to nastąpić TU (a nie przez deleteCalendarEvent), bo poniżej wstawiamy marker
+    // EXCLUDED, który blokuje regenerację i ponowne rozliczenie tej instancji.
+    if (reverseTransaction && existing.is_settled && existing.wallet_id) {
+      const dek = await getDEK();
+      const hourlyRate = decryptNumber(existing.hourly_rate, dek);
+      const start = new Date(existing.start_time);
+      const end = new Date(existing.end_time);
+      const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+      const earnings = hours * hourlyRate;
+
+      const { data: wallet } = await supabaseAdmin
+        .from('wallets')
+        .select('balance')
+        .eq('id', existing.wallet_id)
+        .eq('user_id', userId)
+        .single();
+
+      if (wallet) {
+        const currentBalance = decryptNumber(wallet.balance, dek);
+        await supabaseAdmin
+          .from('wallets')
+          .update({ balance: encryptNumber(currentBalance - earnings, dek) })
+          .eq('id', existing.wallet_id)
+          .eq('user_id', userId);
+
+        await supabaseAdmin
+          .from('transactions')
+          .insert({
+            id: nanoid(),
+            amount: encryptNumber(-earnings, dek),
+            category: encryptString('Praca', dek),
+            description: encryptString(`Cofnięcie rozliczenia: ${decryptString(existing.title, dek)}`, dek),
+            type: 'outcome',
+            date: existing.start_time.split('T')[0],
+            wallet_id: existing.wallet_id,
+            currency: 'PLN',
+            created_at: new Date().toISOString(),
+          });
+      }
+    }
+
     // Materialized instance — delete it and insert exclusion marker
     await supabaseAdmin
       .from('calendar_events')
@@ -1923,103 +2038,6 @@ async function reverseSettledEvent(event: { wallet_id: string; hourly_rate: stri
         created_at: new Date().toISOString(),
       });
   }
-}
-
-export async function settleWeekAction(weekStart: string, weekEnd: string) {
-  if (!isValidISODate(weekStart) || !isValidISODate(weekEnd)) throw new Error('Invalid date range');
-  const userId = await getUserId();
-  if (!userId) throw new Error('Unauthorized');
-
-  const dek = await getDEK();
-
-  // Pobierz potwierdzone ale niezatwierdzone eventy z tego tygodnia (tylko work)
-  const { data: events, error } = await supabaseAdmin
-    .from('calendar_events')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('is_confirmed', true)
-    .eq('is_settled', false)
-    .lte('start_time', weekEnd)
-    .gte('end_time', weekStart);
-
-  if (error || !events || events.length === 0) return { settled: 0 };
-
-  // Filter out personal events — only settle work events
-  const workEvents = events.filter(e => (e.event_type || 'work') === 'work');
-  if (workEvents.length === 0) return { settled: 0 };
-
-  const filteredEvents = workEvents.filter(event => !!event.wallet_id);
-
-  if (filteredEvents.length === 0) return { settled: 0 };
-
-  // Grupuj zarobki per portfel
-  const walletEarnings = new Map<string, number>();
-
-  for (const event of filteredEvents) {
-    if (!event.wallet_id) continue;
-    const hourlyRate = decryptNumber(event.hourly_rate, dek);
-    const start = new Date(event.start_time);
-    const end = new Date(event.end_time);
-    const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-    const earnings = hours * hourlyRate;
-
-    walletEarnings.set(
-      event.wallet_id,
-      (walletEarnings.get(event.wallet_id) || 0) + earnings
-    );
-  }
-
-  // Najpierw oznacz eventy jako settled (zapobiega podwójnemu rozliczeniu) +
-  // równolegle pobierz aktualne salda portfeli, żeby uniknąć N round-tripów
-  // wewnątrz pętli niżej.
-  const eventIds = filteredEvents.map(e => e.id);
-  const walletIds = Array.from(walletEarnings.keys());
-  const weekDate = weekStart.split('T')[0];
-  const createdAt = new Date().toISOString();
-
-  const [, { data: walletsData }] = await Promise.all([
-    supabaseAdmin
-      .from('calendar_events')
-      .update({ is_settled: true })
-      .in('id', eventIds),
-    supabaseAdmin
-      .from('wallets')
-      .select('id, balance')
-      .in('id', walletIds),
-  ]);
-
-  const balanceById = new Map(
-    (walletsData || []).map(w => [w.id, decryptNumber(w.balance, dek)])
-  );
-
-  // Bulk insert all weekly-earnings transactions in a single round-trip.
-  const transactionsToInsert = Array.from(walletEarnings.entries()).map(([walletId, totalEarnings]) => ({
-    id: nanoid(),
-    amount: encryptNumber(totalEarnings, dek),
-    category: encryptString('Praca', dek),
-    description: encryptString(`Zarobki za tydzień ${weekDate}`, dek),
-    type: 'income',
-    date: weekDate,
-    wallet_id: walletId,
-    currency: 'PLN',
-    created_at: createdAt,
-  }));
-
-  // Update balances in parallel — different wallet IDs, no race between them.
-  await Promise.all([
-    supabaseAdmin.from('transactions').insert(transactionsToInsert),
-    ...Array.from(walletEarnings.entries()).map(([walletId, totalEarnings]) => {
-      const current = balanceById.get(walletId);
-      if (current === undefined) return Promise.resolve();
-      return supabaseAdmin
-        .from('wallets')
-        .update({ balance: encryptNumber(current + totalEarnings, dek) })
-        .eq('id', walletId);
-    }),
-  ]);
-
-  revalidatePages('calendar', 'wallets', 'dashboard');
-  return { settled: filteredEvents.length };
 }
 
 export async function getWeeklySummary(weekStart: string, weekEnd: string) {
@@ -2368,90 +2386,6 @@ function getISOWeekLabel(date: Date): string {
   return `Tydzień ${weekNum}`;
 }
 
-export async function settleMonthAction(monthStart: string, monthEnd: string) {
-  if (!isValidISODate(monthStart) || !isValidISODate(monthEnd)) throw new Error('Invalid date range');
-  const userId = await getUserId();
-  if (!userId) throw new Error('Unauthorized');
-
-  const dek = await getDEK();
-
-  const { data: events, error } = await supabaseAdmin
-    .from('calendar_events')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('is_confirmed', true)
-    .eq('is_settled', false)
-    .lte('start_time', monthEnd)
-    .gte('end_time', monthStart);
-
-  if (error || !events || events.length === 0) return { settled: 0 };
-
-  // Filter out personal events — only settle work events
-  const workMonthEvents = events.filter(e => (e.event_type || 'work') === 'work');
-  if (workMonthEvents.length === 0) return { settled: 0 };
-
-  const filteredMonthEvents = workMonthEvents.filter(event => !!event.wallet_id);
-
-  if (filteredMonthEvents.length === 0) return { settled: 0 };
-
-  const walletEarnings = new Map<string, number>();
-
-  for (const event of filteredMonthEvents) {
-    if (!event.wallet_id) continue;
-    const hourlyRate = decryptNumber(event.hourly_rate, dek);
-    const start = new Date(event.start_time);
-    const end = new Date(event.end_time);
-    const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-    const earnings = hours * hourlyRate;
-
-    walletEarnings.set(
-      event.wallet_id,
-      (walletEarnings.get(event.wallet_id) || 0) + earnings
-    );
-  }
-
-  // Najpierw oznacz eventy jako settled (zapobiega podwójnemu rozliczeniu)
-  const eventIds = filteredMonthEvents.map(e => e.id);
-  await supabaseAdmin
-    .from('calendar_events')
-    .update({ is_settled: true })
-    .in('id', eventIds);
-
-  // Stwórz transakcje income i zaktualizuj salda — sekwencyjnie per portfel
-  for (const [walletId, totalEarnings] of Array.from(walletEarnings.entries())) {
-    await supabaseAdmin
-      .from('transactions')
-      .insert({
-        id: nanoid(),
-        amount: encryptNumber(totalEarnings, dek),
-        category: encryptString('Praca', dek),
-        description: encryptString(`Zarobki za miesiąc ${monthStart.split('T')[0].slice(0, 7)}`, dek),
-        type: 'income',
-        date: monthStart.split('T')[0],
-        wallet_id: walletId,
-        currency: 'PLN',
-        created_at: new Date().toISOString(),
-      });
-
-    const { data: wallet } = await supabaseAdmin
-      .from('wallets')
-      .select('balance')
-      .eq('id', walletId)
-      .single();
-
-    if (!wallet) continue;
-
-    const currentBalance = decryptNumber(wallet.balance, dek);
-    await supabaseAdmin
-      .from('wallets')
-      .update({ balance: encryptNumber(currentBalance + totalEarnings, dek) })
-      .eq('id', walletId);
-  }
-
-  revalidatePages('calendar', 'wallets', 'dashboard');
-  return { settled: filteredMonthEvents.length };
-}
-
 export async function getUnsettledCount() {
   const userId = await getUserId();
   if (!userId) return 0;
@@ -2462,7 +2396,9 @@ export async function getUnsettledCount() {
     .eq('user_id', userId)
     .eq('is_confirmed', true)
     .eq('is_settled', false)
-    .neq('event_type', 'personal');
+    // NULL event_type traktujemy jak 'work' (spójnie z settle) — samo .neq() odrzuciłoby NULL,
+    // przez co licznik pokazywałby mniej, niż faktycznie zostanie rozliczone.
+    .or('event_type.is.null,event_type.neq.personal');
 
   return count || 0;
 }
@@ -2485,7 +2421,23 @@ export async function settleAllUnsettledAction() {
   const workEvents = events.filter(e => (e.event_type || 'work') === 'work');
   if (workEvents.length === 0) return { settled: 0 };
 
-  const filteredEvents = workEvents.filter(event => !!event.wallet_id);
+  const candidateEvents = workEvents.filter(event => !!event.wallet_id);
+  if (candidateEvents.length === 0) return { settled: 0 };
+
+  const candidateIds = candidateEvents.map(e => e.id);
+
+  // Atomowo przełącz tylko wiersze wciąż nierozliczone i pobierz te faktycznie zmienione.
+  // Chroni przed podwójnym rozliczeniem (dwuklik / dwie karty): równoległe wywołanie
+  // nie dopasuje żadnego wiersza (is_settled już true) i nie zaksięguje niczego.
+  const { data: settledRows, error: settleError } = await supabaseAdmin
+    .from('calendar_events')
+    .update({ is_settled: true })
+    .in('id', candidateIds)
+    .eq('is_settled', false)
+    .select('*');
+
+  if (settleError) throw new Error('Failed to settle events');
+  const filteredEvents = settledRows || [];
   if (filteredEvents.length === 0) return { settled: 0 };
 
   const walletEarnings = new Map<string, number>();
@@ -2505,11 +2457,6 @@ export async function settleAllUnsettledAction() {
   }
 
   const eventIds = filteredEvents.map(e => e.id);
-  await supabaseAdmin
-    .from('calendar_events')
-    .update({ is_settled: true })
-    .in('id', eventIds);
-
   const today = new Date().toISOString().split('T')[0];
 
   for (const [walletId, totalEarnings] of Array.from(walletEarnings.entries())) {
@@ -2531,6 +2478,7 @@ export async function settleAllUnsettledAction() {
       .from('wallets')
       .select('balance')
       .eq('id', walletId)
+      .eq('user_id', userId)
       .single();
 
     if (!wallet) continue;
@@ -2539,7 +2487,8 @@ export async function settleAllUnsettledAction() {
     await supabaseAdmin
       .from('wallets')
       .update({ balance: encryptNumber(currentBalance + totalEarnings, dek) })
-      .eq('id', walletId);
+      .eq('id', walletId)
+      .eq('user_id', userId);
   }
 
   revalidatePages('calendar', 'wallets', 'dashboard');
@@ -2741,6 +2690,13 @@ export async function editAssetAction(id: string, data: { quantity: number; cost
     .single();
 
   if (!asset || asset.user_id !== userId) return;
+
+  if (typeof data.quantity !== 'number' || !Number.isFinite(data.quantity) || data.quantity < 0) {
+    throw new Error('Nieprawidłowa ilość');
+  }
+  if (data.cost_basis !== undefined && (!Number.isFinite(data.cost_basis) || data.cost_basis < 0)) {
+    throw new Error('Nieprawidłowa cena zakupu');
+  }
 
   const dek = await getDEK();
   const currentPrice = decryptNumber(asset.current_price, dek);
@@ -2959,7 +2915,7 @@ export async function sellAssetAction(data: {
   const assetName = decryptString(asset.name, dek) || asset.name;
   const assetSymbol = decryptString(asset.symbol, dek) || asset.symbol;
 
-  if (data.quantityToSell <= 0) {
+  if (typeof data.quantityToSell !== 'number' || !Number.isFinite(data.quantityToSell) || data.quantityToSell <= 0) {
     throw new Error('Invalid quantity');
   }
 
@@ -3051,7 +3007,8 @@ export async function sellAssetAction(data: {
   await supabaseAdmin
     .from('wallets')
     .update({ balance: encryptNumber(newBalance, dek) })
-    .eq('id', data.walletId);
+    .eq('id', targetWalletId)
+    .eq('user_id', userId);
 
   revalidatePages('dashboard', 'wallets');
 }
@@ -3150,7 +3107,25 @@ export async function addManualSaleAction(data: {
   const userId = await getUserId();
   if (!userId) throw new Error('Unauthorized');
 
+  // Walidacja liczb — NaN/Infinity zepsułyby saldo i kwotę podatku
+  for (const [label, val] of [['ilość', data.quantitySold], ['cena sprzedaży', data.salePricePerUnit], ['cena zakupu', data.costBasisPerUnit]] as const) {
+    if (typeof val !== 'number' || !Number.isFinite(val) || val < 0) {
+      throw new Error(`Nieprawidłowa ${label}`);
+    }
+  }
+  if (data.quantitySold <= 0) throw new Error('Nieprawidłowa ilość');
+
   const dek = await getDEK();
+
+  // Zwaliduj portfel PRZED zapisem sprzedaży, aby nie zostawić sprzedaży bez przychodu
+  const { data: wallet } = await supabaseAdmin
+    .from('wallets')
+    .select('*')
+    .eq('id', data.walletId)
+    .eq('user_id', userId)
+    .single();
+
+  if (!wallet) throw new Error('Wallet not found');
 
   const totalProceeds = data.quantitySold * data.salePricePerUnit;
   const totalCost = data.quantitySold * data.costBasisPerUnit;
@@ -3182,15 +3157,6 @@ export async function addManualSaleAction(data: {
   }
 
   // Transakcja income do portfela (pełna kwota przychodu)
-  const { data: wallet } = await supabaseAdmin
-    .from('wallets')
-    .select('*')
-    .eq('id', data.walletId)
-    .eq('user_id', userId)
-    .single();
-
-  if (!wallet) throw new Error('Wallet not found');
-
   await supabaseAdmin
     .from('transactions')
     .insert({
@@ -3212,7 +3178,8 @@ export async function addManualSaleAction(data: {
   await supabaseAdmin
     .from('wallets')
     .update({ balance: encryptNumber(currentBalance + totalProceeds, dek) })
-    .eq('id', data.walletId);
+    .eq('id', data.walletId)
+    .eq('user_id', userId);
 
   revalidatePages('dashboard', 'wallets');
 }
@@ -3287,7 +3254,8 @@ export async function payTaxAction(data: {
     .from('transactions')
     .insert({
       id: nanoid(),
-      amount: encryptNumber(totalTaxToPay, dek),
+      // outcome przechowywany jako kwota ujemna (spójnie z resztą aplikacji i recalculateWalletBalance)
+      amount: encryptNumber(-Math.abs(totalTaxToPay), dek),
       category: encryptString('Podatek Belki', dek),
       description: encryptString(description, dek),
       type: 'outcome',
@@ -3299,11 +3267,12 @@ export async function payTaxAction(data: {
 
   // Zaktualizuj saldo portfela
   const currentBalance = decryptNumber(wallet.balance, dek);
-  const newBalance = currentBalance - totalTaxToPay;
+  const newBalance = currentBalance - Math.abs(totalTaxToPay);
   await supabaseAdmin
     .from('wallets')
     .update({ balance: encryptNumber(newBalance, dek) })
-    .eq('id', data.walletId);
+    .eq('id', data.walletId)
+    .eq('user_id', userId);
 
   revalidatePages('dashboard', 'wallets');
 }
@@ -4553,34 +4522,24 @@ export async function settleOrdersAction(orderIds: string[]) {
   const now = new Date().toISOString();
   let settledCount = 0;
 
-  // For hourly orders, compute amounts from tracked calendar events
-  const hourlyOrderIds = unsettled.filter(o => o.billing_type === 'hourly').map(o => o.id);
-  const hoursMap = new Map<string, number>();
-  if (hourlyOrderIds.length > 0) {
-    const { data: linkedEvents } = await supabaseAdmin
-      .from('calendar_events')
-      .select('order_id, start_time, end_time')
-      .in('order_id', hourlyOrderIds)
-      .eq('user_id', userId);
-    for (const ev of linkedEvents || []) {
-      if (!ev.order_id) continue;
-      const ms = new Date(ev.end_time).getTime() - new Date(ev.start_time).getTime();
-      const hours = ms / 3_600_000;
-      hoursMap.set(ev.order_id, (hoursMap.get(ev.order_id) || 0) + hours);
-    }
-  }
-
   for (const order of unsettled) {
+    // Zlecenia godzinowe rozliczają się przez swoje wydarzenia kalendarza
+    // (settleAllUnsettledAction księguje 'Praca' z godzin eventów, a podsumowania
+    // liczą hourly właśnie przez eventy). Tworzenie tu drugiej transakcji dublowałoby
+    // te same godziny w portfelu — dlatego hourly tylko oznaczamy jako rozliczone.
+    if (order.billing_type === 'hourly') {
+      await supabaseAdmin.from('orders').update({
+        is_settled: true,
+        settled_at: now,
+        status: 'settled',
+      }).eq('id', order.id).eq('user_id', userId);
+      settledCount++;
+      continue;
+    }
+
     if (!order.wallet_id) continue;
 
-    let amount: number;
-    if (order.billing_type === 'hourly') {
-      const hourlyRate = order.hourly_rate ? decryptNumber(order.hourly_rate, dek) : 0;
-      const trackedHours = hoursMap.get(order.id) || 0;
-      amount = trackedHours * hourlyRate;
-    } else {
-      amount = order.amount ? decryptNumber(order.amount, dek) : 0;
-    }
+    const amount = order.amount ? decryptNumber(order.amount, dek) : 0;
     if (amount <= 0) continue;
 
     const { error: txError } = await supabaseAdmin
@@ -4607,6 +4566,7 @@ export async function settleOrdersAction(orderIds: string[]) {
       .from('wallets')
       .select('balance')
       .eq('id', order.wallet_id)
+      .eq('user_id', userId)
       .single();
 
     if (wallet) {
@@ -4614,7 +4574,8 @@ export async function settleOrdersAction(orderIds: string[]) {
       await supabaseAdmin
         .from('wallets')
         .update({ balance: encryptNumber(currentBalance + amount, dek) })
-        .eq('id', order.wallet_id);
+        .eq('id', order.wallet_id)
+        .eq('user_id', userId);
     }
 
     // Mark order as settled only AFTER transaction and balance update succeeded
@@ -4622,7 +4583,7 @@ export async function settleOrdersAction(orderIds: string[]) {
       is_settled: true,
       settled_at: now,
       status: 'settled',
-    }).eq('id', order.id);
+    }).eq('id', order.id).eq('user_id', userId);
 
     settledCount++;
   }
@@ -4664,6 +4625,9 @@ export async function submitKugaruInvoice(data: {
   noLegalProceedings: boolean;
   acceptTerms: boolean;
 }): Promise<{ ok: boolean; invoiceId?: string; error?: string }> {
+  const userId = await getUserId();
+  if (!userId) return { ok: false, error: 'Sesja wygasła — zaloguj się ponownie' };
+
   const partnerId = process.env.KUGARU_PARTNER_ID;
   const partnerSecret = process.env.KUGARU_PARTNER_SECRET;
 

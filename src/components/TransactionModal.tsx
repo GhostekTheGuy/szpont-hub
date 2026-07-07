@@ -6,6 +6,7 @@ import { useFinanceStore, Transaction } from '@/hooks/useFinanceStore';
 import { addTransactionAction, editTransactionAction, addTransferAction } from '@/app/actions';
 import type { Currency } from '@/lib/exchange-rates';
 import { useToast } from '@/components/Toast';
+import { useEscapeToClose } from '@/hooks/useModalDismiss';
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { Calendar } from '@/components/ui/calendar';
@@ -26,6 +27,7 @@ interface TransactionModalProps {
 export function TransactionModal({ isOpen, onClose, editingTransaction, defaultType, onDelete }: TransactionModalProps) {
   const { toast, confirm } = useToast();
   const wallets = useFinanceStore(s => s.wallets);
+  useEscapeToClose(isOpen, onClose);
 
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('');
@@ -89,6 +91,14 @@ export function TransactionModal({ isOpen, onClose, editingTransaction, defaultT
       setErrors(validationErrors);
       return;
     }
+    // Edycja transferu przez ten formularz utworzyłaby drugi transfer (brak akcji
+    // aktualizującej obie nogi) — dublując przesunięcie sald. Do czasu wsparcia
+    // edycji transferów kierujemy użytkownika na usuń-i-utwórz-ponownie.
+    if (editingTransaction && type === 'transfer') {
+      toast('Transferu nie można edytować — usuń go i utwórz ponownie', 'info');
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -139,19 +149,24 @@ export function TransactionModal({ isOpen, onClose, editingTransaction, defaultT
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
+          onClick={() => { if (!loading) onClose(); }}
         >
           <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-label={editingTransaction ? 'Edytuj transakcję' : 'Nowa transakcja'}
             className="bg-card border border-border rounded-xl p-6 w-full max-w-md shadow-xl"
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
             transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+            onClick={(e) => e.stopPropagation()}
           >
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-bold text-card-foreground">
             {editingTransaction ? 'Edytuj Transakcję' : 'Nowa Transakcja'}
           </h2>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors" disabled={loading}>
+          <button onClick={onClose} aria-label="Zamknij" className="text-muted-foreground hover:text-foreground transition-colors" disabled={loading}>
             <X className="w-5 h-5" />
           </button>
         </div>
