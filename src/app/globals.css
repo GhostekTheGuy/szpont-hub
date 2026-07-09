@@ -144,6 +144,75 @@ html {
   scroll-behavior: smooth;
 }
 
+/* Typografia treści artykułów /poradniki (renderowanych z HTML). */
+.article-prose {
+  color: var(--foreground);
+  font-size: 1.02rem;
+  line-height: 1.75;
+}
+.article-prose > p { margin: 0 0 1.15rem; color: var(--muted-foreground); }
+.article-prose > p:last-child { margin-bottom: 0; }
+.article-prose h2 {
+  margin: 2.4rem 0 0.9rem;
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--foreground);
+  scroll-margin-top: 5rem;
+}
+.article-prose h3 {
+  margin: 1.8rem 0 0.7rem;
+  font-size: 1.18rem;
+  font-weight: 700;
+  color: var(--foreground);
+  scroll-margin-top: 5rem;
+}
+.article-prose ul,
+.article-prose ol {
+  margin: 0 0 1.15rem;
+  padding-left: 1.4rem;
+  color: var(--muted-foreground);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.article-prose ul { list-style: disc; }
+.article-prose ol { list-style: decimal; }
+.article-prose li { padding-left: 0.2rem; }
+.article-prose strong { color: var(--foreground); font-weight: 650; }
+.article-prose a { color: #a78bfa; text-decoration: underline; text-underline-offset: 2px; }
+.article-prose a:hover { color: #c4b5fd; }
+.article-prose blockquote {
+  margin: 1.4rem 0;
+  padding: 0.9rem 1.2rem;
+  border-left: 3px solid #8b5cf6;
+  background: color-mix(in srgb, #8b5cf6 8%, transparent);
+  border-radius: 0 0.6rem 0.6rem 0;
+  color: var(--foreground);
+  font-weight: 500;
+}
+.article-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.4rem 0;
+  font-size: 0.95rem;
+}
+.article-prose thead th {
+  text-align: left;
+  padding: 0.6rem 0.8rem;
+  border-bottom: 2px solid var(--border);
+  color: var(--foreground);
+  font-weight: 700;
+  background: color-mix(in srgb, var(--foreground) 4%, transparent);
+}
+.article-prose tbody td {
+  padding: 0.6rem 0.8rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted-foreground);
+  vertical-align: top;
+}
+.article-prose .table-wrap { overflow-x: auto; }
+
 /* Widoczny fokus klawiatury w całej aplikacji. Przyciski/inputy w dashboardzie
    sklejają klasy ręcznie i nie miały stanu :focus-visible — nawigacja Tabem była
    niewidoczna. Ten globalny styl daje spójny pierścień fokusu (tylko dla klawiatury,
