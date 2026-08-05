@@ -29,6 +29,8 @@ import a24 from './gotowka-czy-karta-kontrola-wydatkow';
 import a25 from './jak-zbudowac-nawyk-oszczedzania';
 import a26 from './rrso-jak-czytac-koszt-kredytu';
 import a27 from './ubezpieczenia-ktore-sa-potrzebne';
+import a28 from './zdolnosc-kredytowa-jak-obliczyc';
+import a29 from './ulgi-podatkowe-pit-jak-rozliczyc';
 
 import b1 from './jak-liczyc-stawke-godzinowa-freelancer';
 import b2 from './jak-wystawic-fakture-freelancer';
@@ -56,6 +58,7 @@ import b23 from './jak-planowac-podatki-freelancer';
 import b24 from './b2b-czy-umowa-zlecenie';
 import b25 from './jak-zorganizowac-finanse-freelancera';
 import b26 from './vat-dla-freelancera-kiedy-rejestracja';
+import b27 from './konto-firmowe-dla-freelancera';
 
 import c1 from './podatek-belki-jak-obliczyc';
 import c2 from './procent-skladany-jak-dziala';
@@ -83,6 +86,7 @@ import c23 from './zloto-jako-inwestycja';
 import c24 from './jak-zbudowac-pierwszy-portfel';
 import c25 from './fire-wczesna-wolnosc-finansowa';
 import c26 from './nieruchomosci-na-wynajem-jako-inwestycja';
+import c27 from './obligacje-korporacyjne-ryzyko';
 
 import d1 from './nawyki-finansowe-jak-budowac';
 import d2 from './planowanie-tygodnia-pracy';
@@ -110,12 +114,13 @@ import d23 from './zarzadzanie-energia-nie-czasem';
 import d24 from './jak-utrzymac-motywacje';
 import d25 from './rytm-tygodniowy-freelancera';
 import d26 from './wypalenie-zawodowe-jak-zapobiegac';
+import d27 from './metoda-eisenhowera-priorytety';
 
 const rawArticles: Article[] = [
-  a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24, a25, a26, a27,
-  b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15, b16, b17, b18, b19, b20, b21, b22, b23, b24, b25, b26,
-  c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, c22, c23, c24, c25, c26,
-  d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15, d16, d17, d18, d19, d20, d21, d22, d23, d24, d25, d26,
+  a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20, a21, a22, a23, a24, a25, a26, a27, a28, a29,
+  b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15, b16, b17, b18, b19, b20, b21, b22, b23, b24, b25, b26, b27,
+  c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, c22, c23, c24, c25, c26, c27,
+  d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15, d16, d17, d18, d19, d20, d21, d22, d23, d24, d25, d26, d27,
 ];
 
 /** Wszystkie artykuły, posortowane od najnowszych, a przy równej dacie — alfabetycznie. */
