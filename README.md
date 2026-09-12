@@ -1,4 +1,4 @@
-# Szpont Hub
+# Szpont Hub 
 
 Kompleksowa aplikacja do zarządzania finansami osobistymi, pracy i inwestycji z szyfrowaniem end-to-end.
 
