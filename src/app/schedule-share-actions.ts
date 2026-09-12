@@ -4,7 +4,7 @@ import crypto from 'crypto';
 import { nanoid } from 'nanoid';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getUser } from '@/lib/supabase/cached';
-import { getTransporter, EMAIL_FROM } from '@/lib/mailer';
+import { sendMail } from '@/lib/mailer';
 import { rateLimit } from '@/lib/rate-limit';
 import { SITE_URL } from '@/lib/site';
 import { revalidatePages, isValidISODate } from '@/lib/server-internals';
@@ -195,8 +195,7 @@ export async function sendScheduleInvite(rawEmail: string): Promise<{ ok: true }
   const link = `${SITE_URL}/calendar/invite/${token}`;
 
   try {
-    await getTransporter().sendMail({
-      from: EMAIL_FROM,
+    await sendMail({
       to: email,
       subject: `${inviterName} zaprasza Cię do wspólnego grafiku w Szpont Hub`,
       html: buildInviteEmail({ inviterName, inviterEmail: me.email, link, expiresAt }),
