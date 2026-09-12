@@ -46,10 +46,19 @@ export async function middleware(request: NextRequest) {
   // Nie chronimy API routes (mają własną autoryzację)
   const isApiRoute = request.nextUrl.pathname.startsWith('/api');
 
-  if (!user && isProtectedPath && !isApiRoute) {
+  // Po zalogowaniu wróć tam, gdzie użytkownik chciał wejść (np. link z zaproszenia
+  // /calendar/invite/<token>). Tylko ścieżki wewnętrzne — login sam jeszcze raz to waliduje.
+  const redirectToLogin = () => {
     const url = request.nextUrl.clone();
+    const next = request.nextUrl.pathname + request.nextUrl.search;
     url.pathname = '/login';
+    url.search = '';
+    if (next !== '/dashboard') url.searchParams.set('next', next);
     return NextResponse.redirect(url);
+  };
+
+  if (!user && isProtectedPath && !isApiRoute) {
+    return redirectToLogin();
   }
 
   // Sprawdź cookie szyfrowania na chronionych ścieżkach
@@ -57,9 +66,7 @@ export async function middleware(request: NextRequest) {
     const hasEncryptionCookie = request.cookies.has('encryption_dek');
     if (!hasEncryptionCookie) {
       // Sesja Supabase aktywna, ale cookie szyfrowania wygasło
-      const url = request.nextUrl.clone();
-      url.pathname = '/login';
-      return NextResponse.redirect(url);
+      return redirectToLogin();
     }
   }
 

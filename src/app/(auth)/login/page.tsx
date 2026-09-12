@@ -15,6 +15,9 @@ function AuthPageContent() {
   const searchParams = useSearchParams();
   const initialMode = searchParams.get('mode') === 'register' ? 'register' : 'login';
   const planIntent = searchParams.get('plan');
+  // Cel po zalogowaniu — wyłącznie ścieżki wewnętrzne (ochrona przed open redirect).
+  const rawNext = searchParams.get('next');
+  const nextPath = rawNext && rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : null;
 
   const [mode, setMode] = useState<Mode>(initialMode);
   const [loginData, setLoginData] = useState({ email: '', password: '' });
@@ -68,7 +71,7 @@ function AuthPageContent() {
       } else {
         await initEncryptionSession(loginData.password);
         setTransitioning(true);
-        const redirectUrl = planIntent === 'pro' ? '/dashboard?checkout=pro' : '/dashboard';
+        const redirectUrl = planIntent === 'pro' ? '/dashboard?checkout=pro' : (nextPath ?? '/dashboard');
         setTimeout(() => {
           router.push(redirectUrl);
           router.refresh();
