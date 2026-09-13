@@ -228,22 +228,31 @@ export function PartnerWeekView({ partnerId, partnerName }: Props) {
                     />
                   ))}
 
-                  {partnerFrags.map((f, idx) => (
-                    <div
-                      key={`p${f.block.id}_${idx}`}
-                      className={`absolute left-1 right-1 rounded-md px-1.5 py-0.5 text-[10px] leading-tight overflow-hidden ${
-                        f.block.event_type === 'work'
-                          ? 'bg-primary/80 text-primary-foreground'
-                          : 'bg-muted-foreground/50 text-background'
-                      }`}
-                      style={{ top: toTop(f.startMin), height: Math.max(14, toTop(f.endMin) - toTop(f.startMin) - 2) }}
-                      title={`${f.block.event_type === 'work' ? 'Praca' : 'Prywatne'} ${formatMinutes(f.startMin)}–${formatMinutes(f.endMin)}`}
-                    >
-                      {f.endMin - f.startMin >= 40 && (
-                        <span className="font-medium">{formatMinutes(f.startMin)}–{formatMinutes(f.endMin)}</span>
-                      )}
-                    </div>
-                  ))}
+                  {partnerFrags.map((f, idx) => {
+                    const kindLabel = f.block.event_type === 'work' ? 'Praca' : 'Prywatne';
+                    const timeLabel = `${formatMinutes(f.startMin)}–${formatMinutes(f.endMin)}`;
+                    const title = f.block.title;
+                    const dur = f.endMin - f.startMin;
+                    return (
+                      <div
+                        key={`p${f.block.id}_${idx}`}
+                        className={`absolute left-1 right-1 rounded-md px-1.5 py-0.5 text-[10px] leading-tight overflow-hidden ${
+                          f.block.event_type === 'work'
+                            ? 'bg-primary/80 text-primary-foreground'
+                            : 'bg-muted-foreground/50 text-background'
+                        }`}
+                        style={{ top: toTop(f.startMin), height: Math.max(14, toTop(f.endMin) - toTop(f.startMin) - 2) }}
+                        title={title ? `${title} · ${kindLabel} ${timeLabel}` : `${kindLabel} ${timeLabel}`}
+                      >
+                        {title && dur >= 30 && (
+                          <div className="font-semibold truncate">{title}</div>
+                        )}
+                        {dur >= 40 && (
+                          <span className={title ? 'opacity-80' : 'font-medium'}>{timeLabel}</span>
+                        )}
+                      </div>
+                    );
+                  })}
 
                   {mineFrags.map((f, idx) => (
                     <div

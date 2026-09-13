@@ -7,12 +7,14 @@
 
 export type BusyType = 'work' | 'personal';
 
-/** Minimalna informacja, jaką widzi druga strona: tylko kiedy i jaki typ zajętości. */
+/** Informacja, jaką widzi druga strona: kiedy, jaki typ zajętości i — opcjonalnie —
+ *  jawny tytuł (tylko gdy właściciel udostępnia szczegóły grafiku). */
 export interface BusyBlock {
   id: string;
   start_time: string;
   end_time: string;
   event_type: BusyType;
+  title?: string;
 }
 
 export interface FreeWindow {

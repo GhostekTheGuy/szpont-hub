@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { useTheme } from 'next-themes';
 import {
@@ -12,11 +12,12 @@ import {
   LogOut,
   Camera,
   User,
+  Users,
   Crown,
   ExternalLink,
   GraduationCap,
 } from 'lucide-react';
-import { signOutAction, resetPasswordAction, setBalanceMasked, setOnboardingDone, setPreferredCurrency } from '@/app/actions';
+import { signOutAction, resetPasswordAction, setBalanceMasked, setOnboardingDone, setPreferredCurrency, getShareEventTitles, setShareEventTitles } from '@/app/actions';
 import { useFinanceStore } from '@/hooks/useFinanceStore';
 import { useToast } from '@/components/Toast';
 import type { Currency } from '@/lib/exchange-rates';
@@ -48,7 +49,31 @@ export function UserPanel({ userName, userEmail, avatarUrl, subscription }: User
   const [currentAvatar, setCurrentAvatar] = useState(avatarUrl);
   const [portalLoading, setPortalLoading] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [shareTitles, setShareTitles] = useState(false);
+  const [shareTitlesPending, setShareTitlesPending] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Stan przełącznika „pokazuj ekipie tytuły" wczytujemy z serwera przy otwarciu panelu.
+  useEffect(() => {
+    getShareEventTitles().then(setShareTitles).catch(console.error);
+  }, []);
+
+  const handleToggleShareTitles = async () => {
+    if (shareTitlesPending) return;
+    const next = !shareTitles;
+    setShareTitlesPending(true);
+    setShareTitles(next); // optymistycznie
+    try {
+      await setShareEventTitles(next);
+      toast(next ? 'Ekipa widzi teraz tytuły Twoich wydarzeń' : 'Ukryto tytuły — ekipa widzi tylko zajętość', 'success');
+    } catch (e) {
+      setShareTitles(!next); // cofnij przy błędzie
+      toast('Nie udało się zmienić ustawienia', 'error');
+      console.error(e);
+    } finally {
+      setShareTitlesPending(false);
+    }
+  };
 
   const isPro = subscription?.status === 'active' || subscription?.status === 'trialing';
 
@@ -224,6 +249,27 @@ export function UserPanel({ userName, userEmail, avatarUrl, subscription }: User
               <div
                 className={`w-10 h-6 rounded-full transition-colors flex items-center px-0.5 ${
                   balanceMasked ? 'bg-primary justify-end' : 'bg-muted justify-start'
+                }`}
+              >
+                <div className="w-5 h-5 rounded-full bg-white shadow-sm" />
+              </div>
+            </button>
+
+            <button
+              onClick={handleToggleShareTitles}
+              disabled={shareTitlesPending}
+              className="flex items-center justify-between w-full px-3 py-3 rounded-lg hover:bg-accent transition-colors disabled:opacity-60"
+            >
+              <span className="flex items-center gap-3 text-left">
+                <Users className="w-5 h-5 shrink-0" />
+                <span className="flex flex-col">
+                  <span>Pokazuj ekipie tytuły wydarzeń</span>
+                  <span className="text-xs text-muted-foreground">Partnerzy zobaczą, co robisz — nie tylko że jesteś zajęty. Stawki i kwoty zostają ukryte.</span>
+                </span>
+              </span>
+              <div
+                className={`w-10 h-6 rounded-full transition-colors flex items-center px-0.5 shrink-0 ${
+                  shareTitles ? 'bg-primary justify-end' : 'bg-muted justify-start'
                 }`}
               >
                 <div className="w-5 h-5 rounded-full bg-white shadow-sm" />

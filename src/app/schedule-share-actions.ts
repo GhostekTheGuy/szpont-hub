@@ -378,12 +378,15 @@ export async function removeSchedulePartner(partnerId: string) {
 interface BusyRow extends RawCalendarEvent {
   event_type: string | null;
   google_event_id: string | null;
+  shared_title: string | null;
 }
 
-// Tylko kolumny czasu i typu — bez title/hourly_rate/wallet_id.
-const BUSY_COLUMNS = 'id, start_time, end_time, is_recurring, recurrence_rule, is_settled, is_confirmed, event_type, google_event_id';
+// Kolumny czasu i typu + jawny tytuł (shared_title). Zaszyfrowanego title, hourly_rate
+// ani wallet_id NIE pobieramy — pozostają prywatne.
+const BUSY_COLUMNS = 'id, start_time, end_time, is_recurring, recurrence_rule, is_settled, is_confirmed, event_type, google_event_id, shared_title';
 
-async function loadBusyBlocks(userId: string, rangeStart: string, rangeEnd: string): Promise<BusyBlock[]> {
+// includeTitle: dołącz jawny tytuł do bloków (tylko gdy właściciel udostępnia szczegóły).
+async function loadBusyBlocks(userId: string, rangeStart: string, rangeEnd: string, includeTitle: boolean): Promise<BusyBlock[]> {
   const [{ data: events }, { data: recurring }] = await Promise.all([
     supabaseAdmin
       .from('calendar_events')
@@ -409,6 +412,7 @@ async function loadBusyBlocks(userId: string, rangeStart: string, rangeEnd: stri
       start_time: e.start_time,
       end_time: e.end_time,
       event_type: (e.event_type || (e.google_event_id ? 'personal' : 'work')) as BusyType,
+      ...(includeTitle && e.shared_title ? { title: e.shared_title } : {}),
     }));
 }
 
@@ -424,9 +428,17 @@ export async function getSharedWeek(partnerId: string, rangeStart: string, range
   const share = await findShare(me.id, partnerId);
   if (!share) throw new Error('Brak dostępu do grafiku tego użytkownika');
 
+  // Tytuły partnera pokazujemy tylko, gdy TEN partner włączył udostępnianie szczegółów.
+  const { data: partnerPref } = await supabaseAdmin
+    .from('users')
+    .select('share_event_titles')
+    .eq('id', partnerId)
+    .maybeSingle();
+  const partnerSharesTitles = partnerPref?.share_event_titles ?? false;
+
   const [partner, mine] = await Promise.all([
-    loadBusyBlocks(partnerId, rangeStart, rangeEnd),
-    loadBusyBlocks(me.id, rangeStart, rangeEnd),
+    loadBusyBlocks(partnerId, rangeStart, rangeEnd, partnerSharesTitles),
+    loadBusyBlocks(me.id, rangeStart, rangeEnd, false),
   ]);
   return { partner, mine };
 }

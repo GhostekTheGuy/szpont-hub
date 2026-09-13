@@ -1060,6 +1060,63 @@ export async function getUserPreferences() {
   };
 }
 
+/** Czy właściciel udostępnia ekipie tytuły wydarzeń. Wewnętrzny helper (bez własnego getUserId). */
+async function getShareTitlesFlag(userId: string): Promise<boolean> {
+  const { data } = await supabaseAdmin
+    .from('users')
+    .select('share_event_titles')
+    .eq('id', userId)
+    .single();
+  return data?.share_event_titles ?? false;
+}
+
+export async function getShareEventTitles(): Promise<boolean> {
+  const userId = await getUserId();
+  if (!userId) return false;
+  return getShareTitlesFlag(userId);
+}
+
+/**
+ * Włącza/wyłącza udostępnianie ekipie tytułów wydarzeń.
+ * Przy włączeniu odszyfrowuje tytuły istniejących wydarzeń DEK-iem właściciela (z sesji)
+ * i zapisuje je jawnie w shared_title (backfill). Przy wyłączeniu czyści shared_title —
+ * bez udostępniania nie trzymamy jawnego tekstu w bazie.
+ */
+export async function setShareEventTitles(enabled: boolean) {
+  const userId = await getUserId();
+  if (!userId) throw new Error('Unauthorized');
+
+  await supabaseAdmin
+    .from('users')
+    .update({ share_event_titles: enabled })
+    .eq('id', userId);
+
+  if (enabled) {
+    const dek = await getDEK();
+    const { data: events } = await supabaseAdmin
+      .from('calendar_events')
+      .select('id, title')
+      .eq('user_id', userId);
+    // Backfill per wydarzenie — jednorazowa operacja przy włączaniu przełącznika.
+    await Promise.all(
+      (events || []).map(e =>
+        supabaseAdmin
+          .from('calendar_events')
+          .update({ shared_title: decryptString(e.title, dek) || '' })
+          .eq('id', e.id)
+          .eq('user_id', userId),
+      ),
+    );
+  } else {
+    await supabaseAdmin
+      .from('calendar_events')
+      .update({ shared_title: null })
+      .eq('user_id', userId);
+  }
+
+  revalidatePages('calendar');
+}
+
 export async function getBalanceMasked(): Promise<boolean> {
   const userId = await getUserId();
   if (!userId) return false;
@@ -1243,6 +1300,7 @@ export async function addCalendarEvent(data: {
   await assertOwnsWalletAndOrder(userId, isPersonalEvent ? null : data.wallet_id, data.order_id);
 
   const dek = await getDEK();
+  const shareTitle = await getShareTitlesFlag(userId);
 
   const { error } = await supabaseAdmin
     .from('calendar_events')
@@ -1250,6 +1308,8 @@ export async function addCalendarEvent(data: {
       id: nanoid(),
       user_id: userId,
       title: encryptString(data.title, dek),
+      // Jawny tytuł tylko gdy właściciel udostępnia grafik ekipie — patrz setShareEventTitles.
+      shared_title: shareTitle ? data.title : null,
       wallet_id: isPersonalEvent ? null : data.wallet_id,
       hourly_rate: isPersonalEvent ? encryptNumber(0, dek) : encryptNumber(data.hourly_rate, dek),
       start_time: data.start_time,
@@ -1327,8 +1387,10 @@ export async function editCalendarEvent(id: string, data: {
     });
   }
 
+  const shareTitle = await getShareTitlesFlag(userId);
   const updateData: Record<string, unknown> = {
     title: encryptString(data.title, dek),
+    shared_title: shareTitle ? data.title : null,
     wallet_id: newWalletId,
     hourly_rate: encryptNumber(newHourlyRate, dek),
     start_time: data.start_time,
