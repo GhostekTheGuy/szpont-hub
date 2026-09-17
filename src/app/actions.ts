@@ -1102,7 +1102,9 @@ export async function setShareEventTitles(enabled: boolean) {
       (events || []).map(e =>
         supabaseAdmin
           .from('calendar_events')
-          .update({ shared_title: decryptString(e.title, dek) || '' })
+          // Fallback do surowego tytułu dla wydarzeń niezaszyfrowanych (np. z Google) —
+          // tak samo jak w getCalendarEvents.
+          .update({ shared_title: decryptString(e.title, dek) || e.title || '' })
           .eq('id', e.id)
           .eq('user_id', userId),
       ),

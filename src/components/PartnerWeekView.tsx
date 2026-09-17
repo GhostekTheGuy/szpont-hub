@@ -12,7 +12,7 @@ import {
   type BusyBlock,
 } from '@/lib/schedule-share-utils';
 
-const HOUR_HEIGHT = 40;
+const HOUR_HEIGHT = 54;
 const DEFAULT_START_HOUR = 6;
 const DEFAULT_END_HOUR = 23;
 const DAY_LABELS = ['pon.', 'wt.', 'śr.', 'czw.', 'pt.', 'sob.', 'niedz.'];
@@ -163,13 +163,13 @@ export function PartnerWeekView({ partnerId, partnerName }: Props) {
       </div>
 
       {/* Legenda */}
-      <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
-        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-primary/80" /> {partnerName} — praca</span>
-        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-muted-foreground/50" /> {partnerName} — prywatne</span>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
+        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-[3px] bg-violet-500" /> {partnerName} — praca</span>
+        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-[3px] bg-sky-500" /> {partnerName} — prywatne</span>
         {overlayMine && (
-          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm border-2 border-dashed border-amber-500/80 bg-amber-500/15" /> moje zajęte</span>
+          <span className="flex items-center gap-1.5"><span className="w-1.5 h-3 rounded-full bg-amber-500" /> moje zajęte</span>
         )}
-        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-emerald-500/20 border border-emerald-500/50" /> {overlayMine ? 'wspólne wolne' : 'wolne'} (≥ 1 h, 8–20)</span>
+        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-[3px] bg-emerald-500/25 border border-emerald-500/60" /> {overlayMine ? 'wspólne wolne' : 'wolne'} (≥ 1 h, 8–20)</span>
       </div>
 
       {error && (
@@ -229,36 +229,39 @@ export function PartnerWeekView({ partnerId, partnerName }: Props) {
                   ))}
 
                   {partnerFrags.map((f, idx) => {
-                    const kindLabel = f.block.event_type === 'work' ? 'Praca' : 'Prywatne';
+                    const isWork = f.block.event_type === 'work';
+                    const kindLabel = isWork ? 'Praca' : 'Prywatne';
                     const timeLabel = `${formatMinutes(f.startMin)}–${formatMinutes(f.endMin)}`;
                     const title = f.block.title;
                     const dur = f.endMin - f.startMin;
                     return (
                       <div
                         key={`p${f.block.id}_${idx}`}
-                        className={`absolute left-1 right-1 rounded-md px-1.5 py-0.5 text-[10px] leading-tight overflow-hidden ${
-                          f.block.event_type === 'work'
-                            ? 'bg-primary/80 text-primary-foreground'
-                            : 'bg-muted-foreground/50 text-background'
+                        className={`absolute left-2 right-1 rounded-lg px-1.5 py-1 overflow-hidden shadow-sm ring-1 ring-black/10 ${
+                          isWork ? 'bg-violet-500/90 text-white' : 'bg-sky-500/90 text-white'
                         }`}
-                        style={{ top: toTop(f.startMin), height: Math.max(14, toTop(f.endMin) - toTop(f.startMin) - 2) }}
+                        style={{ top: toTop(f.startMin), height: Math.max(16, toTop(f.endMin) - toTop(f.startMin) - 2) }}
                         title={title ? `${title} · ${kindLabel} ${timeLabel}` : `${kindLabel} ${timeLabel}`}
                       >
-                        {title && dur >= 30 && (
-                          <div className="font-semibold truncate">{title}</div>
-                        )}
-                        {dur >= 40 && (
-                          <span className={title ? 'opacity-80' : 'font-medium'}>{timeLabel}</span>
+                        {title && dur >= 30 ? (
+                          <div className="text-[11px] font-semibold leading-tight line-clamp-2 break-words">{title}</div>
+                        ) : (!title && dur >= 30 && (
+                          <div className="text-[11px] font-semibold leading-tight opacity-90">{kindLabel}</div>
+                        ))}
+                        {dur >= 45 && (
+                          <div className="text-[10px] leading-tight opacity-85 mt-0.5 tabular-nums">{timeLabel}</div>
                         )}
                       </div>
                     );
                   })}
 
+                  {/* „Moje zajęte" jako pasek przy lewej krawędzi — nie zasłania treści partnera. */}
                   {mineFrags.map((f, idx) => (
                     <div
                       key={`m${f.block.id}_${idx}`}
-                      className="absolute left-2 right-2 rounded-md border-2 border-dashed border-amber-500/80 bg-amber-500/15 pointer-events-none"
-                      style={{ top: toTop(f.startMin), height: Math.max(14, toTop(f.endMin) - toTop(f.startMin) - 2) }}
+                      className="absolute left-0 w-1.5 rounded-full bg-amber-500 pointer-events-none"
+                      style={{ top: toTop(f.startMin), height: Math.max(10, toTop(f.endMin) - toTop(f.startMin) - 2) }}
+                      title={`Ty: zajęte ${formatMinutes(f.startMin)}–${formatMinutes(f.endMin)}`}
                     />
                   ))}
                 </div>
